@@ -1,0 +1,44 @@
+version: "3.2"
+
+services:
+  node-bittensor:
+    container_name: node-bittensor
+    build:
+      context: ./bittensor
+      dockerfile: Dockerfile
+    # image: "bittensor/bittensor:latest"
+    ports:
+      - "8091:8091"
+    volumes:
+      - ./bittensor:/root/.bittensor
+
+    deploy:
+      resources:
+         reservations:
+           devices:
+           - driver: nvidia
+             count: 'all'
+             capabilities: [gpu]
+
+    # command: /bin/bash -c "
+    #   PYTHONPATH=/bittensor python3 /bittensor/miners/template_miner.py --subtensor.network nobunaga"
+    command: /bin/bash -c "tail -F anything"
+
+  node-subtensor:
+    container_name: node-subtensor
+    image: opentensorfdn/subtensor:latest
+    cpu_count: 2
+    mem_limit: 4000000000
+    memswap_limit: 8000000000
+    ports:
+      - "9944:9944"
+      - "30333:30333"
+      - "9933:9933"
+    expose:
+      - "9944"
+      - "30333"
+      - "9933"
+    environment:
+      - CARGO_HOME=/var/www/node-subtensor/.cargo
+    command: bash -c "/usr/local/bin/node-subtensor --base-path /root/.local/share/node-subtensor/ --chain /subtensor/specs/nakamotoSpecRaw.json --rpc-external --ws-external --rpc-cors all --no-mdns --ws-max-connections 10000 --in-peers 500 --out-peers 500"
+
