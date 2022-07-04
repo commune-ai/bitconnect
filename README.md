@@ -12,5 +12,6 @@ This is a combination of bittensor and subtensor for those wanting to run a loca
 ## Setup
 
 
-- Run ```make wholetensor```
+- Run ```make up```
+- To Enter Backend ``` make backend```
 
