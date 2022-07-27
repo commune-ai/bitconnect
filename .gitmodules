@@ -1,5 +1,5 @@
 [submodule "bittensor"]
-	path = bittensor
+	path = backend/bittensor
 	url = https://github.com/commune-ai/bittensor.git
 [submodule "subtensor"]
 	path = subtensor

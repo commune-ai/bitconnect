@@ -1,31 +1,32 @@
 version: "3.2"
 
 services:
-  node-bittensor:
-    container_name: node-bittensor
-    build:
-      context: ./bittensor
-      dockerfile: Dockerfile
-    # image: "bittensor/bittensor:latest"
-    ports:
-      - "8091:8091"
+  backend:
+    container_name: wholetensor-backend
+    build: ./backend
+    # entrypoint: ["gunicorn", "--worker-class", "eventlet", "-w", "1", "-b", "0.0.0.0:5000", "--preload", "server.app:app"]
+    
     volumes:
-      - ./bittensor:/root/.bittensor
+      - ./backend:/app
+    ports:
+      - 5000:5000
+      - 8501:8501
+      - 8080:8080
+    entrypoint: 
+      ["tail", "-f", "/dev/null"]
+    
 
-    deploy:
-      resources:
-         reservations:
-           devices:
-           - driver: nvidia
-             count: 'all'
-             capabilities: [gpu]
+  frontend:
+    container_name: wholetensor-frontend
+    build: ./frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
 
-    # command: /bin/bash -c "
-    #   PYTHONPATH=/bittensor python3 /bittensor/miners/template_miner.py --subtensor.network nobunaga"
-    command: /bin/bash -c "tail -F anything"
-
-  node-subtensor:
-    container_name: node-subtensor
+  subtensor:
+    container_name: wholetensor-subtensor
     image: opentensorfdn/subtensor:latest
     cpu_count: 2
     mem_limit: 4000000000
@@ -42,3 +43,26 @@ services:
       - CARGO_HOME=/var/www/node-subtensor/.cargo
     command: bash -c "/usr/local/bin/node-subtensor --base-path /root/.local/share/node-subtensor/ --chain /subtensor/specs/nakamotoSpecRaw.json --rpc-external --ws-external --rpc-cors all --no-mdns --ws-max-connections 10000 --in-peers 500 --out-peers 500"
 
+
+  # node-bittensor:
+  #   container_name: node-bittensor
+  #   build:
+  #     context: ./bittensor
+  #     dockerfile: Dockerfile
+  #   # image: "bittensor/bittensor:latest"
+  #   ports:
+  #     - "8091:8091"
+  #   volumes:
+  #     - ./bittensor:/root/.bittensor
+
+  #   deploy:
+  #     resources:
+  #        reservations:
+  #          devices:
+  #          - driver: nvidia
+  #            count: 'all'
+  #            capabilities: [gpu]
+
+    # command: /bin/bash -c "
+    #   PYTHONPATH=/bittensor python3 /bittensor/miners/template_miner.py --subtensor.network nobunaga"
+    # command: /bin/bash -c "tail -F anything"
