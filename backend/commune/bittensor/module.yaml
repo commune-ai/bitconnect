@@ -1,0 +1,26 @@
+module: 'bittensor.BitModule'
+# clients
+# client: get_cfg(client.manager)
+
+network: nakamoto
+block: null
+
+
+blocks_behind_sync_threshold: 100
+
+
+read: {}
+write:
+  cfg: 
+    client: mongo
+    params:
+      database: commune
+      collection: config
+      query:
+        module: local_copy(module)
+        network: {network}
+
+
+actor:
+  name: local_copy(module)
+  refresh: False

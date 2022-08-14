@@ -1,0 +1,13 @@
+module: client.mongo.manager.MongoManager
+client_kwargs:
+  port: !ENV ${MONGO_PORT}
+  host: !ENV ${MONGO_HOST}
+
+
+actor:
+  name: mongo
+  resources:
+    'num_cpus': 0.5
+
+  max_concurrency: 4
+  refresh: False

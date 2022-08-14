@@ -1,0 +1,15 @@
+module: client.ipfs.manager.IPFSManager
+ipfs_client:
+  addr: !ENV ${IPFSHTTP_ADDRESS}
+
+mongo_client: get_cfg(client.mongo.manager)
+collection: ipfs
+database: ipfs
+
+actor:
+  name: ipfs
+  resources:
+    'num_cpus': 0.5
+
+  max_concurrency: 4
+  refresh: False

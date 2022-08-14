@@ -1,0 +1,13 @@
+module: client.kafka.manager.PulsarManager
+
+ip: !ENV $PULSAR_ADDRESS}
+port: !ENV ${PULSAR_ADDRESS}
+topic: !ENV ${PULSAR_TOPIC}
+
+actor:
+  name: pulsar
+  resources:
+    'num_cpus': 0.5
+
+  max_concurrency: 4
+  refresh: False

@@ -1,0 +1,9 @@
+module: client.ray.queue.RayQueueServer
+
+actor:
+  name: queue_server
+  resources:
+    'num_cpus': 1.0
+  max_concurrency: 20
+  refresh: False
+  

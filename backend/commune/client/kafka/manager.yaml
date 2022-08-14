@@ -1,0 +1,14 @@
+module: client.kafka.manager.KafkaManager
+
+ip: !ENV ${KAFKA_ADDRESS}
+port: !ENV ${KAFKA_ADDRESS}
+topic: !ENV ${KAFKA_TOPIC}
+
+
+actor:
+  name: kafka
+  resources:
+    'num_cpus': 0.5
+
+  max_concurrency: 4
+  refresh: False

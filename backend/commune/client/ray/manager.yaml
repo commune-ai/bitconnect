@@ -1,0 +1,12 @@
+module: client.ray.manager.RayManager
+object: get_cfg(client.ray.object)
+queue: get_cfg(client.ray.queue)
+
+
+actor:
+  name: ray
+  resources:
+    'num_cpus': 0.5
+
+  max_concurrency: 4
+  refresh: True

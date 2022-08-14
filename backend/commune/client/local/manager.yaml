@@ -1,0 +1,11 @@
+
+module: client.local.manager.LocalManager
+pwd: !ENV ${PWD}
+
+actor:
+  name: local
+  resources:
+    'num_cpus': 0.5
+
+  max_concurrency: 4
+  refresh: False

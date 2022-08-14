@@ -1,0 +1,11 @@
+
+module: client.minio.create_bucket.BucketStarter
+client: get_cfg(client.manager)
+
+buckets:
+  - bucket_name: backend
+    refresh_bucket: False
+    verbose: True
+  - bucket_name: mlflow
+    refresh_bucket: False
+    verbose: True

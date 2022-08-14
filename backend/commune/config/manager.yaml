@@ -1,0 +1,5 @@
+
+module: config.manager.ConfigManager
+client: get_cfg(client.manager)
+actor:
+  name: local_copy(module)
