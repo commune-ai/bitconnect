@@ -73,12 +73,6 @@ class BitModule(BaseProcess):
     def subtensor(self, subtensor):
         self._subtensor = subtensor
 
-
-    @block.setter
-    def block(self, block):
-
-        self._block = block
-
     @property
     def network(self):
         return self._network
@@ -379,10 +373,13 @@ class BitModule(BaseProcess):
     def st_relationmap(self):
         with st.expander('Relation Map'):
             metric = st.selectbox('Select a Matric', ['weights', 'bonds'], 0)
-            z = self.graph_state[metric].tolist()
+            z = self.graph_state[metric]
+            # z[torch.nonzero(z==1)] = 0
+            cols =st.columns([1,5,1])
+
             fig = self.plot.imshow(z, text_auto=True, title=f'Relation Map of {metric.upper()}')
-            fig.update_layout(autosize=True, width=1000, height=1000)
-            st.write(fig)
+            fig.update_layout(autosize=True, width=800, height=800)
+            cols[1].write(fig)
     def st_distributions(self, df):
         plot_columns = [c for c in df.columns if c not in ['uid', 'active']]
 

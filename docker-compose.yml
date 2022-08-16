@@ -7,8 +7,8 @@ services:
     build: ./backend
     # entrypoint: ["gunicorn", "--worker-class", "eventlet", "-w", "1", "-b", "0.0.0.0:5000", "--preload", "server.app:app"]
     
-    volumes:
-      - ./backend:/app
+    environment:
+      - LOCAL_SUBTENSOR_HOST=subtensor
     ports:
       - 5000:5000
       - 8501:8501
