@@ -16,6 +16,27 @@ The main feature of this repo is the dashboard that can be used to better unders
 
 ## Setup
 
+1. Clone Repo and its Submodules
+
+```
+git clone https://github.com/commune-ai/wholetensor.git
+cd wholetensor
+git submodule update --init --recursive
+```
+
+2. Spinnup Docker Compose
+```
+make up
+```
+
+3. Run the Streamlit app
+```
+make app
+```
+
+
+## Commands
+
 - Run 
     
      ```make up```
