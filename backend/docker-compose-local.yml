@@ -1,0 +1,24 @@
+version: "3.2"
+
+services:
+  backend:
+    image: bittensor/backend
+    container_name: wholetensor-backend
+    build: ./
+    # entrypoint: ["gunicorn", "--worker-class", "eventlet", "-w", "1", "-b", "0.0.0.0:5000", "--preload", "server.app:app"]
+    
+    environment:
+      - LOCAL_SUBTENSOR_HOST=subtensor
+    ports:
+      - 5000:5000
+      - 8501-8506:8501-8506
+      - 8080:8080
+
+    volumes:
+      - ./bittensor/bittensor:./bittensor/bittensor
+      - ./backend/commune:/app/commune
+      - ./backend/.bittensor:/root/.bittensor
+
+    entrypoint: 
+      ["tail", "-f", "/dev/null"]
+  

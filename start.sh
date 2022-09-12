@@ -70,18 +70,15 @@ function check_max_map_count {
   fi
 }
 
-function clean_local_contracts {
-    rm -f "${OCEAN_ARTIFACTS_FOLDER}/ready"
-    rm -f "${OCEAN_ARTIFACTS_FOLDER}/*.json"
-}
-
 check_if_owned_by_root
 
 
 COMPOSE_FILES=""
-COMPOSE_FILES+=" -f ${DIR}/backend/docker-compose-local.yml"
-COMPOSE_FILES+=" -f ${DIR}/subtensor/docker-compose-local.yaml"
+COMPOSE_FILES+=" -f backend/docker-compose-local.yml"
+COMPOSE_FILES+=" -f subtensor/docker-compose-local.yml"
 
+
+printf "${COMPOSE_FILES}"
 
 FORCEPULL="true"
 
