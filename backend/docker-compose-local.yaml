@@ -1,0 +1,59 @@
+version: "3.2"
+
+services:
+  backend:
+    image: bittensor/backend
+    container_name: wholetensor-backend
+    build: ./backend
+    # entrypoint: ["gunicorn", "--worker-class", "eventlet", "-w", "1", "-b", "0.0.0.0:5000", "--preload", "server.app:app"]
+    
+    environment:
+      - LOCAL_SUBTENSOR_HOST=subtensor
+    ports:
+      - 5000:5000
+      - 8501:8501
+      - 8080:8080
+
+    volumes:
+      - ./bittensor/bittensor:./bittensor/bittensor
+      - ./backend/commune:/app/commune
+      - ./backend/.bittensor:/root/.bittensor
+
+    entrypoint: 
+      ["tail", "-f", "/dev/null"]
+    
+    
+  # subtensor:
+  #   container_name: wholetensor-subtensor
+  #   image: opentensorfdn/subtensor:latest
+  #   cpu_count: 2
+  #   mem_limit: 4000000000
+  #   memswap_limit: 8000000000
+  #   ports:
+  #     - "9944:9944"
+  #     - "30333:30333"
+  #     - "9933:9933"
+  #   expose:
+  #     - "9944"
+  #     - "30333"
+  #     - "9933"
+  #   environment:
+  #     - CARGO_HOME=/var/www/node-subtensor/.cargo
+  #   command: bash -c "/usr/local/bin/node-subtensor --base-path /root/.local/share/node-subtensor/ --chain /subtensor/specs/nakamotoSpecRaw.json --rpc-external --ws-external --rpc-cors all --no-mdns --ws-max-connections 10000 --in-peers 500 --out-peers 500"
+
+
+
+  s3:
+    image: minio/minio:RELEASE.2021-06-14T01-29-23Z
+    container_name: s3
+    restart: always
+    ports:
+      - 9000:9000
+    environment:
+      - MINIO_ROOT_USER=${AWS_ACCESS_KEY_ID}
+      - MINIO_ROOT_PASSWORD=${AWS_SECRET_ACCESS_KEY}
+    command:
+      server /data
+    volumes:
+      - ./dbdata/s3:/data
+  
