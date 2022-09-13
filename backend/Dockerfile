@@ -14,13 +14,12 @@ RUN apt-get install python3 python3-dev -y
 RUN python3 -m pip install --upgrade pip
 
 # add Bittensor code to docker image
-RUN mkdir /bittensor
-RUN mkdir /home/.bittensor
-COPY . /bittensor
 
-WORKDIR /bittensor
+WORKDIR /app
 RUN pip install --upgrade numpy pandas setuptools "tqdm>=4.27,<4.50.0" wheel
+COPY requirements.txt .
 RUN pip install -r requirements.txt
-RUN pip install .
+COPY ./bittensor /app/bittensor
+RUN pip install -e ./bittensor
 
 EXPOSE 8091

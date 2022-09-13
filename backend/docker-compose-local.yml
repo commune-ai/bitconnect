@@ -2,7 +2,7 @@ version: "3.2"
 
 services:
   backend:
-    image: bittensor/backend
+    image: commune/bittensor/backend
     container_name: wholetensor-backend
     build: ./
     # entrypoint: ["gunicorn", "--worker-class", "eventlet", "-w", "1", "-b", "0.0.0.0:5000", "--preload", "server.app:app"]
@@ -15,7 +15,7 @@ services:
       - 8080:8080
 
     volumes:
-      - ./bittensor/bittensor:./bittensor/bittensor
+      - ./bittensor/bittensor:/app/bittensor/bittensor
       - ./backend/commune:/app/commune
       - ./backend/.bittensor:/root/.bittensor
 

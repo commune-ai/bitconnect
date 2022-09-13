@@ -15,3 +15,6 @@ bash:
 
 kill_all:
 	docker kill $(docke ps -q)
+
+prune:
+	docker rm $(docker ps --filter status=exited -q)

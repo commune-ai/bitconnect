@@ -74,8 +74,6 @@ check_if_owned_by_root
 
 
 COMPOSE_FILES=""
-COMPOSE_FILES+=" -f backend/docker-compose-local.yml"
-COMPOSE_FILES+=" -f subtensor/docker-compose-local.yml"
 
 
 printf "${COMPOSE_FILES}"
@@ -89,7 +87,7 @@ while :; do
         # Cleaning switches
         #################################################
         --pull)
-        FORCEPULL="true"
+        FORCEPULL="false"
         ;;
         --purge)
             printf "$COMPOSE_FILES"
@@ -100,6 +98,19 @@ while :; do
             shift
             break
             ;;
+
+        --subtensor)
+        COMPOSE_FILES+=" -f subtensor/docker-compose-local.yml"
+
+        ;;
+
+        --backend)
+        COMPOSE_FILES+=" -f backend/docker-compose-local.yml"
+
+        ;;
+        --update)
+        FORCEPULL="true"
+        ;;
 
         --down)
             printf $COLOR_R'Doing a deep clean ...\n\n'$COLOR_RESET
@@ -131,8 +142,8 @@ while :; do
             break
             ;;
         *)
-            eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" build
-            eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" pull
+            [ ${FORCEPULL} = "true" ] && eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" build
+            [ ${FORCEPULL} = "true" ] && eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" pull
             eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME  "$COMPOSE_FILES" up --remove-orphans -d
             break
     esac
