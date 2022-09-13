@@ -108,6 +108,12 @@ while :; do
         COMPOSE_FILES+=" -f backend/docker-compose-local.yml"
 
         ;;
+
+        --all)
+        COMPOSE_FILES+=" -f backend/docker-compose-local.yml"
+        COMPOSE_FILES+=" -f subtensor/docker-compose-local.yml"
+
+        ;;
         --update)
         FORCEPULL="true"
         ;;
@@ -124,8 +130,8 @@ while :; do
             eval docker-compose --project-name=$PROJECT_NAME "$COMPOSE_FILES" down;
             docker network rm ${PROJECT_NAME}_default || true;
 
-            [ ${FORCEPULL} = "true" ] && eval docker-compose  --project-name=$PROJECT_NAME "$COMPOSE_FILES" pull
-            [ ${FORCEPULL} = "true" ] && eval docker-compose  --project-name=$PROJECT_NAME "$COMPOSE_FILES" build
+            # [ ${FORCEPULL} = "true" ] && eval docker-compose  --project-name=$PROJECT_NAME "$COMPOSE_FILES" pull
+            # [ ${FORCEPULL} = "true" ] && eval docker-compose  --project-name=$PROJECT_NAME "$COMPOSE_FILES" build
             
             eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" up --remove-orphans -d
            

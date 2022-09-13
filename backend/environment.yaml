@@ -1,4 +1,4 @@
-name: algocean
+name: bittensor
 channels:
   - pytorch
   - defaults

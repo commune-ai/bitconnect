@@ -1,11 +1,4 @@
-#/bin/bash
+ray start --head;
+# pip install https://github.com/opentensor/cubit/releases/download/v1.1.1/cubit-1.1.1-cp38-cp38-linux_x86_64.whl;
+tail -F anything;
 
-# pip install -e ./bittensor
-# pip install -e ./ipfsspec
-python3 commune/client/minio/create_bucket.py
-# brownie compile
-chmod +x ./scripts/*
-# brownie networks add Development dev cmd=ganache-cli host=http://ganache:8545
-ray start --head
-# start 
-uvicorn commune.api.graphql.main:app --reload --port 8000 --host 0.0.0.0 --app-dir=/app
