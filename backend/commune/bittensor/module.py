@@ -12,13 +12,13 @@ import bittensor
 import streamlit as st
 import plotly.express as px
 from commune.config import ConfigLoader
-from commune.utils.misc import  chunk, dict_put, round_sig
+from commune.utils import  chunk, dict_put, round_sig
 import ray
 import random
 import torch
 from copy import deepcopy
 # function to use requests.post to make an API call to the subgraph url
-from commune.process import BaseProcess
+from commune import BaseModule
 from tqdm import tqdm
 from plotly.subplots import make_subplots
 from commune.ray.utils import kill_actor, create_actor
@@ -29,26 +29,40 @@ import itertools
 from commune.streamlit import StreamlitPlotModule, row_column_bundles
 
 
-
-
-
-class BitModule(BaseProcess):
+class BitModule(BaseModule):
     sample_n = 400
     sample_mode = 'rank'
     sample_metric = 'ranks'
     sample_descending = True
+    default_network = 'nakamoto'
     
-    default_cfg_path=f"bittensor.module"
+    default_config_path=f"bittensor.module"
     force_sync = False
+    default_wallet_config = {'name': 'default', 'hotkey': 'default'}
     def __init__(self,
-                 cfg=None, sync=False, **kwargs):
-        BaseProcess.__init__(self, cfg) 
+                 config=None, sync=False, **kwargs):
+        BaseModule.__init__(self, config) 
         # self.sync_network(network=network, block=block)
-        self._network = cfg.get('network')
-        self._block = cfg.get('block')
+        self.network = config.get('network')
+        self.block = config.get('block')
         self.plot = StreamlitPlotModule()
-        self.sync()
+        self.cli = bittensor.cli()
+        self.get_wallet()
+        # self.sync()
 
+
+
+    def get_wallet(self, **kwargs):
+        wallet_kwargs = self.config.get('wallet', self.default_wallet_config)
+ 
+        for k in ['name', 'hotkey']:
+            kwargs[k] = kwargs.get(k,wallet_kwargs[k])
+            assert isinstance(kwargs[k], str), f'{kwargs[k]} is not a string'
+
+        st.write(kwargs)
+        self.wallet = bittensor.wallet(**kwargs)
+
+        return self.wallet
 
 
     @property
@@ -73,22 +87,37 @@ class BitModule(BaseProcess):
     def subtensor(self, subtensor):
         self._subtensor = subtensor
 
+    def list_wallets(self, return_type='all'):
+        wallet_path = self.wallet.config.wallet.path
+        if return_type in ['coldkey', 'cold']:
+            return self.cli._get_coldkey_wallets_for_path(path=wallet_path)
+        elif return_type in ['hot', 'hotkey', 'all']:
+            return self.cli._get_all_wallets_for_path(path=wallet_path)
+ 
+    @property
+    def wallets(self):
+        wallet_dict ={}
+
+        for w in self.list_wallets():
+            key = f'{w.name}.{w.hotkey_str}'
+            dict_put(wallet_dict, keys=key, value=w)
+        
+        return wallet_dict
+
+    def register(self, **kwargs):
+        return self.wallet.register(subtensor=self.subtensor, **kwargs)
+
     @property
     def network(self):
+        if not hasattr(self, '_network'):
+            self._network = self.config.get('network', self.default_network)
         return self._network
 
     @network.setter
     def network(self, network):
-        assert network in self.networks
-
-        if self._network == None:
-            self._network = network
-        elif network != self.network or network == self.network:
-            self._network = network
-
-        else:
-            raise NotImplemented
-            
+        assert network in self.networks, f'{network} is not in {self.networks}'
+        self._network = network
+        return self._network
 
     @property
     def current_block(self):
@@ -101,14 +130,24 @@ class BitModule(BaseProcess):
     def max_n(self):
         return self.subtensor.max_n
 
-    def sync(self, force_sync=False):
+
+
+    def sync(self, force_sync=False, network=None, block=None):
         self.force_sync = force_sync
         # Fetch data from URL here, and then clean it up.
-        self.get_subtensor()
+        if network == None:
+            network = self.network
+        else:
+            self.network = network
+
+        if block == None:
+            block = self.block
+        else:
+            self.block = block
+
+        self.get_subtensor(network=network)
         self.get_graph()
 
-    def switch_network(self, network:str):
-        self.network = network
 
     @property
     def graph_path(self):
@@ -167,8 +206,9 @@ class BitModule(BaseProcess):
             
         return sampled_graph_state
 
-    def sync_graph(self):
-        self.graph.sync()
+    def sync_graph(self,block=None):
+
+        self.graph.sync(block=block)
         # once the graph syncs, set the block
         self.block = self.graph.block.item()
         self.set_graph_state()
@@ -202,7 +242,7 @@ class BitModule(BaseProcess):
                 return torch.argsort(metric_tensor, descending=descending, dim=0).tolist()    
     @property
     def should_sync_graph(self):
-        return (self.blocks_behind > self.cfg['blocks_behind_sync_threshold']) or self.force_sync
+        return (self.blocks_behind > self.config['blocks_behind_sync_threshold']) or self.force_sync
 
     @property
     def blocks_behind(self):
@@ -218,13 +258,14 @@ class BitModule(BaseProcess):
             self.save_graph()
 
 
-    def get_subtensor(self, network='nakamoto', **kwargs):
+    def get_subtensor(self, network, **kwargs):
         '''
         The subtensor.network should likely be one of the following choices:
             -- local - (your locally running node)
             -- nobunaga - (staging)
             -- nakamoto - (main)
         '''
+        
         self.subtensor = bittensor.subtensor(network=network, **kwargs)
     
     '''
@@ -262,9 +303,7 @@ class BitModule(BaseProcess):
             submitted = st.form_submit_button("Sync")
 
             if submitted:
-                self.block = block
-                self.network = network
-                self.sync(force_sync=True)
+                self.sync(network=network, block=block,force_sync=True)
                 
         # ''')
 
@@ -273,7 +312,7 @@ class BitModule(BaseProcess):
         cols = st.columns(3)
         # self.block = st.sidebar.slider('Block', 0, )
         cols[0].metric("Synced Block", f'{self.block}', f'{-self.blocks_behind} Blocks Behind')
-        cols[1].metric("Network", 'nakamoto')
+        cols[1].metric("Network", self.network)
         cols[2].metric("Active Neurons ", f'{self.n}/{self.max_n}')
 
 
@@ -411,6 +450,8 @@ class BitModule(BaseProcess):
         self.st_main()
 
 
+
+
     def graph_df(self):
         df_dict= {
                 'uid': self.graph_state['uids'],
@@ -442,9 +483,23 @@ if __name__ == '__main__':
 
     st.set_page_config(layout="wide")
     
+    module = BitModule.deploy(actor=False)
+    # st.write(module.register())
+    module.sync()
+    endpoint_0 = module.graph.endpoints[0]
+    den = bittensor.dendrite(wallet = module.wallet)
+    representations, _, _ = den.forward_text (
+        endpoints = endpoint_0,
+        inputs = "Hello World"
+    )
 
-    BitModule.deploy(actor=False).st_run()
 
+
+    # st.write(dir(cli))
+
+    
+
+    
     import random
 
     

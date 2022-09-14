@@ -1,1 +1,1 @@
-from .manager import LocalManager
+from .module import LocalModule

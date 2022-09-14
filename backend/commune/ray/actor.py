@@ -1,123 +1,189 @@
 import ray
 from commune.config import ConfigLoader
-from commune.ray.utils import create_actor, actor_exists, kill_actor, custom_getattr
-from commune.utils.misc import dict_put, get_object, dict_get, get_module_file
+from commune.ray.utils import create_actor, actor_exists, kill_actor, custom_getattr, RayEnv
+from commune.utils import dict_put, get_object, dict_get, get_module_file, get_function_defaults, get_function_schema, is_class, Timer, get_functions
+import subprocess 
+import shlex
 import os
+import numpy as np
 import datetime
-from inspect import getfile
+import inspect
 from types import ModuleType
 from importlib import import_module
-class ActorBase: 
+class ActorModule: 
+    default_ray_env = {'address': 'auto', 'namespace': 'default'}
+    ray_context = None
     config_loader = ConfigLoader(load_config=False)
-    default_cfg_path = None
-    def __init__(self, cfg=None):
+    default_config_path = None
+    def __init__(self, config=None, override={}, **kwargs):
+        print(config, 'LOADED FAM') 
+        
 
-        self.cfg = self.resolve_config(cfg=cfg)
+        self.config = self.resolve_config(config=config)
+        self.override_config(override=override)
         self.start_timestamp = datetime.datetime.utcnow().timestamp()
+        
+    def resolve_config(self, config, override={}, local_var_dict={}, recursive=True):
+        if config == None:
+            config = getattr(self,'config',  None)
+        elif (type(config) in  [list, dict]): 
+            if len(config) == 0:
+                assert isinstance(self.default_config_path, str)
+                config = self.default_config_path
+        else:
+            raise NotImplementedError(config)
 
-    def resolve_config(self, cfg, override={}, local_var_dict={}, recursive=True):
-        if cfg == None:
-            cfg = getattr(self,'cfg',  None)
-        if cfg == None:
-            assert isinstance(self.default_cfg_path, str)
-            cfg = self.default_cfg_path
+        if config == None:
+            assert isinstance(self.default_config_path, str)
+            config = self.default_config_path
 
+        if override == None:
+            override = {}
 
-        cfg = self.load_config(cfg=cfg, 
+        config = self.load_config(config=config, 
                              override=override, 
                             local_var_dict=local_var_dict,
                             recursive=True)
 
-        return cfg
+
+        
+
+        return config
 
     @staticmethod
-    def load_config(cfg=None, override={}, local_var_dict={}, recursive=True):
+    def load_config(config=None, override={}, local_var_dict={}, recursive=True):
         """
-        cfg: 
+        config: 
             Option 1: dictionary config (passes dictionary) 
             Option 2: absolute string path pointing to config
         """
-        return ActorBase.config_loader.load(path=cfg, 
+        return ActorModule.config_loader.load(path=config, 
                                     local_var_dict=local_var_dict, 
                                      override=override,
                                      recursive=True)
 
+
     @classmethod
     def default_cfg(cls, override={}, local_var_dict={}):
 
-        return cls.config_loader.load(path=cls.default_cfg_path, 
+        return cls.config_loader.load(path=cls.default_config_path, 
                                     local_var_dict=local_var_dict, 
                                      override=override)
 
+    default_config = default_cfg
+    config_template = default_cfg
+    _config = default_cfg
+
     @staticmethod
-    def get_module(cfg, actor=False, override={}):
+    def get_module(config, actor=False, override={}):
         """
-        cfg: path to config or actual config
+        config: path to config or actual config
         client: client dictionary to avoid child processes from creating new clients
         """
-        if isinstance(cfg,type):
-            return cfg
-
         module_class = None
-        if isinstance(cfg, str):
+        # if this is a class return the class
+        if is_class(config):
+            module_class = config
+            return module_class
+
+
+        if isinstance(config, str):
             # check if object is a path to module, return None if it does not exist
-            module_class = ActorBase.get_object(key=cfg, handle_failure=True)
+            module_class = ActorModule.get_object(key=config)
 
 
         if isinstance(module_class, type):
             
-            cfg = module_class.default_cfg()
+            config = module_class.default_cfg()
        
         else:
 
-            cfg = ActorBase.load_config(cfg)
-            ActorBase.check_config(cfg)
-            module_class = ActorBase.get_object(cfg['module'])
+            config = ActorModule.load_config(config)
+            ActorModule.check_config(config)
+            module_class = ActorModule.get_object(config['module'])
 
-        return module_class.deploy(cfg=cfg, override=override, actor=actor)
-
-    @staticmethod
-    def check_config(cfg):
-        assert isinstance(cfg, dict)
-        assert 'module' in cfg
-
-
+        return module_class.deploy(config=config, override=override, actor=actor)
 
     @staticmethod
-    def get_object(key, prefix = 'commune', handle_failure= False):
+    def check_config(config):
+        assert isinstance(config, dict)
+        assert 'module' in config
 
-        return get_object(path=key, prefix=prefix, handle_failure=handle_failure)
+    @staticmethod
+    def get_object(path:str, prefix = 'commune'):
+        return get_object(path=path, prefix=prefix)
 
-
+    import_module_class = get_object
+    
     @staticmethod
     def import_module(key):
         return import_module(key)
 
+    @staticmethod
+    def import_object(key):
+        module_path = '.'.join(key.split('.')[:-1])
+        module = import_module(module_path)
+        object_name = key.split('.')[-1]
+        obj = getattr(module, object_name)
+        return obj
 
+    @staticmethod
+    def ray_initialized():
+        return ray.is_initialized()
 
-    @classmethod
-    def deploy(cls, cfg=None, actor=False , override={}, local_var_dict={}):
+    @classmethod 
+    def deploy(cls, config=None, actor=False , override={}, local_var_dict={}, **kwargs):
         """
-        deploys process as an actor or as a class given the config (cfg)
+        deploys process as an actor or as a class given the config (config)
         """
 
-        cfg = ActorBase.resolve_config(cls, cfg=cfg, local_var_dict=local_var_dict, override=override)
+
+        config = ActorModule.resolve_config(cls, config=config, local_var_dict=local_var_dict, override=override)
+        
+        if kwargs.get('ray') == False and actor==False:
+            pass
+        else:
+            ray_context =  cls.get_ray_context(init_kwargs=kwargs.get('ray', config.get('ray')))
 
         if actor:
-            cfg['actor'] = cfg.get('actor', {})
+            config['actor'] = config.get('actor', {})
             if isinstance(actor, dict):
-                cfg['actor'].update(actor)
+                config['actor'].update(actor)
             elif isinstance(actor, bool):
                 pass
             else:
-                raise Exception('Only pass in dict (actor args), or bool (uses cfg["actor"] as kwargs)')  
-            return cls.deploy_actor(cfg=cfg, **cfg['actor'])
+                raise Exception('Only pass in dict (actor args), or bool (uses config["actor"] as kwargs)')  
+            
+            return cls.deploy_actor(cls_kwargs=dict(config=config), **config['actor'])
         else:
-            return cls(cfg=cfg)
+            return cls(config=config)
 
+    @staticmethod
+    def get_ray_context(init_kwargs, reinit=True):
+        default_ray_env = {'address': 'auto', 'namespace': 'default'}
+
+        if init_kwargs == None:
+            init_kwargs = default_ray_env
+
+            
+        
+        if isinstance(init_kwargs, dict):
+
+            for k in ['address', 'namespace']:
+                default_value= default_ray_env.get(k)
+                init_kwargs[k] = init_kwargs.get(k,default_value)
+                assert isinstance(init_kwargs[k], str), f'{k} is not in args'
+            
+            if ActorModule.ray_initialized() and reinit == True:
+                ray.shutdown()
+            return ray.init(**init_kwargs)
+        else:
+            raise NotImplementedError(f'{init_kwargs} is not supported')
+    
     @classmethod
     def deploy_actor(cls,
-                        cfg,
+                        config=None,
+                        cls_kwargs={},
                         name='actor',
                         detached=True,
                         resources={'num_cpus': 1, 'num_gpus': 0.1},
@@ -125,9 +191,11 @@ class ActorBase:
                         refresh=False,
                         verbose = True, 
                         redundant=False):
+        if isinstance(config, dict):
+            cls_kwargs = {'config': config}
         return create_actor(cls=cls,
                         name=name,
-                        cls_kwargs={'cfg': cfg},
+                        cls_kwargs=cls_kwargs,
                         detached=detached,
                         resources=resources,
                         max_concurrency=max_concurrency,
@@ -140,14 +208,15 @@ class ActorBase:
         return self.getattr(key)
 
     def getattr(self, key):
-        return custom_getattr(obj=self, key=key)
+        return getattr(self, key)
 
     def down(self):
-        self.kill_actor(self.cfg['actor']['name'])
+        self.kill_actor(self.config['actor']['name'])
 
     @staticmethod
     def kill_actor(actor):
         kill_actor(actor)
+        return f'{actor} killed'
     
     @staticmethod
     def actor_exists(actor):
@@ -157,6 +226,10 @@ class ActorBase:
     def get_actor(actor_name):
         return ray.get_actor(actor_name)
 
+
+    @property
+    def ray_context(self):
+        return ray.runtime_context.get_runtime_context()
     @property
     def context(self):
         if self.actor_exists(self.actor_name):
@@ -164,7 +237,7 @@ class ActorBase:
 
     @property
     def actor_name(self):
-        return self.cfg['actor']['name']
+        return self.config['actor']['name']
     
 
     @property
@@ -175,13 +248,17 @@ class ActorBase:
 
     @property
     def module(self):
-        return self.cfg['module']
+        return self.config['module']
 
     @property
     def name(self):
-        return self.cfg.get('name', self.module)
+        return self.config.get('name', self.module)
 
     def mapattr(self, from_to_attr_dict={}):
+        '''
+        from_to_attr_dict: dict(from_key:str->to_key:str)
+
+        '''
         for from_key, to_key in from_to_attr_dict.items():
             self.copyattr(from_key=from_key, to_key=to_key)
 
@@ -192,16 +269,53 @@ class ActorBase:
         attr_obj = getattr(self, from_key)  if hasattr(self, from_key) else None
         setattr(self, to, attr_obj)
 
-    @classmethod
-    def functions(cls):
-        fn_list = []
-        for fn_name in dir(cls):
-            if not (fn_name.startswith('__') and fn_name.endswith('__')):
-                fn = getattr(cls, fn_name)
-                if callable(fn):
-                    fn_list.append(fn_name)
 
-        return fn_list
+    @staticmethod
+    def is_hidden_function(fn):
+        if isinstance(fn, str):
+            return fn.startswith('__') and fn.endswith('__')
+        else:
+            raise NotImplemented(f'{fn}')
+
+
+    @staticmethod
+    def get_functions(object):
+        functions = get_functions(object)
+        return functions
+
+    @classmethod
+    def functions(cls, obj=None, return_type='str', **kwargs):
+        if obj == None:
+            obj = cls
+        functions =  get_functions(obj=obj, **kwargs)
+        if return_type in ['str', 'string']:
+            return functions
+        
+        elif return_type in ['func', 'fn','functions']:
+            return [getattr(obj, f) for f in functions]
+        else:
+            raise NotImplementedError
+
+
+    @classmethod
+    def describe(cls, obj=None, streamlit=False, sidebar=True,**kwargs):
+        if obj == None:
+            obj = cls
+
+        assert is_class(obj)
+
+        fn_list = cls.functions(return_type='fn', obj=obj, **kwargs)
+        
+        fn_dict =  {f.__name__:f for f in fn_list}
+        if streamlit:
+            import streamlit as st
+            for k,v in fn_dict.items():
+                with (st.sidebar if sidebar else st).expander(k):
+                    st.write(k,v)
+        else:
+            return fn_dict
+        
+        
 
     @classmethod
     def hasfunc(cls, key):
@@ -226,17 +340,65 @@ class ActorBase:
         assert os.path.isfile(path), f'{path} is not a dictionary'
         return path
 
-    # @classmethod
-    # def get_default_cfg(cls): 
-    #     if cls.default_cfg_path == None:
-    #         cls_filepath = inspect.getfile(cls).replace('.py', '.yaml')
-    #         cls.default_cfg_path = cls_filepath
-    #         return cls.load_config(cfg=cls.default_cfg_path)
+    @classmethod
+    def parents(cls):
+        return get_parents(cls)
 
-    #     elif cls.default_cfg != None:
-    #         assert isinstance(cls.default_cfg, dict) 
-    #         assert len(cls.default_cfg)>0
-    #         return cls.load_config(cfg=cls.default_cfg)
+    @staticmethod
+    def timeit(fn, trials=1, time_type = 'seconds', timer_kwargs={} ,*args,**kwargs):
+        
+        elapsed_times = []
+        results = []
+        
+        for i in range(trials):
+            with Timer(**timer_kwargs) as t:
+                result = fn(*args, **kwargs)
+                results.append(result)
+                elapsed_times.append(t.elapsed_time)
+        return dict(mean=np.mean(elapsed_times), std=np.std(elapsed_times), trials=trials, results=[])
 
-    #     else:
-    #         raise Exception('Bro, there is no default config')
+    time = timeit
+    # timer
+    timer = Timer
+
+    @classmethod
+    def describe_module_schema(cls, obj=None, **kwargs):
+        if obj == None:
+            obj = cls
+        return get_module_function_schema(obj, **kwargs)
+
+    def override_config(self,override:dict={}):
+        if override == None:
+            override = {}
+        assert isinstance(override, dict), type(override)
+        for k,v in override.items():
+            dict_put(self.config, k, v)
+    
+    
+    @staticmethod
+    def import_object(path):
+        module = '.'.join(path.split('.')[:-1])
+        object_name = path.split('.')[-1]
+        return getattr(import_module(module), object_name)
+
+    @classmethod
+    def module_path(cls, include_root=True):
+        path =  os.path.dirname(cls.__file__).replace(os.getenv('PWD')+'/', '')
+        if include_root == False:
+            path = '/'.join(path.split('/')[1:])
+        return path
+
+    @staticmethod
+    def load_object(module:str, __dict__:dict, **kwargs):
+        kwargs = kwargs.get('__dict__', kwargs.get('kwargs', {}))
+        return ActorModule.import_object(module)(**kwargs)
+
+
+    @property
+    def run_command(command:str):
+
+        process = subprocess.run(shlex.split(command), 
+                            stdout=subprocess.PIPE, 
+                            universal_newlines=True)
+        
+        return process

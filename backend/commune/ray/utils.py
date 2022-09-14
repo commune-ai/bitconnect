@@ -120,4 +120,85 @@ def custom_getattr(obj, key):
     if len(rest_of_keys_path)>0:
         new_obj = custom_getattr(obj=new_obj,key=rest_of_keys_path)
 
-    return new_obj
+    return new_ob
+    
+
+
+class RayEnv:
+    supported_modes = ['second', 'timestamp']
+    start_time = None
+    
+
+
+    def __init__(self, *args, **kwargs):
+
+
+        self.ray_init_kwargs = kwargs
+        self.ray_init_args = args
+        self.ray_init_kwargs
+        kwargs.update(locals())
+        kwargs.pop('kwargs')
+        self.__dict__.update(kwargs)
+        self.ray_context = None
+ 
+
+    @property
+    def is_initialized(self):
+        return bool(ray.is_initialized())
+
+
+    def check_ray_init_kwargs(self):
+        assert isinstance(kwargs, dict)
+        kwargs =  self.ray_init_kwargs
+
+        default_key2value = {
+            'namespace': 'default'
+        }
+        default_key2type = {
+            'address': str,
+            'namespace': str
+        }
+        for k, t in default_key2type.items():
+            kwargs[k] = kwargs.get(k, default_key2value.get(k))
+            assert kwargs.get(k) != None, f"{k} should be not null {kwargs}"
+            assert isinstance(kwargs[k], t), f"{k} should be {t}"
+        
+        self.ray_init_kwargs = kwargs
+
+
+        return self.ray_init_kwargs
+
+
+
+
+
+
+    @property
+    def enter_context_gate(self):
+        # if the context
+        if self.ray_init_args == None or self.ray_init_args == False:
+            return False
+        elif len(self.ray_init_kwargs) == 0:
+            return False
+        else:
+            self.check_ray_init_kwargs()
+            return True
+
+    def __enter__(self):
+        if self.enter_context_gate:
+            if self.is_initalized:
+                raise Exception('The context is already initialized')
+            else:
+                self.ray_context = ray.init(**self.ray_init_args,**self.ray_init_kwargs)
+        else:
+            self.ray_context =  None
+
+
+        return self.ray_context
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        if self.ray_context != None :
+            ray.shutdown()
+        else:
+            pass
+

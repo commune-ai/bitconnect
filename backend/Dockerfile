@@ -1,24 +1,21 @@
-FROM nvidia/cuda:11.2.1-base
+# syntax=docker/dockerfile:1
+FROM opentensorfdn/bittensor:3.3.3-torch1.12.0-cuda11.3-pm2
+# Install cubit
 
-ARG DEBIAN_FRONTEND=noninteractive
-#nvidia key migration
-RUN apt-key del 7fa2af80
-RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
-RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu2004/x86_64/7fa2af80.pub
+# Install cubit
+COPY ./cubit /cubit
 
-RUN apt-get update && apt-get install --no-install-recommends --no-install-suggests -y apt-utils curl git cmake build-essential unzip python3-pip  wget iproute2 software-properties-common
+RUN cd /cubit && python3 -m pip install -r requirements.dev.txt
+RUN cd /cubit && python3 setup.py build_ext --inplace
 
-RUN add-apt-repository ppa:deadsnakes/ppa
-RUN apt-get update
-RUN apt-get install python3 python3-dev -y
-RUN python3 -m pip install --upgrade pip
+ENV PYTHONPATH "${PYTHONPATH}:/cubit"
 
-# add Bittensor code to docker image
-
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+WORKDIR app
 COPY ./bittensor /app/bittensor
-RUN pip install -e ./bittensor
+RUN python3 -m pip install -e /app/bittensor
 
-EXPOSE 8091
+RUN python3 -m pip install -U "ray[default]"
+RUN python3 -m pip install -U streamlit
+RUN python3 -m pip install -U gradio
+RUN python3 -m pip install -U plotly
+COPY ./scripts .

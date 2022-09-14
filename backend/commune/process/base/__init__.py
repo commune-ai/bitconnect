@@ -1,1 +1,1 @@
-from .module import BaseProcess
+from .module import BaseModule

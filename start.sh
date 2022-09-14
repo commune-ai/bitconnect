@@ -105,7 +105,7 @@ while :; do
         ;;
 
         --backend)
-        COMPOSE_FILES+=" -f backend/docker-compose-local.yml"
+        COMPOSE_FILES+=" -f backend/docker-compose.yml"
 
         ;;
 

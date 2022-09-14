@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
-
-# git submodule --init --recursive
-
-# cd subtensor; git checkout master; cd ..
-# cd backend/bittensor; git checkout master; cd ../..
-
-# Add the package repositories
-distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
-curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
-
-sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
-sudo systemctl restart docker
+distribution=$(. /etc/os-release;echo $ID$VERSION_ID)       && curl -s -L https://nvidia.github.io/libnvidia-container/gpgkey | sudo apt-key add -       && curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+apt-get update
+apt-get install -y nvidia-docker2
+systemctl restart docker
+docker run --shm-size 2GB -it --gpus all docurdt/heal

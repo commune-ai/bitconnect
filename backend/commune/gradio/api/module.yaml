@@ -1,0 +1,8 @@
+module: GradioModule
+name: GradioModule
+
+client: {}
+
+num_ports: 10
+port_range: [7865, 7870]
+host: '0.0.0.0'

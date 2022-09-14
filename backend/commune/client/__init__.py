@@ -1,2 +1,2 @@
 
-from commune.client.manager import ClientManager
+from .module import ClientModule

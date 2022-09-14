@@ -1,1 +1,1 @@
-from .manager import IPFSManager
+from .module import IPFSModule

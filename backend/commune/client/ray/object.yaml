@@ -1,9 +1,0 @@
-module: client.ray.object.RayObjectServer
-
-actor:
-  name: object_server
-  resources:
-    'num_cpus': 1.0
-
-  max_concurrency: 4
-  refresh: False

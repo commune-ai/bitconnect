@@ -1,1 +1,1 @@
-from .manager import GraphQLManager
+from .module import GraphQLModule

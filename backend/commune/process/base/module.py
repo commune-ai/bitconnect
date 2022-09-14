@@ -12,13 +12,13 @@ from commune.config import ConfigLoader
 from commune.client.manager import ClientManager
 from commune.config import ConfigLoader
 from commune.ray import ActorBase
-from commune.utils.misc import dict_get, dict_put, get_object, dict_has
+from commune.utils import dict_get, dict_put, get_object, dict_has
 # function to use requests.post to make an API call to the subgraph url
 from commune.ray.utils import create_actor
 
 
 
-class BaseProcess(ActorBase):
+class BaseModule(ActorBase):
     """
     Manages loading and processing of data
 
@@ -26,9 +26,9 @@ class BaseProcess(ActorBase):
     base: the timeframe we consider buys on
     higher_tfs: all the higher timeframes we will use
     """
-    defualt_cfg_path = None
-    default_client_cfg_path = f'{os.environ["PWD"]}/commune/client/manager.yaml'
-    default_client_cfg = ActorBase.load_config(default_client_cfg_path)
+    defualt_config_path = None
+    default_client_config_path = f'{os.environ["PWD"]}/commune/client/manager.yaml'
+    default_client_config = ActorBase.load_config(default_client_config_path)
     module = {}
     loop_running = False
 
@@ -40,17 +40,17 @@ class BaseProcess(ActorBase):
     cache = {} # for caching things
     def __init__(
             self, 
-            cfg=None, 
+            config=None, 
             ):
         
-        ActorBase.__init__(self,cfg)
+        ActorBase.__init__(self,config)
         self.connect_clients()
         self.get_sub_modules()
 
 
         self.setup()
         self.resolve_queue_config()
-        self.template_cfg = deepcopy(self.cfg)
+        self.template_config = deepcopy(self.config)
         
     def setup(self):
         pass
@@ -58,9 +58,9 @@ class BaseProcess(ActorBase):
     def resolve_queue_config(self):
         for mode in ['in', 'out']:
             queue_keys = ['queue', mode]
-            queue_topic = f"{self.cfg['module']}.{mode}"
-            if not dict_has(self.cfg, keys=queue_keys):
-                dict_put(self.cfg, keys=queue_keys, value=queue_topic)
+            queue_topic = f"{self.config['module']}.{mode}"
+            if not dict_has(self.config, keys=queue_keys):
+                dict_put(self.config, keys=queue_keys, value=queue_topic)
 
     def override(self, override={}):
         """
@@ -84,59 +84,59 @@ class BaseProcess(ActorBase):
             del self.sub_modules[key]
             del self.__dict__[key]
 
-    def add_submodule(self, key:str, cfg:dict):
+    def add_submodule(self, key:str, config:dict):
         module_key = key
-        module_cfg = cfg
-        if isinstance(module_cfg, dict):
-            if 'cfg' in module_cfg:
+        module_config = config
+        if isinstance(module_config, dict):
+            if 'config' in module_config:
 
                 '''
-                cfg: config
+                config: config
                 override: config override
                 '''
                 # module key must be a string 
 
-                actor_kwargs = module_cfg.get('actor', {})
-                override_kwargs = module_cfg.get('override', {})
+                actor_kwargs = module_config.get('actor', {})
+                override_kwargs = module_config.get('override', {})
 
                 if not actor_kwargs:
                     override_kwargs['client'] = self.client_manager
 
 
-                module = self.get_module(cfg=module_cfg['cfg'], 
+                module = self.get_module(config=module_config['config'], 
                                         actor=actor_kwargs,
                                         override=override_kwargs)
 
-            elif  'module' in module_cfg:
+            elif  'module' in module_config:
                 '''
                 module: string of where module is located
 
                 '''
 
                 # module key must be a string 
-                assert isinstance(module_cfg['module'],str)
+                assert isinstance(module_config['module'],str)
 
-                actor_kwargs = module_cfg.get('actor', {})
-                override_kwargs = module_cfg.get('override', {})
+                actor_kwargs = module_config.get('actor', {})
+                override_kwargs = module_config.get('override', {})
 
                 if not actor_kwargs:
                     override_kwargs['client'] = self.client_manager
 
-                module = self.get_module(cfg=module_cfg['module'],
+                module = self.get_module(config=module_config['module'],
                                             actor= actor_kwargs, 
                                             override=override_kwargs)
 
-        elif isinstance(module_cfg, str):
-            if self.actor_exists(module_cfg):
+        elif isinstance(module_config, str):
+            if self.actor_exists(module_config):
 
                 '''
                 if the module is a ray actor, then get the handle 
                 note that you need to call remote() for every function
                 '''
-                module = self.get_actor(module_cfg)
+                module = self.get_actor(module_config)
             else:
                 
-                module = self.get_module(cfg=module_cfg, override ={'client': self.client_manager})   
+                module = self.get_module(config=module_config, override ={'client': self.client_manager})   
 
         # inserts the module based on the key of the module in sub_module config
         dict_put(input_dict=self.__dict__,
@@ -146,16 +146,16 @@ class BaseProcess(ActorBase):
 
     def get_sub_modules(self):
         self.sub_modules = {}
-        if 'sub_module' in self.cfg:
-            assert isinstance(self.cfg['sub_module'], dict)
-            for module_key,module_cfg in self.cfg['sub_module'].items():
-                self.add_submodule(module_key, module_cfg)
+        if 'sub_module' in self.config:
+            assert isinstance(self.config['sub_module'], dict)
+            for module_key,module_config in self.config['sub_module'].items():
+                self.add_submodule(module_key, module_config)
 
 
     def change_state(self):
         pass
 
-    def object_cfg_override(self):
+    def object_config_override(self):
         if self.object_dict.get('override'):
             self.override(self.object_dict['override'])
 
@@ -172,7 +172,7 @@ class BaseProcess(ActorBase):
 
         topic = dict_get(self.object_dict, queue_path)
         if not isinstance(topic, bool) and bool(topic):
-            topic = dict_get(self.cfg, keys=queue_path)
+            topic = dict_get(self.config, keys=queue_path)
         # if the topic is false
 
         if bool(topic):
@@ -188,8 +188,8 @@ class BaseProcess(ActorBase):
 
 
     def run_preprocess(self, **kwargs):
-        self.cfg = deepcopy(self.template_cfg)
-        self.object_cfg_override()
+        self.config = deepcopy(self.template_config)
+        self.object_config_override()
         self.change_state()
         self.read_state()
 
@@ -227,26 +227,26 @@ class BaseProcess(ActorBase):
         return self.last_run_delay > threshold
 
     @staticmethod
-    def default_clients(clients =[], cfg=None):
-        if cfg is None:
-            cfg =  BaseProcess.load_config(BaseProcess.default_client_cfg_path)
+    def default_clients(clients =[], config=None):
+        if config is None:
+            config =  BaseModule.load_config(BaseModule.default_client_config_path)
         if len(clients)>0 :
-            cfg['client'] = {client: cfg['client'][client] for client in clients}
+            config['client'] = {client: config['client'][client] for client in clients}
 
-        return BaseProcess.get_module(cfg=cfg).client
+        return BaseModule.get_module(config=config).client
 
 
     def connect_clients(self):
         
-        client_cfg = self.cfg.get('client', None)
-        if isinstance(client_cfg, dict):
-            self.client_manager = self.get_module(cfg=client_cfg)
+        client_config = self.config.get('client', None)
+        if isinstance(client_config, dict):
+            self.client_manager = self.get_module(config=client_config)
             self.client = self.client_manager.client
-        elif client_cfg == None:
+        elif client_config == None:
             self.client, self.client_manager = None, None
         else:
-            self.client_manager = self.cfg['client']
-            self.cfg['client'] = self.client_manager.cfg['client']
+            self.client_manager = self.config['client']
+            self.config['client'] = self.client_manager.config['client']
             self.client = self.client_manager.client
 
 
@@ -254,13 +254,13 @@ class BaseProcess(ActorBase):
         raise NotImplementedError("Implement this shizzz fam")
 
     def read_state(self):
-        if 'read' not in self.cfg or self.client == None:
+        if 'read' not in self.config or self.client == None:
             return
-        for object_key, store_dict in self.cfg['read'].items():
+        for object_key, store_dict in self.config['read'].items():
 
             # only avoid reading state if you are refreshing the object or have an ignore flag
 
-            if store_dict.get('refresh', self.cfg.get('refresh')):
+            if store_dict.get('refresh', self.config.get('refresh')):
                 continue
             elif store_dict.get('ignore'):
                 continue
@@ -280,11 +280,11 @@ class BaseProcess(ActorBase):
 
 
     def write_state(self):
-        if 'write' not in self.cfg or self.client == None:
+        if 'write' not in self.config or self.client == None:
             return
         
 
-        for object_key, store_dict in self.cfg['write'].items():
+        for object_key, store_dict in self.config['write'].items():
             if  store_dict.get('ignore'):
                 continue
 
@@ -309,12 +309,12 @@ class BaseProcess(ActorBase):
     def get_explain(self):
         if hasattr(self, 'explain'):
             self.explain_module.run(override={'module': self})
-            self.cfg['explain'] = explain_module.cfg
+            self.config['explain'] = explain_module.config
     
-        elif  'explain' in self.cfg:
-            explain_cfg = deepcopy(self.cfg['explain'])
-            if dict_has(explain_cfg, 'sub_module'):
-                del explain_cfg['sub_module']['process']
-            explain_module = self.get_module(explain_cfg)
+        elif  'explain' in self.config:
+            explain_config = deepcopy(self.config['explain'])
+            if dict_has(explain_config, 'sub_module'):
+                del explain_config['sub_module']['process']
+            explain_module = self.get_module(explain_config)
             explain_module.run(override={'module': self})
-            self.cfg['explain'] = explain_module.cfg
+            self.config['explain'] = explain_module.config

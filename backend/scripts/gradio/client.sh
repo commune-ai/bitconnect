@@ -1,4 +1,4 @@
 #/bin/bash
 
-eval streamlit run algocean/client/rest/module.py;
+eval streamlit run commune/client/rest/module.py;
 

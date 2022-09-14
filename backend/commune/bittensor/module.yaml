@@ -1,25 +1,16 @@
-module: 'bittensor.BitModule'
+module: 'BitModule'
 # clients
-# client: get_cfg(client.manager)
+# client: get_config(client.manager)
 
-network: nakamoto
+
+network: nobunaga
 block: null
-
 
 blocks_behind_sync_threshold: 100
 
-
-read: {}
-write:
-  cfg: 
-    client: mongo
-    params:
-      database: commune
-      collection: config
-      query:
-        module: local_copy(module)
-        network: {network}
-
+wallet: 
+  name: default
+  hotkey: default
 
 actor:
   name: local_copy(module)

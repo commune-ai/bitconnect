@@ -1,8 +1,0 @@
-name: bittensor
-channels:
-  - pytorch
-  - defaults
-dependencies:
-  - python=3.8.5
-  - pip=20.3
-  - cudatoolkit=11.0

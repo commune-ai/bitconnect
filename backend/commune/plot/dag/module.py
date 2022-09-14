@@ -22,7 +22,7 @@ class DagModule:
     Node = Node 
     Edge = Edge
 
-    cfg = dict(
+    config = dict(
             width=800, 
             height=500, 
             directed=True,
@@ -35,11 +35,11 @@ class DagModule:
         )
 
     last_update_timestamp:int = datetime.datetime.utcnow().timestamp()
-    def __init__(self,  cfg=None):
-        if isinstance(cfg, dict):
-            self.cfg.update(cfg)
+    def __init__(self,  config=None):
+        if isinstance(config, dict):
+            self.config.update(config)
 
-        self.update_threshold = self.cfg['update_threshold']
+        self.update_threshold = self.config['update_threshold']
 
     @property
     def time_since_last_update(self):
@@ -104,7 +104,7 @@ class DagModule:
 
         self.graph = agraph(nodes=self.nodes, 
                 edges=self.edges, 
-                config=Config(**self.cfg))
+                config=Config(**self.config))
 
 
 

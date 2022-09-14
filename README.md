@@ -86,7 +86,7 @@ Improvements Pending:
 - ConfigLoader
     - A module that is dedicated to loading config files with some additional funcitonality that allows for composing and referencing multiple configs and variables within configs
 
-- BaseProcess
+- BaseModule
     - The base process that connects to configloader, clients, and supports many-to-many functions for composable DAGs. This is used as the parent process for BittensorModule
 
 

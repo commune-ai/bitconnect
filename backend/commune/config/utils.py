@@ -4,7 +4,7 @@ import re
 import yaml
 import torch
 import argparse
-from commune.utils.misc import (load_yaml,
+from commune.utils import (load_yaml,
                         round_sig,
                         string_replace)
 

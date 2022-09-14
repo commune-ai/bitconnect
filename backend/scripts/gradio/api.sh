@@ -1,4 +1,4 @@
 #/bin/bash
 
-eval python algocean/gradio/api/module.py;
+eval python commune/gradio/api/module.py;
 
