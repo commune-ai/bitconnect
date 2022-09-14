@@ -11,12 +11,13 @@ services:
       - LOCAL_SUBTENSOR_HOST=subtensor
     ports:
       # - 5000:5000
-      - 8501-8506:8501-8506
+      - 8507-8515:8507-8515
       - 8080:8080
 
     volumes:
       - ./bittensor/bittensor:/app/bittensor/bittensor
       - ./commune:/app/commune
+      - ./cubit:/app/cubit
       - ./.bittensor:/root/.bittensor
       - ./scripts:/app/scripts
 

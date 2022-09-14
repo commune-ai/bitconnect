@@ -1,7 +1,6 @@
-# Use nvidia/cuda image
 FROM nvidia/cuda:11.2.1-base
-ARG DEBIAN_FRONTEND=noninteractive
 
+ARG DEBIAN_FRONTEND=noninteractive
 #nvidia key migration
 RUN apt-key del 7fa2af80
 RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
@@ -14,39 +13,12 @@ RUN apt-get update
 RUN apt-get install python3 python3-dev -y
 RUN python3 -m pip install --upgrade pip
 
-ENV PATH="/root/miniconda3/bin:${PATH}"
-ARG PATH="/root/miniconda3/bin:${PATH}"
-RUN apt-get update
-
-RUN apt-get install -y wget && rm -rf /var/lib/apt/lists/*
-
-RUN wget \
-    https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
-    && mkdir /root/.conda \
-    && bash Miniconda3-latest-Linux-x86_64.sh -b \
-    && rm -f Miniconda3-latest-Linux-x86_64.sh 
-RUN conda --version
+# add Bittensor code to docker image
 
 WORKDIR /app
-
-# Install dependencies:
-
-COPY environment.yaml .
-RUN conda env create -f ./environment.yaml
-
-RUN echo "source activate bittensor" > ~/.bashrc
-ENV PATH /opt/conda/envs/bittensor/bin:$PATH
-RUN /bin/bash -c "source activate bittensor"
-
-# Install dependencies:
 COPY requirements.txt .
-RUN /bin/bash -c "pip install -r requirements.txt"
+RUN pip install -r requirements.txt
+COPY ./bittensor /app/bittensor
+RUN pip install -e ./bittensor
 
-ADD ./bittensor /app/bittensor
-RUN /bin/bash -c "pip install -e /app/bittensor"
-RUN /bin/bash -c "pip install hub"
-
-COPY ./cubit /app/cubit
-RUN /bin/bash -c "pip install -e /app/cubit"
-
-
+EXPOSE 8091
