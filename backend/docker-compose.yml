@@ -30,6 +30,6 @@ services:
              count: 'all'
              capabilities: [gpu]
 
-    command: bash -c "chmod +x /app/scripts/*;/app/scripts/startup.sh;"
+    command: bash -c "cd /app; chmod +x /app/scripts/*;/app/scripts/startup.sh;"
 
   
