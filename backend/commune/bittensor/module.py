@@ -132,7 +132,7 @@ class BitModule(BaseModule):
 
 
 
-    def sync(self, force_sync=False, network=None, block=None):
+    def sync(self, force_sync=False, network=None, block=None, update_graph=True):
         self.force_sync = force_sync
         # Fetch data from URL here, and then clean it up.
         if network == None:
@@ -146,7 +146,8 @@ class BitModule(BaseModule):
             self.block = block
 
         self.get_subtensor(network=network)
-        self.get_graph()
+        if update_graph:
+            self.get_graph()
 
 
     @property
@@ -449,6 +450,19 @@ class BitModule(BaseModule):
         self.st_sidebar()
         self.st_main()
 
+    
+    def resolve_network(self, network:str):
+        assert network in self.networks, f"{network} must be in {self.networks}"
+        if network == 'main':
+            network = 'nakamoto'
+
+        # turn nakamoto to local if user wants to run local node
+        if self.config.get('local_node') == True and network == 'nakamoto':
+            network = 'local'
+
+
+        
+
 
 
 
@@ -484,14 +498,18 @@ if __name__ == '__main__':
     st.set_page_config(layout="wide")
     
     module = BitModule.deploy(actor=False)
-    # st.write(module.register())
+    
     module.sync()
-    endpoint_0 = module.graph.endpoints[0]
-    den = bittensor.dendrite(wallet = module.wallet)
-    representations, _, _ = den.forward_text (
-        endpoints = endpoint_0,
-        inputs = "Hello World"
-    )
+    st.write(module.network)
+    # module.sync(network='nakamoto', update_graph=False)
+    # st.write(module.register())
+
+    # endpoint_0 = module.graph.endpoints[0]
+    # den = bittensor.dendrite(wallet = module.wallet)
+    # representations, _, _ = den.forward_text (
+    #     endpoints = endpoint_0,
+    #     inputs = "Hello World"
+    # )
 
 
 

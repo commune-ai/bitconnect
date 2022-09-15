@@ -18,4 +18,5 @@ RUN python3 -m pip install -U "ray[default]"
 RUN python3 -m pip install -U streamlit
 RUN python3 -m pip install -U gradio
 RUN python3 -m pip install -U plotly
+RUN python3 -m pip install -U sentence-transformers
 COPY ./scripts .

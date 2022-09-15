@@ -1,0 +1,32 @@
+module: 'BenchmarkModule'
+# clients
+# client: get_config(client.manager)
+
+
+dataset:
+  path: bittensor.dataset
+  params:
+    block_size: 128
+
+model:
+  path: commune.bittensor.benchmark.RankingModel
+  params:
+    num_endpoints: 512
+
+metric:
+  path: commune.bittensor.benchmark.RankingLoss
+  params: {}
+
+
+network: nobunaga
+block: null
+blocks_behind_sync_threshold: 1000
+
+
+wallet: 
+  name: default
+  hotkey: default
+
+actor:
+  name: local_copy(module)
+  refresh: False

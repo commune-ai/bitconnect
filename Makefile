@@ -3,7 +3,11 @@ down:
 stop:
 	make down
 up:
-	./start.sh --backend --update
+	./start.sh --backend
+
+up_latest:
+	./start.sh --backend
+
 start:
 	make up
 
@@ -11,7 +15,7 @@ bash_backend:
 	docker exec -it bittensor-backend bash
 
 restart:
-	./start.sh --all --restart;
+	make down && make up;
 
 
 prune_volumes:	
