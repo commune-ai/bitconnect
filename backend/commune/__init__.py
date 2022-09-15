@@ -21,7 +21,6 @@ class BaseModule(ActorModule):
             clients = self.config.get('client', self.config.get('clients'))
         
         
-        print( 'CONFIG', self.config)
         if isinstance(clients, type(None)):
             return
 

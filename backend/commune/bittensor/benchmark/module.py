@@ -1,3 +1,5 @@
+
+import streamlit as st
 from random import shuffle, seed
 from collections import defaultdict
 
@@ -63,23 +65,32 @@ class BenchmarkModule(BitModule):
     default_config_path = 'bittensor.benchmark'
     def __init__(self, config=None, **kwargs):
         BitModule.__init__(self, config=config, **kwargs)
+        if kwargs.get('sync') == False:
+            self.sync()
+        self.load_state()
+
     @property
     def debug(self):
         return self.config.get('debug', False)
 
     def load_state(self):
-        bittensor.logger(debug=self.debug)
         self.load_dataset()
         self.load_model()
         self.load_optimizer()
         self.load_metric()
+        self.load_receptor_pool()
 
-    def load_dataset(self, block_size=128, **kwargs):
-        self.dataset = bittensor.dataset(block_size=128)
+    def load_dataset(self, **kwargs):
+        dataset_kwargs = dict(path='bittensor.dataset', params=dict(block_size=128))
+        dataset_kwargs.update(kwargs)
+        dataset_kwargs.update(self.config.get('dataset'))
+        dataset_class = self.import_object(dataset_kwargs['path'])
+        
+        self.dataset = dataset_class(**dataset_kwargs['params'])
         self.tokenizer = self.dataset.tokenizer
 
     def load_model(self):
-        model_config = self.config['metric']
+        model_config = self.config['model']
         self.model = RankingModel(**model_config['params'])
         self.num_endpoints = self.model.num_endpoints
     
@@ -87,7 +98,7 @@ class BenchmarkModule(BitModule):
         optimizer_kwargs = dict(path='torch.optim.Adam', params=dict(lr=0.00032))
         optimizer_kwargs.update(kwargs)
         optimizer_kwargs.update(self.config.get('optimizer', {}))
-        optim_class = self.import_object(default_kwargs['path'])
+        optim_class = self.import_object(optimizer_kwargs['path'])
         self.optimizer = optim_class(self.model.parameters(),**optimizer_kwargs['params'])
 
 
@@ -99,7 +110,7 @@ class BenchmarkModule(BitModule):
 
         receptor_kwargs = dict(max_worker_threads=64, max_active_receptors=512)
         receptor_kwargs.update(kwargs)
-        receptor_kwargs.update(self.config('receptor_pool', {}))
+        receptor_kwargs.update(self.config.get('receptor_pool', {}))
         self.receptor_pool = bittensor.receptor_pool(**receptor_kwargs,wallet=self.wallet)
 
 
@@ -117,28 +128,30 @@ class BenchmarkModule(BitModule):
             losses.append(loss)
         return torch.tensor(losses)
 
+    @property
+    def num_receptors(self):
+        return self.num_endpoints
 
     def get_endpoints(self, num_endpoints=None):
         if num_endpoints == None:
-            num_endpoints =self.num_receptors
+            num_endpoints =self.num_endpoints
         endpoints =self.graph.endpoint_objs
         shuffle(endpoints)
         endpoints = endpoints[:self.num_receptors]
-        return 
+        return endpoints
 
     # def get_loss_fn(self):
     #     return nn.CrossEntropyLoss()
     
     @property
     def synapses(self):
-        default_synapses = ['bittensor.synapse.TextCausalLM']
-        synapse_class_strings = self.config.get('synapses', default_synapses)
-        return [self.import_module(s)() for s in synapse_class_strings]
-        
+        # default_synapses = ['bittensor.synapse.TextCausalLM']
+        # synapse_class_strings = self.config.get('synapses', default_synapses)
+        # return [self.import_module(s)() for s in synapse_class_strings]
+        return [bittensor.synapse.TextCausalLM()]   
     def run(self):
 
         loss_fn = nn.CrossEntropyLoss()
-        print(f"Querying {len(endpoints)} endpoints")
 
         # https://github.com/huggingface/transformers/blob/v4.21.3/src/transformers/models/gptj/modeling_gptj.py#L847
 
@@ -190,7 +203,10 @@ class BenchmarkModule(BitModule):
             loss.backward()
             self.optimizer.step()
 
-if __name__ == '__name__':
+if __name__ == '__main__':
     module = BenchmarkModule.deploy(actor=False)
-    st.write(module)
-    
+
+    module.sync()
+    # st.write(module.synapses)
+    st.write(module.run())
+    # module.run()

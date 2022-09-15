@@ -6,17 +6,28 @@ module: 'BenchmarkModule'
 dataset:
   path: bittensor.dataset
   params:
-    block_size: 128
+    block_size: 10
 
 model:
   path: commune.bittensor.benchmark.RankingModel
   params:
-    num_endpoints: 512
+    num_endpoints: 10
+
+synapses: ['bittensor.synapse.TextCausalLM']
+
+optimizer:
+  path: torch.optim.Adam
+  params:
+    lr: 0.00032
 
 metric:
   path: commune.bittensor.benchmark.RankingLoss
   params: {}
 
+
+receptor_pool:
+  max_worker_threads: 64
+  max_active_receptors: 512
 
 network: nobunaga
 block: null
