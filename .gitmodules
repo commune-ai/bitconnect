@@ -9,3 +9,16 @@
 [submodule "backend/cubit"]
 	path = backend/cubit
 	url = https://github.com/opentensor/cubit.git
+
+[submodule "backend/ocean.py"]
+	path = backend/ocean.py
+	url = https://github.com/AlgoveraAI/ocean.py.git
+	branch = wip/richard/input_dataset
+
+[submodule "backend/ipfspy"]
+	path = backend/ipfspy
+	url = https://github.com/commune-ai/ipfspy.git
+	
+[submodule "backend/ipfsspec"]
+	path = backend/ipfsspec
+	url = https://github.com/commune-ai/ipfsspec.git

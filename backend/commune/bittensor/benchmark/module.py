@@ -163,7 +163,8 @@ class BenchmarkModule(BitModule):
             str_inputs = [self.tokenizer.decode(s) for s in inputs]
             print(f"Querying endpoints")
             endpoints = self.get_endpoints()
-            results = self.receptor_pool.forward(endpoints, synapses=self.synapses, inputs=[inputs] * x, timeout=20)
+            results = self.receptor_pool.forward(endpoints, synapses=self.synapses, inputs=[inputs] * len(endpoints), timeout=20)
+            st.write(results)
             tensors = []
             for tensor in results[0]:
                 tensors.append(tensor[0])
@@ -206,7 +207,6 @@ class BenchmarkModule(BitModule):
 if __name__ == '__main__':
     module = BenchmarkModule.deploy(actor=False)
 
-    module.sync()
+    module.sync(force_sync=True)
     # st.write(module.synapses)
-    st.write(module.run())
     # module.run()

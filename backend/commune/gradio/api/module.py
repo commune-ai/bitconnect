@@ -353,7 +353,7 @@ class GradioModule(BaseModule):
     @classmethod
     def argparse(cls):
         parser = argparse.ArgumentParser(description='Gradio API and Functions')
-        parser.add_argument('--api', action=argparse.BooleanOptionalAction)
+        parser.add_argument('--api', action='store_true')
 
         '''
         if --no-api is chosen
