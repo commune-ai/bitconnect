@@ -1,7 +1,7 @@
 import ray
 from commune.config import ConfigLoader
 from commune.ray.utils import create_actor, actor_exists, kill_actor, custom_getattr, RayEnv
-from commune.utils import dict_put, get_object, dict_get, get_module_file, get_function_defaults, get_function_schema, is_class, Timer, get_functions
+from commune.utils import dict_put, get_object, dict_get, get_module_file, get_function_defaults, get_function_schema, is_class, Timer, get_functions, check_pid, kill_pid
 import subprocess 
 import shlex
 import os
@@ -21,7 +21,17 @@ class ActorModule:
 
         self.config = self.resolve_config(config=config)
         self.override_config(override=override)
-        self.start_timestamp = datetime.datetime.utcnow().timestamp()
+        self.start_timestamp =self.current_timestamp
+        
+    @property
+    def current_timestamp(self):
+        return self.get_current_timestamp()
+
+
+
+    @staticmethod
+    def get_current_timestamp():
+        return  datetime.datetime.utcnow().timestamp()
         
     def resolve_config(self, config, override={}, local_var_dict={}, recursive=True):
         if config == None:
@@ -409,3 +419,12 @@ class ActorModule:
             return getattr(self, key)
         else:
             return getattr(self, key)
+
+
+    @staticmethod
+    def check_pid(pid):        
+        return check_pid(pid)
+
+    @staticmethod
+    def kill_pid(pid):        
+        return kill_pid(pid)

@@ -13,7 +13,7 @@ from commune.utils import SimpleNamespace
 from commune.utils import *
 # from commune.thread import PriorityThreadPoolExecutor
 import argparse
-
+import streamlit as st
 
 class bcolor:
     HEADER = '\033[95m'
@@ -44,7 +44,6 @@ class GradioModule(BaseModule):
 
     def __init__(self, config=None):
         BaseModule.__init__(self, config=config)
-        print(self.config, 'CONFIGFAM')
 
 
         self.port2module = {} 
@@ -123,7 +122,6 @@ class GradioModule(BaseModule):
     def suggest_port(self, max_trial_count=10):
         trial_count = 0 
         for port in range(*self.port_range):
-            print(port, 'port', not self.portConnection(port))
             if not self.portConnection(port):
                 return port
 
@@ -311,7 +309,7 @@ class GradioModule(BaseModule):
         if interface == None:
             assert isinstance(module, str)
             interface = self.compile(module=module)
-
+        st.write(interface)
         kwargs["port"] = kwargs.pop('port', self.suggest_port()) 
         kwargs["server_port"] = kwargs.pop('port')
         kwargs['server_name'] = self.host
@@ -322,7 +320,7 @@ class GradioModule(BaseModule):
                         share= None,
                         debug=False,
                         enable_queue= None,
-                        max_threads=None,
+                        max_threads=10,
                         auth= None,
                         auth_message= None,
                         prevent_thread_lock= False,
@@ -380,7 +378,6 @@ app = FastAPI()
 
 args = GradioModule.argparse()
 
-print(args.api, "FUCK BRO")
 
 
 
@@ -388,7 +385,6 @@ print(args.api, "FUCK BRO")
 @app.get("/")
 async def root():
     module = GradioModule.get_instance()
-    print(module)
     return {"message": "GradioFlow MothaFucka"}
 
 
@@ -440,7 +436,6 @@ async def module_start(module:str=None, ):
     self.process_manager.submit(self.launch, module=module)
     return module
 
-print(__file__)
 
 
 if __name__ == "__main__":

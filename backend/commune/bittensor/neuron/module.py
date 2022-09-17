@@ -380,17 +380,11 @@ class BenchmarkModule(BitModule):
 
         return response_tensors, response_codes, response_messages
 
-    def resolve(self, key=None, value=None):
-        if value == None:
-            return getattr(self, key)
-        else:
-            return getattr(self, key)
 
     def optimizer_step():
         optimizer.step()
         optimizer.zero_grad()
 
-        
     def serve(self, 
             config = None, 
             subtensor = None,
@@ -421,7 +415,7 @@ class BenchmarkModule(BitModule):
 
         # Create our axon server and subscribe it to the network.
         if axon == None:
-            axon = bittensor.axon(
+            self.axon = bittensor.axon(
                 config = config,
                 wallet = wallet,
                 synapse_checks=synapse_check,
