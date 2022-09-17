@@ -17,9 +17,10 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 DIR="${DIR/ /\\ }"
 
 # Default versions of Aquarius, Provider
-
+export COMPOSE_FILES=""
 export PROJECT_NAME="wholetensor"
 export FORCEPULL="false"
+export FORCEBUILD="false"
 
 # Export User UID and GID
 export LOCAL_USER_ID=$(id -u)
@@ -72,23 +73,11 @@ function check_max_map_count {
 
 check_if_owned_by_root
 
-
-COMPOSE_FILES=""
-
-
-printf "${COMPOSE_FILES}"
-
-FORCEPULL="true"
-
-
 while :; do
     case $1 in
         #################################################
         # Cleaning switches
         #################################################
-        --pull)
-        FORCEPULL="false"
-        ;;
         --purge)
             printf "$COMPOSE_FILES"
             printf $COLOR_R'Doing a deep clean ...\n\n'$COLOR_RESET
@@ -100,27 +89,34 @@ while :; do
             ;;
 
         --subtensor)
-        COMPOSE_FILES+=" -f subtensor/docker-compose-local.yml"
+        COMPOSE_FILES+=" -f subtensor/subtensor.yml"
 
         ;;
 
         --backend)
-        COMPOSE_FILES+=" -f backend/docker-compose.yml"
+        COMPOSE_FILES+=" -f backend/backend.yml"
+        
+        ;;
 
+        --ipfs)
+        COMPOSE_FILES+=" -f ipfs/ipfs.yml"
+        
         ;;
 
         --all)
-        COMPOSE_FILES+=" -f backend/docker-compose-local.yml"
-        COMPOSE_FILES+=" -f subtensor/docker-compose-local.yml"
-
+        COMPOSE_FILES+=" -f backend/backend.yml"
+        COMPOSE_FILES+=" -f ipfs/ipfs.yml"
+        COMPOSE_FILES+=" -f subtensor/subtensor.yml"
+        
         ;;
-        --update)
+        --pull)
         FORCEPULL="true"
+        
         ;;
-        --all)
-        COMPOSE_FILES+=" -f subtensor/docker-compose-local.yml"
-        COMPOSE_FILES+=" -f backend/docker-compose-local.yml"
 
+        --build)
+        FORCEBUILD="true"
+        
         ;;
 
         --down)
@@ -154,8 +150,8 @@ while :; do
             break
             ;;
         *)
-            [ ${FORCEPULL} = "true" ] && eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" build
             [ ${FORCEPULL} = "true" ] && eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" pull
+            [ ${FORCEBUILD} = "true" ] && eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" build
             eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME  "$COMPOSE_FILES" up --remove-orphans -d
             break
     esac

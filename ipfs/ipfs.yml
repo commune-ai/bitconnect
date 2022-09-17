@@ -1,13 +1,14 @@
 version: '3'
 services:
   ipfs:
+    container_name: bittensor-ipfs
     image: ipfs/go-ipfs:v0.7.0
     ports:
       - '5001:5001'
       - '5005:8080'
-    networks:
-      backend:
-        ipv4_address: 172.15.0.16
+    # networks:
+    #   backend:
+    #     ipv4_address: 172.15.0.16
     volumes:
       - algoceanipfs:/data/ipfs
 volumes:

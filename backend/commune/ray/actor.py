@@ -402,3 +402,10 @@ class ActorModule:
                             universal_newlines=True)
         
         return process
+
+
+    def resolve(self, key=None, value=None):
+        if value == None:
+            return getattr(self, key)
+        else:
+            return getattr(self, key)

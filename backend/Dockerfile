@@ -10,8 +10,8 @@ RUN cd /cubit && python3 setup.py build_ext --inplace
 
 ENV PYTHONPATH "${PYTHONPATH}:/cubit"
 
-WORKDIR app
-COPY ./bittensor /app/bittensor
+WORKDIR /app
+ADD ./bittensor /app/bittensor
 RUN python3 -m pip install -e /app/bittensor
 
 RUN python3 -m pip install -U "ray[default]"
@@ -20,5 +20,15 @@ RUN python3 -m pip install -U gradio
 RUN python3 -m pip install -U plotly
 RUN python3 -m pip install -U sentence-transformers
 RUN python3 -m pip install -U datasets
+RUN python3 -m pip install hub
+
+ADD ./ocean.py /app/ocean.py
+RUN python3 -m pip install -e ./ocean.py
+
+ADD ./ipfspy /app/ipfspy
+RUN python3 -m pip install -e ./ipfspy
+
+ADD ./ipfsspec /app/ipfsspec
+RUN python3 -m pip install -e ./ipfsspec
 
 COPY ./scripts .
