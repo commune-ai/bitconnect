@@ -10,16 +10,16 @@ import shlex
 import subprocess
 
 class SubprocessModule(BaseModule):
-    process_map = {}
+    subprocess_map = {}
     default_config_path =  'subprocess.module'
     def __init__(self, config=None, **kwargs):
         BaseModule.__init__(self, config=config)
         if self.config.get('refresh') == True:
-            self.process_map = {}
+            self.subprocess_map = {}
             self.save_state()
         self.load_state()
 
-        self.process_map = {p:v for p,v in self.process_map.items() if self.check_pid(v['pid']) }
+        self.subprocess_map = {p:v for p,v in self.subprocess_map.items() if self.check_pid(v['pid']) }
 
 
 
@@ -33,35 +33,63 @@ class SubprocessModule(BaseModule):
         return self.run_command(command)
     
 
-    def kill_subprocess(self, pid):
-        self.kill_pid(pid)
-        self.process_map.pop(pid)
-        self.save_state()
+    def rm_subprocess(self, key, load=True, save=True):
 
-    def run_subprocess(self, command:str,cache=True):
+        if load:
+            self.load_state()
+        subprocess_dict = self.subprocess_map[key]
+        pid = subprocess_dict['pid']
+        try:
+            self.kill_pid(pid)
+        except ProcessLookupError:
+            pass
+        del self.subprocess_map[key]
+        if save:
+            self.save_state()
+        return pid
+
+    rm = rm_subprocess
+
+    def rm_all(self):
+        self.load_state()
+        rm_dict = {}
+        for k in self.list_keys():
+            rm_dict[k] = self.rm(key=k, load=False, save=False)
+
+        self.save_state()
+        return rm_dict
+
+    def add_subprocess(self, command:str,key=None, cache=True):
 
         process = subprocess.Popen(shlex.split(command))
         process_state_dict = process.__dict__
         # process_state_dict.pop('_waitpid_lock')
 
+        subprocess_dict = {k:v for k,v in process_state_dict.items() if k != '_waitpid_lock'}
         if cache == True:
             self.load_state()
-            key= process.pid
-            self.process_map[key] = {k:v for k,v in process_state_dict.items() if k != '_waitpid_lock'}
+            if key == None or key == 'pid':
+                key= process.pid
+            self.subprocess_map[key] =subprocess_dict
             self.save_state()
-        return process
+        # return process.__dict__
         # return process
+        return subprocess_dict
 
+    submit = add = add_subprocess  
+    
     def ls(self):
         self.load_state()
-        return self.process_map.keys()
+        return list(self.subprocess_map.keys())
+
+    ls_keys = list_keys = list = ls
 
     @property
     def tmp_dir(self):
         return f'/tmp/commune/{self.name}'
     @property
-    def process_map_path(self):
-        return os.path.join(self.tmp_dir, 'process_map.json')
+    def subprocess_map_path(self):
+        return os.path.join(self.tmp_dir, 'subprocess_map.json')
     
         
     last_saved_timestamp=0
@@ -69,33 +97,40 @@ class SubprocessModule(BaseModule):
     def state_staleness(self):
         self.current_timestamp - self.last_saved_timestamp
     def save_state(self, staleness_period=100):
-        data =  self.process_map
-        self.client.local.put_json(path=self.process_map_path, data=data)
+        data =  self.subprocess_map
+        self.client.local.put_json(path=self.subprocess_map_path, data=data)
 
     def load_state(self):
-        self.client.local.makedirs(os.path.dirname(self.process_map_path), True)
-        data = self.client.local.get_json(path=self.process_map_path, handle_error=True)
+        self.client.local.makedirs(os.path.dirname(self.subprocess_map_path), True)
+        data = self.client.local.get_json(path=self.subprocess_map_path, handle_error=True)
         
         if data == None:
             data  = {}
-        self.process_map = data
+        self.subprocess_map = data
+
+    @property
+    def portConnection( port : int, host='0.0.0.0'):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)       
+        result = s.connect_ex((host, port))
+        if result == 0: return True
+        return False
 
 
 if __name__ == "__main__":
 
     import streamlit as st
-    module = SubprocessModule.deploy(actor=False, override={'refresh':False})
+    module = SubprocessModule.deploy(actor={'refresh': False}, override={'refresh':False})
     st.write(module)
     import ray
 
-    # # st.write(module.process_map)
-    for pid in deepcopy(list(module.process_map.keys())):
-        # pid = int(list(module.process_map.keys())[-1])
-        # st.write(module.check_pid(pid))
-        module.kill_subprocess(pid)
+    # # st.write(module.subprocess_map)
 
-    module.run_subprocess('python commune/gradio/api/module.py  --module="gradio.client.module.ClientModule"')
-    
-    # st.write(module.process_map)
 
-    st.write(module.process_map)
+    st.write(ray.get(module.ls.remote()))
+    st.write(ray.get(module.rm_all.remote()))
+    # st.write(ray.get(module.add.remote(key='pid', command='python commune/gradio/api/module.py  --module="gradio.client.module.ClientModule"')))
+    # st.write(module.ls()) 
+    st.write(ray.get(module.ls.remote()))
+
+
+

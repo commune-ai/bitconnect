@@ -50,4 +50,10 @@ python:
 
 exec:
 	docker exec -it bittensor-backend bash -c "${arg}"
+	
+api:
+	docker exec -it bittensor-backend bash -c "python commune/gradio/api/module.py --api"
+
+client:
+	make app arg=gradio/client
 

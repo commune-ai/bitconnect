@@ -44,8 +44,8 @@ class GradioModule(BaseModule):
 
     def __init__(self, config=None):
         BaseModule.__init__(self, config=config)
-
-
+        self.subprocess_manager = self.get_object('subprocess.module.SubprocessModule')()
+        
         self.port2module = {} 
         self.module2port = {}
         self.host  = self.config.get('host', '0.0.0.0')
@@ -119,11 +119,26 @@ class GradioModule(BaseModule):
         if result == 0: return True
         return False
 
+    @property
+    def subprocess_map(self):
+        self.subprocess_manager.load_state()
+        return self.subprocess_manager.subprocess_map
+
+    def port_available(self, port):
+        subprocess_map = self.subprocess_map
+        
+        if port in subprocess_map:
+            return False
+        else:
+            return True
+        
+
     def suggest_port(self, max_trial_count=10):
         trial_count = 0 
         for port in range(*self.port_range):
-            if not self.portConnection(port):
+            if self.port_available(port):
                 return port
+        
 
         '''
         TODO: kill a port when they are all full
@@ -289,12 +304,20 @@ class GradioModule(BaseModule):
         return module_schema_map
 
 
-    def meta_launch(self,module:str, port:int):
+    def rm(self, port:int):
+        return self.subprocess_manager.rm(key=str(port))
+    def add(self,module:str, port:int):
         module_list = module.get_modules()
         assert args.module in module_list, f'{args.module} is not in {module_list}'
-        command  = f'python {__file__} --no-api --module={module}'
-        process = self.run_command(command)
-    
+        command  = f'python {__file__} --module={module} --port={port}'
+        process = self.subprocess_manager.add(key=str(port), command=command)
+        return {
+            'module': module,
+            'port': port,
+        }
+    submit = add
+
+
     def launch(self, interface:gradio.Interface=None, module:str=None, **kwargs):
         """
             @params:
@@ -422,19 +445,19 @@ async def module_schema(module:str, gradio:bool=True):
     return module_schema
 
 
-@app.get("/module/start")
+@app.get("/module/add")
 async def module_start(module:str=None, ):
     self = GradioModule.get_instance()
     port = self.suggest_port()
-    if module == None:
-        module = self.get_modules()[0]
-
-    
-
     # self.launch(module=module)
+    return self.add(port=port, module=module)
 
-    self.process_manager.submit(self.launch, module=module)
-    return module
+@app.get("/module/rm")
+async def module_start(module:str=None, ):
+    self = GradioModule.get_instance()
+    port = self.suggest_port()
+    # self.launch(module=module)
+    return self.rm(key=port)
 
 
 
@@ -449,4 +472,4 @@ if __name__ == "__main__":
         module = GradioModule()
         module_list = module.get_modules()
         assert args.module in module_list, f'{args.module} is not in {module_list}'
-        module.launch(module=args.module)
+        module.launch(module=args.module, port=args.port)

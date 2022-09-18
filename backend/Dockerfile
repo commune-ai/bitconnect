@@ -32,3 +32,4 @@ ADD ./ipfsspec /app/ipfsspec
 RUN python3 -m pip install -e ./ipfsspec
 
 COPY ./scripts .
+

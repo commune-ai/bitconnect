@@ -179,6 +179,7 @@ class ActorModule:
         
         if isinstance(init_kwargs, dict):
 
+            
             for k in ['address', 'namespace']:
                 default_value= default_ray_env.get(k)
                 init_kwargs[k] = init_kwargs.get(k,default_value)
@@ -186,6 +187,10 @@ class ActorModule:
             
             if ActorModule.ray_initialized() and reinit == True:
                 ray.shutdown()
+
+            init_kwargs['include_dashboard'] = True
+            init_kwargs['dashboard_host'] = '0.0.0.0'
+            print(init_kwargs)
             return ray.init(**init_kwargs)
         else:
             raise NotImplementedError(f'{init_kwargs} is not supported')
