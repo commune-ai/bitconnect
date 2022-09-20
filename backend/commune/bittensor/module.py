@@ -12,7 +12,7 @@ import bittensor
 import streamlit as st
 import plotly.express as px
 from commune.config import ConfigLoader
-from commune.utils import  chunk, dict_put, round_sig
+from commune.utils import  chunk, dict_put, round_sig, deep2flat
 import ray
 import random
 import torch
@@ -51,6 +51,10 @@ class BitModule(BaseModule):
         # self.sync()
 
 
+    def switch_default_wallet(self, hotkey='default', coldkey='default'):
+        
+        self.wallet = self.wallets[coldkey][hotkey]
+
 
     def get_wallet(self, **kwargs):
         wallet_kwargs = self.config.get('wallet', self.default_wallet_config)
@@ -87,13 +91,52 @@ class BitModule(BaseModule):
     def subtensor(self, subtensor):
         self._subtensor = subtensor
 
-    def list_wallets(self, return_type='all'):
+
+
+    def create_hotkey(self, hotkey, coldkey='default', register=False, **kwargs):
+        hotkeys_wallets = self.wallets[coldkey]
+        if hotkey in hotkeys_wallets:
+            wallet =  hotkeys_wallets[hotkey]
+        else:
+            wallet = bittensor.wallet(hotkey=hotkey, name=coldkey)
+            wallet.create_new_hotkey()
+
+        if register:
+            self.register(wallet=wallet)
+        return wallet
+
+    def is_registered(self, wallet):
+        wallet = self.resolve_wallet(wallet=wallet)
+        
+        return wallet.is_registered(subtensor=self.subtensor)
+        
+    
+    def list_hotkeys(self, coldkey='default'):
+        return list(self.wallets[coldkey].keys())
+
+    def list_coldkeys(self, coldkey='default'):
+        return list(self.wallets.keys())
+
+    def list_wallets(self, return_type='all', registered=False, unregistered = False):
         wallet_path = self.wallet.config.wallet.path
         if return_type in ['coldkey', 'cold']:
-            return self.cli._get_coldkey_wallets_for_path(path=wallet_path)
+            wallets = self.cli._get_coldkey_wallets_for_path(path=wallet_path)
         elif return_type in ['hot', 'hotkey', 'all']:
-            return self.cli._get_all_wallets_for_path(path=wallet_path)
- 
+            wallets  = self.cli._get_all_wallets_for_path(path=wallet_path)
+        else:
+            raise NotImplementedError
+
+        if registered:
+            wallets = [w for w in wallets if self.is_registered(wallet=w)]
+        
+        if unregistered:
+            wallets = [w for w in wallets if not self.is_registered(wallet=w)]
+        
+
+        
+
+
+        return wallets
     @property
     def wallets(self):
         wallet_dict ={}
@@ -104,8 +147,40 @@ class BitModule(BaseModule):
         
         return wallet_dict
 
-    def register(self, **kwargs):
-        return self.wallet.register(subtensor=self.subtensor, **kwargs)
+    @property
+    def registered_wallets(self):
+        wallet_dict ={}
+
+        for w in self.list_wallets(registered=True):
+            key = f'{w.name}.{w.hotkey_str}'
+            dict_put(wallet_dict, keys=key, value=w)
+        
+        return wallet_dict
+
+    @property
+    def unregistered_wallets(self):
+        wallet_dict ={}
+
+        for w in self.list_wallets(unregistered=True):
+            key = f'{w.name}.{w.hotkey_str}'
+            dict_put(wallet_dict, keys=key, value=w)
+        
+        return wallet_dict
+
+
+    def resolve_wallet(self, wallet):
+        if wallet == None:
+            wallet = self.wallet
+        return wallet
+    
+    def wallet_exists(self, wallet):
+        assert isinstance(wallet, str)
+    def register(self, wallet=None, **kwargs):
+        wallet = self.resolve_wallet(wallet=wallet)
+        default_kwargs = dict(cuda=True)
+        kwargs =  {**default_kwargs, **kwargs}
+        return wallet.register(subtensor=self.subtensor, **kwargs)
+
 
     @property
     def network(self):
@@ -168,8 +243,8 @@ class BitModule(BaseModule):
 
     def set_graph_state(self, sample_n=None, sample_mode='rank', **kwargs):
         graph_state = self.graph.state_dict()
-        self.graph_state =  self.sample_graph_state(graph_state=graph_state, sample_n=sample_n, sample_mode=sample_mode, **kwargs)
-
+        # self.graph_state =  self.sample_graph_state(graph_state=graph_state, sample_n=sample_n, sample_mode=sample_mode, **kwargs)
+        self.graph_state = graph_state
     def sample_graph_state(self, graph_state , sample_n=None,  sample_mode='rank', **kwargs ):
         '''
         Args:
@@ -499,8 +574,10 @@ if __name__ == '__main__':
     
     module = BitModule.deploy(actor=False)
     
-    module.sync()
-    st.write(module.network)
+    module.sync(force_sync=False)
+    st.write(module.list_hotkeys())
+    st.write(module.list_coldkeys())
+
     # module.sync(network='nakamoto', update_graph=False)
     # st.write(module.register())
 

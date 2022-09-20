@@ -14,6 +14,7 @@ class SubprocessModule(BaseModule):
     default_config_path =  'subprocess.module'
     def __init__(self, config=None, **kwargs):
         BaseModule.__init__(self, config=config)
+        self.subprocess_map_path = self.cache_path
 
 
 
@@ -25,6 +26,7 @@ class SubprocessModule(BaseModule):
     def submit(command):
         return self.run_command(command)
     
+    @property
     def subprocess_map(self):
         self.load_cache()
         return self.cache
@@ -58,7 +60,7 @@ class SubprocessModule(BaseModule):
         subprocess_dict = {k:v for k,v in process_state_dict.items() if k != '_waitpid_lock'}
         if cache == True:
             if key == None or key == 'pid':
-                key= process.pid
+                key= str(process.pid)
             subprocess_dict = dict_override(subprocess_dict, add_info)
             self.put_cache(key, subprocess_dict)
 
@@ -74,8 +76,7 @@ class SubprocessModule(BaseModule):
         return list(self.subprocess_map.keys())
 
     ls_keys = list_keys = list = ls
-    
-    subprocess_map_path = cache_path
+   
 
     @property
     def portConnection( port : int, host='0.0.0.0'):
@@ -88,19 +89,19 @@ class SubprocessModule(BaseModule):
 if __name__ == "__main__":
 
     import streamlit as st
-    module = SubprocessModule.deploy(actor={'refresh': False}, override={'refresh':False})
+    module = SubprocessModule.deploy(actor=False, override={'refresh':True})
     st.write(module)
     import ray
 
     # # st.write(module.subprocess_map)
 
-    module.client.rest
+    # module.client.rest
 
 
     # st.write(ray.get(module.ls.remote()))
     # st.write(ray.get(module.rm_all.remote()))
-    # st.write(ray.get(module.add.remote(key='pid', command='python commune/gradio/api/module.py  --module="gradio.client.module.ClientModule"')))
-    # st.write(module.ls()) 
+    st.write(module.add(key='pid', command='python commune/gradio/api/module.py  --module="gradio.client.module.ClientModule"'))
+    st.write(module.getattr('cache'))
     # st.write(ray.get(module.ls.remote()))
 
 

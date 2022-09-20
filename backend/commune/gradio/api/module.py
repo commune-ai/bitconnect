@@ -125,22 +125,22 @@ class GradioModule(BaseModule):
 
     def port_connected(self ,port : int):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)       
-        result = s.connect_ex((self.host, port))
+        result = s.connect_ex((self.host, int(port)))
         if result == 0: return True
         return False
 
     @property
     def subprocess_map(self):
-        self.subprocess_manager.load_state()
-        for port,port_subprocess in self.subprocess_manager.subprocess_map.items():
-            if not self.port_connected(port=port):
-                self.subprocess_manager.rm(port=)
+        # self.subprocess_manager.load_state()
+        # for port,port_subprocess in self.subprocess_manager.subprocess_map.items():
+        #     if not self.port_connected(port=port):
+        #         self.subprocess_manager.rm(key=port)
+        return self.subprocess_manager.subprocess_map
 
     def port_available(self, port:int):
         subprocess_map = self.subprocess_map
 
         
-        print( self.subprocess_map.keys(), 'BRO')
         if str(port)  in subprocess_map:
             return False
         else:
@@ -148,7 +148,6 @@ class GradioModule(BaseModule):
         
     def suggest_port(self, max_trial_count=10):
         for port in range(*self.port_range):
-            print('PORT', port,  self.port_available(port))
             if self.port_available(port):
                 return port
         
@@ -208,11 +207,9 @@ class GradioModule(BaseModule):
     def get_modules(self, force_update=True):
         modules = []
         failed_modules = []
-        print(self.client,'CLIENTSFAM')
         for root, dirs, files in self.client.local.walk('/app/commune'):
             if all([f in files for f in ['module.py', 'module.yaml']]):
 
-                print(root, files)
 
                 try:
                     
@@ -479,7 +476,6 @@ async def ls():
 async def module_add(module:str=None):
     self = GradioModule.get_instance()
     port = self.suggest_port()
-    print(port, 'PORT')
     # self.launch(module=module)
     return self.add(port=port, module=module)
 
@@ -510,11 +506,8 @@ async def port2module(key:str='subprocess_map' ):
 @app.get("/module/module2port")
 async def module2port( key:str='subprocess_map'):
     self = GradioModule.get_instance()
-    print(self.module2port, 'FUCK')
 
     return self.module2port
-
-
 
 
 if __name__ == "__main__":

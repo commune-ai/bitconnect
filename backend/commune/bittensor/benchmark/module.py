@@ -65,8 +65,6 @@ class BenchmarkModule(BitModule):
     default_config_path = 'bittensor.benchmark'
     def __init__(self, config=None, **kwargs):
         BitModule.__init__(self, config=config, **kwargs)
-        if kwargs.get('sync') == False:
-            self.sync()
         self.load_state()
 
     @property
@@ -74,6 +72,8 @@ class BenchmarkModule(BitModule):
         return self.config.get('debug', False)
 
     def load_state(self):
+        if self.config.get('sync') == True:
+            self.sync()
         self.load_dataset()
         self.load_model()
         self.load_optimizer()
@@ -132,11 +132,12 @@ class BenchmarkModule(BitModule):
     def num_receptors(self):
         return self.num_endpoints
 
-    def get_endpoints(self, num_endpoints=None):
+    def get_endpoints(self, num_endpoints=None, shuffle=False):
         if num_endpoints == None:
             num_endpoints =self.num_endpoints
         endpoints =self.graph.endpoint_objs
-        shuffle(endpoints)
+        if shuffle:
+            shuffle(endpoints)
         endpoints = endpoints[:self.num_receptors]
         return endpoints
 
@@ -162,9 +163,11 @@ class BenchmarkModule(BitModule):
             inputs = next(self.dataset)
             str_inputs = [self.tokenizer.decode(s) for s in inputs]
             print(f"Querying endpoints")
+            # endpoints = self.get_endpoints()
             endpoints = self.get_endpoints()
             results = self.receptor_pool.forward(endpoints, synapses=self.synapses, inputs=[inputs] * len(endpoints), timeout=20)
-            st.write(results)
+            st.write(len(results))
+            
             tensors = []
             for tensor in results[0]:
                 tensors.append(tensor[0])
@@ -204,9 +207,42 @@ class BenchmarkModule(BitModule):
             loss.backward()
             self.optimizer.step()
 
+    @property
+    def coldkey_address(self):
+        return self.wallet.coldkeypub.ss58_address
+
+    def endpoints(self, return_type='list'):
+        endpoints = self.graph.endpoint_objs
+        if return_type =='list':
+            endpoints = [e.__dict__ for e in endpoints]
+        elif return_type == 'df':
+            endpoints = pd.Dataframe([e.__dict__ for e in endpoints])
+        return endpoints
+
+
+    def my_endpoints(self, return_type = 'endpoint'):
+        endpoints = self.graph.endpoint_objs
+        
+        endpoints = [e for e in endpoints if (e.coldkey == self.coldkey_address and e.ip != "0.0.0.0") ]
+        st.write(self.coldkey_address)
+        if return_type == 'endpoint':
+            endpoints = endpoints
+        elif return_type =='list':
+            endpoints = [e.__dict__ for e in endpoints]
+    
+        elif return_type == 'df':
+            endpoints = pd.Dataframe([e.__dict__ for e in endpoints])
+        else:
+            raise NotImplementedError
+
+        return endpoints
+
+
+
 if __name__ == '__main__':
     module = BenchmarkModule.deploy(actor=False)
-
     module.sync(force_sync=True)
+    # st.write(module.my_endpoints())
+    # st.write(module.endpoints())
     # st.write(module.synapses)
-    # module.run()
+    module.run()

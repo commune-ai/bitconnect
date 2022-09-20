@@ -569,19 +569,16 @@ def flat2deep(flat_dict:dict):
     return deep_dict
 
 
-def deep2flat(deep_dict:dict, root_key=None, flat_dict={}):
-    assert isinstance(x, dict)
+def deep2flat(x:dict, root_key=None, flat_dict={}):
 
-    new_flat_dict = {}
-    if isinstance(deep_dict, dict):
-        for k,v in deep_dict.items():
+    if isinstance(x, dict):
+
+        for k,v in x.items():
             new_root_key = k  if root_key == None else '.'.join(root_key, k)
+            new_flat_dict[new_root_key] = deep2flat(x=v,  root_key = new_root_key, flat_dict=flat_dict)
 
-            if isinstance(v, dict):
-                new_flat_dict = deep2flat(deep_dict=v,  root_key = new_root_key)
-
-    raise NotImplemented
-    flat_dict.update(new_flat_dict)
+    else:
+        flat_dict[root_key] = x
 
     return flat_dict
 
