@@ -30,18 +30,19 @@ if __name__ == "__main__":
     module = ClientModule()
     output_dict = {}
     
-    st.write(module.client.__dict__)
-    module_list  = module.client.rest.get(endpoint='module/list', params={'path_map':False})
+    # module_list  = module.client.rest.get(endpoint='module/list', params={'path_map':False})
 
-    st.write(module_list)
-    # module_schemas  = module.client.rest.get(endpoint='module/schemas')
+    st.write(module.client.rest.get(endpoint='module/port2module'))
+    # module_path = 'gradio.client.module.ClientModule'
+    # st.write(module.client.rest.get(endpoint='module/add', params=dict(module='gradio.client.module.ClientModule')))
+
+
+
+    # module.client.rest.get(endpoint='module/list', params={'path_map':False})
+    # st.write(module.client.rest.get(endpoint='module/getattr', params={'key':'subprocess_map'}))
+
     # module_schemas  = module.client.rest.get(endpoint='module/schema')
 
-    # st.write(output_dict)
-    st.write(module.client.__dict__)
-    module_dict = module.client.rest.get(endpoint='module/schema', params={'module': 'gradio.client.module.ClientModule','gradio':True})
-    st.write(module_dict)
     # st.write(module.load_object(**module_dict['bro']['output'][0]))
 
 
-    

@@ -432,8 +432,9 @@ def dict_delete(input_dict,keys ):
                                 keys=keys[1:])
     else:
         return None
+ 
+dict_pop = dict_del = dict_delete
 
-        
 def dict_has(input_dict,keys):
     """
     insert keys that are dot seperated (key1.key2.key3) recursively into a dictionary
@@ -476,8 +477,6 @@ def dict_get(input_dict,keys, default_value=False):
     except Exception as e:
         return default_value
   
-
-
 def dict_put(input_dict,keys, value ):
     """
     insert keys that are dot seperated (key1.key2.key3) recursively into a dictionary
@@ -561,7 +560,7 @@ def dict_equal(*args):
 
 
 
-def flat2deep(self, flat_dict:dict):
+def flat2deep(flat_dict:dict):
     deep_dict = {}
     assert isinstance(flat_dict, dict)
     for k,v in flat_dict.items():
@@ -570,13 +569,22 @@ def flat2deep(self, flat_dict:dict):
     return deep_dict
 
 
-def deep2flat(self, deep_dict:dict):
-    assert isinstance(deep_dict, dict)
-    flat_dict = {}
+def deep2flat(deep_dict:dict, root_key=None, flat_dict={}):
+    assert isinstance(x, dict)
+
+    new_flat_dict = {}
+    if isinstance(deep_dict, dict):
+        for k,v in deep_dict.items():
+            new_root_key = k  if root_key == None else '.'.join(root_key, k)
+
+            if isinstance(v, dict):
+                new_flat_dict = deep2flat(deep_dict=v,  root_key = new_root_key)
 
     raise NotImplemented
-    
+    flat_dict.update(new_flat_dict)
+
     return flat_dict
+
 
 def any_get(x:dict, keys:list , default=None):
     '''
@@ -592,6 +600,8 @@ def any_get(x:dict, keys:list , default=None):
 
     return default
 
+dict_any = any_get
+
 
 def check_pid(pid):        
     """ Check For the existence of a unix pid. """
@@ -601,3 +611,21 @@ def check_pid(pid):
         return False
     else:
         return True
+
+
+
+def dict_override(input_dict, override={}):      
+    assert isinstance(override, dict), type(override)
+    assert isinstance(input_dict, dict), type(input_dict)
+    for k,v in override.items():
+        dict_put(input_dict, k, v)
+
+    return input_dict
+
+
+def dict_merge(*args):
+    output_dict = {}
+    for arg in args:
+        assert isinstance(arg, dict), f"{arg} is not a dict"
+        output_dict.update(arg)
+    return output_dict

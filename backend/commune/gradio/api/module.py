@@ -45,13 +45,11 @@ class GradioModule(BaseModule):
     def __init__(self, config=None):
         BaseModule.__init__(self, config=config)
         self.subprocess_manager = self.get_object('subprocess.module.SubprocessModule')()
-        
-        self.port2module = {} 
-        self.module2port = {}
+
         self.host  = self.config.get('host', '0.0.0.0')
         self.port  = self.config.get('port', 8000)
         self.num_ports = self.config.get('num_ports', 10)
-        self.port_range = self.config.get('port_range', [7860, 7865])
+        self.port_range = self.config.get('port_range', [7865, 7870])
         
         # self.thread_manager = PriorityThreadPoolExecutor()
         # self.process_manager = self.get_object('cliProcessManager()
@@ -64,10 +62,22 @@ class GradioModule(BaseModule):
     def gradio_modules(self):
         return self._modules
 
-    def add_module(self, port, metadata:dict):
-        self.port2module[port] = metadata
-        # self.module2port[module]
-        return True
+
+
+    @property
+    def module2port(self):
+        module2port = {}
+        for k, v in self.subprocess_map.items():
+            module2port[v['module']] = k
+        return module2port
+
+    def port2module(self):
+        port2module = {}
+        for k, v in self.subprocess_map.items():
+            port2module[k] = v['module']
+
+        return port2module
+
 
     def rm_module(self, port:str=10, output_example={'bro': True}):
         visable.remove(current)
@@ -113,7 +123,7 @@ class GradioModule(BaseModule):
         return is_active
 
 
-    def portConnection(self ,port : int):
+    def port_connected(self ,port : int):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)       
         result = s.connect_ex((self.host, port))
         if result == 0: return True
@@ -122,20 +132,23 @@ class GradioModule(BaseModule):
     @property
     def subprocess_map(self):
         self.subprocess_manager.load_state()
-        return self.subprocess_manager.subprocess_map
+        for port,port_subprocess in self.subprocess_manager.subprocess_map.items():
+            if not self.port_connected(port=port):
+                self.subprocess_manager.rm(port=)
 
-    def port_available(self, port):
+    def port_available(self, port:int):
         subprocess_map = self.subprocess_map
+
         
-        if port in subprocess_map:
+        print( self.subprocess_map.keys(), 'BRO')
+        if str(port)  in subprocess_map:
             return False
         else:
             return True
         
-
     def suggest_port(self, max_trial_count=10):
-        trial_count = 0 
         for port in range(*self.port_range):
+            print('PORT', port,  self.port_available(port))
             if self.port_available(port):
                 return port
         
@@ -306,17 +319,23 @@ class GradioModule(BaseModule):
 
     def rm(self, port:int):
         return self.subprocess_manager.rm(key=str(port))
+    def rm_all(self, port:int):
+        return self.subprocess_manager.rm_all()
+
+
+    def ls(self):
+        return self.subprocess_manager.ls()
+
     def add(self,module:str, port:int):
-        module_list = module.get_modules()
-        assert args.module in module_list, f'{args.module} is not in {module_list}'
+        module_list = self.get_modules()
+        assert module in module_list, f'{module} is not in {module_list}'
         command  = f'python {__file__} --module={module} --port={port}'
-        process = self.subprocess_manager.add(key=str(port), command=command)
+        process = self.subprocess_manager.add(key=str(port), command=command, add_info= {'module':module })
         return {
             'module': module,
             'port': port,
         }
     submit = add
-
 
     def launch(self, interface:gradio.Interface=None, module:str=None, **kwargs):
         """
@@ -329,10 +348,14 @@ class GradioModule(BaseModule):
             that is created by the gradio 
             package and send it to the flaks api
         """
+        
+
         if interface == None:
+    
             assert isinstance(module, str)
+            module_list = self.get_modules()
+            assert module in module_list, f'{args.module} is not in {module_list}'
             interface = self.compile(module=module)
-        st.write(interface)
         kwargs["port"] = kwargs.pop('port', self.suggest_port()) 
         kwargs["server_port"] = kwargs.pop('port')
         kwargs['server_name'] = self.host
@@ -445,19 +468,52 @@ async def module_schema(module:str, gradio:bool=True):
     return module_schema
 
 
+
+@app.get("/module/ls")
+async def ls():
+    self = GradioModule.get_instance()
+    # self.launch(module=module)
+    return self.ls()
+
 @app.get("/module/add")
-async def module_start(module:str=None, ):
+async def module_add(module:str=None):
     self = GradioModule.get_instance()
     port = self.suggest_port()
+    print(port, 'PORT')
     # self.launch(module=module)
     return self.add(port=port, module=module)
 
+
 @app.get("/module/rm")
-async def module_start(module:str=None, ):
+async def module_rm(module:str=None ):
     self = GradioModule.get_instance()
-    port = self.suggest_port()
-    # self.launch(module=module)
     return self.rm(key=port)
+
+@app.get("/module/rm_all")
+async def module_rm(module:str=None, ):
+    self = GradioModule.get_instance()
+    return self.rm_all()
+
+
+@app.get("/module/getattr")
+async def module_rm(key:str='subprocess_map', ):
+    self = GradioModule.get_instance()
+    return getattr(self,key)
+
+
+@app.get("/module/port2module")
+async def port2module(key:str='subprocess_map' ):
+    self = GradioModule.get_instance()
+    return self.port2module
+
+
+@app.get("/module/module2port")
+async def module2port( key:str='subprocess_map'):
+    self = GradioModule.get_instance()
+    print(self.module2port, 'FUCK')
+
+    return self.module2port
+
 
 
 
@@ -469,7 +525,5 @@ if __name__ == "__main__":
         uvicorn.run(f"module:app", host="0.0.0.0", port=8000, reload=True, workers=2)
     else:
 
-        module = GradioModule()
-        module_list = module.get_modules()
-        assert args.module in module_list, f'{args.module} is not in {module_list}'
-        module.launch(module=args.module, port=args.port)
+        module_proxy = GradioModule()
+        module_proxy.launch(module=args.module, port=args.port)

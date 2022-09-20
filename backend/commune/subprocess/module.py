@@ -14,13 +14,6 @@ class SubprocessModule(BaseModule):
     default_config_path =  'subprocess.module'
     def __init__(self, config=None, **kwargs):
         BaseModule.__init__(self, config=config)
-        if self.config.get('refresh') == True:
-            self.subprocess_map = {}
-            self.save_state()
-        self.load_state()
-
-        self.subprocess_map = {p:v for p,v in self.subprocess_map.items() if self.check_pid(v['pid']) }
-
 
 
 
@@ -32,34 +25,31 @@ class SubprocessModule(BaseModule):
     def submit(command):
         return self.run_command(command)
     
+    def subprocess_map(self):
+        self.load_cache()
+        return self.cache
 
-    def rm_subprocess(self, key, load=True, save=True):
-
-        if load:
-            self.load_state()
+    def rm_subprocess(self, key):
         subprocess_dict = self.subprocess_map[key]
         pid = subprocess_dict['pid']
         try:
             self.kill_pid(pid)
         except ProcessLookupError:
             pass
-        del self.subprocess_map[key]
-        if save:
-            self.save_state()
+        self.pop_cache(key)
+        
         return pid
 
     rm = rm_subprocess
 
     def rm_all(self):
-        self.load_state()
         rm_dict = {}
         for k in self.list_keys():
             rm_dict[k] = self.rm(key=k, load=False, save=False)
 
-        self.save_state()
         return rm_dict
 
-    def add_subprocess(self, command:str,key=None, cache=True):
+    def add_subprocess(self, command:str,key=None, cache=True, add_info={}):
 
         process = subprocess.Popen(shlex.split(command))
         process_state_dict = process.__dict__
@@ -67,11 +57,12 @@ class SubprocessModule(BaseModule):
 
         subprocess_dict = {k:v for k,v in process_state_dict.items() if k != '_waitpid_lock'}
         if cache == True:
-            self.load_state()
             if key == None or key == 'pid':
                 key= process.pid
-            self.subprocess_map[key] =subprocess_dict
-            self.save_state()
+            subprocess_dict = dict_override(subprocess_dict, add_info)
+            self.put_cache(key, subprocess_dict)
+
+
         # return process.__dict__
         # return process
         return subprocess_dict
@@ -83,30 +74,8 @@ class SubprocessModule(BaseModule):
         return list(self.subprocess_map.keys())
 
     ls_keys = list_keys = list = ls
-
-    @property
-    def tmp_dir(self):
-        return f'/tmp/commune/{self.name}'
-    @property
-    def subprocess_map_path(self):
-        return os.path.join(self.tmp_dir, 'subprocess_map.json')
     
-        
-    last_saved_timestamp=0
-    @property
-    def state_staleness(self):
-        self.current_timestamp - self.last_saved_timestamp
-    def save_state(self, staleness_period=100):
-        data =  self.subprocess_map
-        self.client.local.put_json(path=self.subprocess_map_path, data=data)
-
-    def load_state(self):
-        self.client.local.makedirs(os.path.dirname(self.subprocess_map_path), True)
-        data = self.client.local.get_json(path=self.subprocess_map_path, handle_error=True)
-        
-        if data == None:
-            data  = {}
-        self.subprocess_map = data
+    subprocess_map_path = cache_path
 
     @property
     def portConnection( port : int, host='0.0.0.0'):
@@ -125,12 +94,14 @@ if __name__ == "__main__":
 
     # # st.write(module.subprocess_map)
 
+    module.client.rest
 
-    st.write(ray.get(module.ls.remote()))
-    st.write(ray.get(module.rm_all.remote()))
+
+    # st.write(ray.get(module.ls.remote()))
+    # st.write(ray.get(module.rm_all.remote()))
     # st.write(ray.get(module.add.remote(key='pid', command='python commune/gradio/api/module.py  --module="gradio.client.module.ClientModule"')))
     # st.write(module.ls()) 
-    st.write(ray.get(module.ls.remote()))
+    # st.write(ray.get(module.ls.remote()))
 
 
 

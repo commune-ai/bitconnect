@@ -1,7 +1,7 @@
 import ray
 from commune.config import ConfigLoader
 from commune.ray.utils import create_actor, actor_exists, kill_actor, custom_getattr, RayEnv
-from commune.utils import dict_put, get_object, dict_get, get_module_file, get_function_defaults, get_function_schema, is_class, Timer, get_functions, check_pid, kill_pid
+from commune.utils import dict_put, get_object, dict_get, get_module_file, get_function_defaults, get_function_schema, is_class, Timer, get_functions, check_pid, kill_pid, dict_override, dict_merge
 import subprocess 
 import shlex
 import os
@@ -22,11 +22,11 @@ class ActorModule:
         self.config = self.resolve_config(config=config)
         self.override_config(override=override)
         self.start_timestamp =self.current_timestamp
+        self.cache = {}
         
     @property
     def current_timestamp(self):
         return self.get_current_timestamp()
-
 
 
     @staticmethod
@@ -383,12 +383,11 @@ class ActorModule:
         return get_module_function_schema(obj, **kwargs)
 
     def override_config(self,override:dict={}):
-        if override == None:
-            override = {}
-        assert isinstance(override, dict), type(override)
-        for k,v in override.items():
-            dict_put(self.config, k, v)
+        self.dict_override(input_dict=self.config, override=override)
     
+    @staticmethod
+    def dict_override(*args, **kwargs):
+        return dict_override(*args,**kwargs)
     
     @staticmethod
     def import_object(path):
@@ -433,3 +432,8 @@ class ActorModule:
     @staticmethod
     def kill_pid(pid):        
         return kill_pid(pid)
+
+
+    @property
+    def tmp_dir(self):
+        return f'/tmp/commune/{self.name}'
