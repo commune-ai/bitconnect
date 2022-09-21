@@ -57,27 +57,32 @@ class LocalModule(LocalFileSystem):
     def put_json(self, path, data):
             # Directly from dictionary
         self.ensure_path(path)
-        if isinstance(data, dict):
+        data_type = type(data)
+        if data_type in [dict, list, tuple, set, float, str, int]:
             with open(path, 'w') as outfile:
                 json.dump(data, outfile)
-        
-        elif isinstance(data, str):
-            # Using a JSON string
-            with self.open(path, 'w') as outfile:
-                outfile.write(data)
-        elif isinstance(data, pd.DataFrame):
+        elif data_type in [pd.DataFrame]:
             with open(path, 'w') as outfile:
                 data.to_json(outfile)
+        else:
+            raise NotImplementedError(f"{data_type}, is not supported")
 
-    def get_json(self, path, handle_error = False):
+    def get_json(self, path, handle_error = False, return_type='dict', **kwargs):
         try:
-            return json.loads(self.cat(path))
+            data = json.loads(self.cat(path))
         except FileNotFoundError as e:
             if handle_error:
                 return None
             else:
                 raise e
 
+        if return_type in ['dict', 'json']:
+            data = data
+        elif return_type in ['pandas', 'pd']:
+            data = pd.DataFrame(data)
+        elif return_type in ['torch']:
+            torch.tensor
+        return data
 
     def put_pickle(self, path:str, data):
         with self.open(path,'wb') as f:

@@ -37,39 +37,42 @@ def enable_cache(**input_kwargs):
 class BaseModule(ActorModule):
     client = None
     default_config_path = None
+    client_module_class_path = 'client.module.ClientModule'
  
-    def __init__(self, config=None, override={}, **kwargs):
+    def __init__(self, config=None, override={}, client=None ,**kwargs):
 
         
 
         ActorModule.__init__(self,config=config, override=override)
-
-        if kwargs.get('get_clients', True) != False:
-            self.client = self.get_clients() 
-        if kwargs.get('get_submodules', True) != False:       
-            self.get_submodules()
-
-
         
+        # for passing down the client to  submodules to avoid replicating a client for every submodule
+        self.client = self.get_clients(client=client, 
+                                        get_clients_bool = kwargs.get('get_clients', True)) 
+           
+        self.get_submodules(get_submodules_bool = kwargs.get('get_submodules', True))
 
 
-    def get_clients(self, clients=None):
-        if clients == None:
-            clients = self.config.get('client', self.config.get('clients'))
+    @property
+    def client_config(self):
+        return self.config.get('client', self.config.get('clients'))
+
+
+    def get_clients(self, client=None, get_clients_bool = True):
+        if get_clients_bool == False:
+            return None
+
+        if client == None:
+            client = self.client_config
+        if client == None:
+            return None
+
+        client_module_class = self.get_object(self.client_module_class_path)
         
-        
-        if isinstance(clients, type(None)):
-            return
-
-        client_module_class = self.get_object('client.module.ClientModule')
-        # if isinstance(self, client_module_class):
-        #     return
+        if isinstance(self.client, client_module_class):
+            return self.client
         
         config = client_module_class.default_config()
-        config['clients'] = clients
-
-
-
+        config['clients'] = client
 
         if isinstance(config, dict) :
             return client_module_class(config=config)
@@ -88,7 +91,10 @@ class BaseModule(ActorModule):
         return config
     
 
-    def get_submodules(self, submodule_configs=None):
+    def get_submodules(self, submodule_configs=None, get_submodules_bool=True):
+        
+        if get_submodules_bool == False:
+            return None
         '''
         input: dictionary of modular configs
         '''
@@ -154,13 +160,46 @@ class BaseModule(ActorModule):
     def cache_path(self):
         return os.path.join(self.tmp_dir, 'cache.json')
 
-    def load_cache(self, **kwargs):
 
+    def resolve_path(self, path, root_dir=None, extension = '.json'):
+        if root_dir == None:
+            root_dir = self.tmp_dir
+        # resolving base name
+        
+        path_basename, path_ext = os.path.splitext(os.path.basename(path))
+        if path_ext != '.json':
+            path_ext = extension
+        path_basename = path_basename + path_ext
+        path_dir = os.path.dirname(path)
+        # ensure the path has the module cache root
+        if self.tmp_dir!=path_dir[:len(self.tmp_dir)]:
+            path_dir = os.path.join(root_dir, path_dir)
+        if self.client.local.isdir(path_dir):
+            self.client.local.makedirs(path_dir, True)
+        path = os.path.join(path_dir, path_basename )
+        if os.path.basename(path) == extension:
+            path = os.path.dirname(path)
+        return path
+
+
+    def get_json(self,path, root_dir=None, **kwargs):
+        path = self.resolve_path(path=path, root_dir=root_dir)
+        import streamlit as st
+        st.write(path)
+        data = self.client.local.get_json(path=path, **kwargs)
+        return data
+
+    def put_json(self, path, data, root_dir=None, **kwargs):
+        path = self.resolve_path(path=path, root_dir=root_dir)
+        self.client.local.put_json(path=path, data=data, **kwargs)
+        return path
+
+
+    def load_cache(self, **kwargs):
         enable_bool =  kwargs.get('enable', True)
         assert isinstance(enable_bool, bool), f'{disable_bool}'
         if not enable_bool:
             return None
-
         path = kwargs.get('path',  self.cache_path)
 
 

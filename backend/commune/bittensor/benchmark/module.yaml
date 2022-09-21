@@ -2,7 +2,7 @@ module: 'BenchmarkModule'
 # clients
 # client: get_config(client.manager)
 
-
+client: {}
 dataset:
   path: bittensor.dataset
   params:

@@ -11,6 +11,7 @@ from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
 
 from commune.bittensor import BitModule
+from commune import BaseModule
 
 from commune.utils import *
 
@@ -66,10 +67,11 @@ class RankingModel(nn.Module):
 class BenchmarkModule(BitModule):
     __file__ = __file__
     default_config_path = 'bittensor.benchmark'
-    def __init__(self, config=None, **kwargs):
-        BitModule.__init__(self, config=config, **kwargs)
-        self.load_state()
-
+    def __init__(self, config=None, load_state=True, **kwargs):
+        BaseModule.__init__(self, config=None, **kwargs) 
+        # BitModule.__init__(self, config=config, **kwargs)
+        if load_state:
+            self.load_state()
     @property
     def debug(self):
         return self.config.get('debug', False)
@@ -114,9 +116,8 @@ class BenchmarkModule(BitModule):
         receptor_kwargs = dict(max_worker_threads=64, max_active_receptors=512)
         receptor_kwargs.update(kwargs)
         receptor_kwargs.update(self.config.get('receptor_pool', {}))
-        self.receptor_pool = bittensor.receptor_pool(**receptor_kwargs,wallet=self.wallet)
-
-
+        receptor_pool = self.get_object('bittensor.receptor.pool.module.ReceptorPoolModule')
+        self.receptor_pool = receptor_pool(**receptor_kwargs,wallet=self.wallet)
 
     @staticmethod
     def causal_lm_loss(labels, logits):
@@ -165,12 +166,15 @@ class BenchmarkModule(BitModule):
         with Timer(text='Querying Endpoints: {t}', streamlit=True) as t:
             results = self.receptor_pool.forward(endpoints, synapses=self.synapses, inputs=[inputs] * len(endpoints), timeout=timeout)
 
+        num_responses = len(results[1])
+
         df = []
         for i,e in enumerate(endpoints): 
-            row_dict = e.__dict__
-            row_dict['code'] = results[1][i][0]
-            row_dict['latency'] = results[2][i][0]
-            df.append(row_dict)
+            if i < num_responses:
+                row_dict = e.__dict__
+                row_dict['code'] = results[1][i][0]
+                row_dict['latency'] = results[2][i][0]
+                df.append(row_dict)
         
         df = pd.DataFrame(df)
         return df
@@ -198,9 +202,10 @@ class BenchmarkModule(BitModule):
             # endpoints = self.get_endpoints()
             endpoints = self.get_endpoints()
     
+
             with Timer(text='Querying Endpoints: {t}', streamlit=True) as t:
                 results = self.receptor_pool.forward(endpoints, synapses=self.synapses, inputs=[inputs] * len(endpoints), timeout=10)
-            
+
             df = []
             for i,e in enumerate(endpoints): 
                 row_dict = e.__dict__
@@ -285,18 +290,38 @@ class BenchmarkModule(BitModule):
 
         return endpoints
 
+    def ls_json(self, path=None):
+        ls_path = self.tmp_dir 
+        if path != None:
+            ls_path = os.path.join(ls_path, path)
+        return self.client.local.ls(ls_path)
+
+    def rm_json(self, path, recursive=True, **kwargs):
+        path = self.resolve_path(path)
+        return self.client.local.rm(path,recursive=recursive, **kwargs)
+
+    def glob_json(self, pattern ='**'):
+        paths =  self.client.local.glob(self.tmp_dir+'/'+pattern)
+        return list(filter(lambda f:self.client.local.isfile(f), paths))
 
 
 if __name__ == '__main__':
-    module = BenchmarkModule.deploy(actor=False)
-    module.sync(force_sync=False)
-    graph_df = module.graph.to_dataframe()
+    module = BenchmarkModule(load_state=False)
+    # module.sync(force_sync=False)
+    # graph_df = module.graph.to_dataframe()
     # st.write(module.my_endpoints())
     # st.write(module.endpoints())
     
     # st.write(module.synapses)
 
-    # st.write('RUN')
-    df = module.predict(text='hey fam whadup', num_endpoints=50, timeout=5)
-    df = pd.merge(graph_df, df, on='uid')
-    st.write(df)
+    # # st.write('RUN')
+    # df = module.predict(text='hey fam whadup', num_endpoints=100, timeout=2)
+    # df = pd.merge(graph_df, df, on='uid')
+    st.write(module.put_json('whadup/bro',['whadup']))
+    st.write(module.get_json('bro'))
+    st.write(module.glob_json())
+    module.rm_json('whadup/')
+    st.write(module.glob_json())
+
+
+    # st.write(module.plot.histogram(df=df, ))

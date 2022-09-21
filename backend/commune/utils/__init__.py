@@ -5,6 +5,7 @@ from .process import *
 from .function import *
 from .time import *
 from .web3 import *
+from .object import *
 
 # from .decorator import *
 

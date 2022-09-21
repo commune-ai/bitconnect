@@ -150,10 +150,13 @@ class ActorModule:
 
         config = ActorModule.resolve_config(cls, config=config, local_var_dict=local_var_dict, override=override)
         
-        if kwargs.get('ray') == False and actor==False:
-            pass
+        ray_bool = kwargs.get('ray')
+
+        if ray_bool == False:
+            assert actor==False, f'actor should be disabled'
         else:
-            ray_context =  cls.get_ray_context(init_kwargs=kwargs.get('ray', config.get('ray')))
+            ray_context =  cls.get_ray_context(init_kwargs=config.get('ray', {}))
+
 
         if actor:
             config['actor'] = config.get('actor', {})
