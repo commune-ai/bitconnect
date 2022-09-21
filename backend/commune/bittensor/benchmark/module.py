@@ -2,7 +2,7 @@
 import streamlit as st
 from random import shuffle, seed
 from collections import defaultdict
-
+import pandas as pd
 import bittensor
 import torch
 from torch import nn
@@ -12,10 +12,13 @@ import torch.nn.functional as F
 
 from commune.bittensor import BitModule
 
+from commune.utils import *
+
 
 import torch
 from torch import nn
 from sentence_transformers import SentenceTransformer
+
 
 
 class RankingLoss(nn.Module):
@@ -138,7 +141,7 @@ class BenchmarkModule(BitModule):
         endpoints =self.graph.endpoint_objs
         if shuffle:
             shuffle(endpoints)
-        endpoints = endpoints[:self.num_receptors]
+        endpoints = endpoints[:num_endpoints]
         return endpoints
 
     # def get_loss_fn(self):
@@ -150,27 +153,72 @@ class BenchmarkModule(BitModule):
         # synapse_class_strings = self.config.get('synapses', default_synapses)
         # return [self.import_module(s)() for s in synapse_class_strings]
         return [bittensor.synapse.TextCausalLM()]   
+
+    def predict(self,text=None, num_endpoints=10, timeout=10):
+        endpoints = self.get_endpoints(num_endpoints=num_endpoints)
+        if text == None:
+            text='yo whadup fam'
+        if isinstance(text, str):
+            text = [text]
+        inputs = torch.tensor(self.tokenizer(text=text, padding=True)['input_ids'])
+
+        with Timer(text='Querying Endpoints: {t}', streamlit=True) as t:
+            results = self.receptor_pool.forward(endpoints, synapses=self.synapses, inputs=[inputs] * len(endpoints), timeout=timeout)
+
+        df = []
+        for i,e in enumerate(endpoints): 
+            row_dict = e.__dict__
+            row_dict['code'] = results[1][i][0]
+            row_dict['latency'] = results[2][i][0]
+            df.append(row_dict)
+        
+        df = pd.DataFrame(df)
+        return df
+
     def run(self):
 
         loss_fn = nn.CrossEntropyLoss()
 
         # https://github.com/huggingface/transformers/blob/v4.21.3/src/transformers/models/gptj/modeling_gptj.py#L847
 
-        num_batches = 100
+        num_batches = 1
  
         for idx in range(num_batches):
             print("getting next batch of data")
-            inputs = next(self.dataset)
-            str_inputs = [self.tokenizer.decode(s) for s in inputs]
+            with Timer(text='Get Batch: {t}', streamlit=True) as t:
+                inputs = next(self.dataset)
+                st.write(inputs)
+
+
+            with Timer(text='Tokenize: {t}', streamlit=True) as t:
+                str_inputs = [self.tokenizer.decode(s) for s in inputs]
+
+            st.write(str_inputs)
             print(f"Querying endpoints")
             # endpoints = self.get_endpoints()
             endpoints = self.get_endpoints()
-            results = self.receptor_pool.forward(endpoints, synapses=self.synapses, inputs=[inputs] * len(endpoints), timeout=20)
-            st.write(len(results))
+    
+            with Timer(text='Querying Endpoints: {t}', streamlit=True) as t:
+                results = self.receptor_pool.forward(endpoints, synapses=self.synapses, inputs=[inputs] * len(endpoints), timeout=10)
+            
+            df = []
+            for i,e in enumerate(endpoints): 
+                row_dict = e.__dict__
+                row_dict['code'] = results[1][i][0]
+                row_dict['latency'] = results[2][i][0]
+                df.append(row_dict)
+            
+            df = pd.DataFrame(df)
+            st.write(df)
+
+            break
+
             
             tensors = []
             for tensor in results[0]:
                 tensors.append(tensor[0])
+            
+
 
             codes = []
             codes_count = defaultdict(int)
@@ -180,7 +228,7 @@ class BenchmarkModule(BitModule):
                 codes_count[code] += 1
             for code in sorted(set(codes)):
                 print(f"{code}: {codes_count[code]}")
-            print()
+        
 
             print("Calculating losses for each endpoint")
             all_losses = []
@@ -241,8 +289,14 @@ class BenchmarkModule(BitModule):
 
 if __name__ == '__main__':
     module = BenchmarkModule.deploy(actor=False)
-    module.sync(force_sync=True)
+    module.sync(force_sync=False)
+    graph_df = module.graph.to_dataframe()
     # st.write(module.my_endpoints())
     # st.write(module.endpoints())
+    
     # st.write(module.synapses)
-    module.run()
+
+    # st.write('RUN')
+    df = module.predict(text='hey fam whadup', num_endpoints=50, timeout=5)
+    df = pd.merge(graph_df, df, on='uid')
+    st.write(df)

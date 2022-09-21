@@ -28,50 +28,25 @@ def timedeltatimestamp( **kwargs):
     return timetamp_delta
 
 
+
+import time
+
+
 class Timer:
-    supported_modes = ['second', 'timestamp']
-    start_time = None
     
-
-
-    def __init__(self, return_type='seconds', streamlit=False, prefix=''):
-        
-        if len(prefix) > 0:
-            streamlit = True
-            
+    def __init__(self, text='time elapsed: {}', return_type='seconds', streamlit=False, ):   
         
         self.__dict__.update(locals())
 
 
-        
     def __enter__(self):
-        self.start()
+        self.start = datetime.datetime.utcnow()
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_tb):
+    def __exit__(self, *args):
+        self.end =  datetime.datetime.utcnow()
+        interval = (self.end - self.start)
 
-        if self.streamlit:
-            st.write(self.prefix.format(x=self.elapsed, t=self.elapsed))
-
-        self.stop()
-    
-    def start(self):
-        assert self.start_time == None, f'You already started the timer at {self.start_time}'
-        
-        self.start_time = self.current_time
-
-
-    @staticmethod
-    def get_current_time():
-        return datetime.datetime.utcnow()
-
-    @property
-    def current_time(self):
-        return self.get_current_time()
-
-    @property
-    def elapsed_time(self):
-        div_factor = 1
         return_type = self.return_type
         if return_type in ['microseconds', 'ms', 'micro', 'microsecond']:
             div_factor = 1
@@ -84,10 +59,12 @@ class Timer:
         else:
             raise NotImplementedError
         
-        timestamp_period =  (self.current_time -self.start_time).microseconds/(1000*div_factor)
-        return timestamp_period
+        self.elapsed_time = self.interval =  interval 
 
-    elapsed = elapsed_time
-    def stop(self):
-        self.end_time = None
-        self.start_time = None
+
+        if self.streamlit and self.text:
+            st.write(self.text.format(t=self.elapsed_time))
+        else: 
+            print(self.text.format(t=self.elapsed_time))
+
+        return self.interval
