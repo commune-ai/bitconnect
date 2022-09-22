@@ -627,12 +627,3 @@ def dict_merge(*args):
         output_dict.update(arg)
     return output_dict
 
-def merge_objects(self, self2, functions:list):
-    self.fn_signature_map = {}
-    fn_ray_method_signatures = self.server_module._ray_method_signatures
-    for fn_key in functions:
-        def fn( *args, **kwargs):
-            self2_fn = getattr(self2, fn_key)
-
-            return self2_fn(*args, **kwargs)
-        setattr(self, fn_key, partial(fn, self))

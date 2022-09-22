@@ -67,10 +67,21 @@ class GradioModule(BaseModule):
     @property
     def module2port(self):
         module2port = {}
-        for k, v in self.subprocess_map.items():
-            module2port[v['module']] = k
+        for port, module in self.port2module.items():
+            module2port[module ] = port
         return module2port
 
+    @property
+    def port2module(self):
+        port2module = {}
+        for k, v in self.subprocess_map.items():
+            port2module[k] = v['module']
+
+        return port2module
+
+
+
+    @property
     def port2module(self):
         port2module = {}
         for k, v in self.subprocess_map.items():
@@ -314,13 +325,27 @@ class GradioModule(BaseModule):
         return module_schema_map
 
 
-    def rm(self, port:int):
-        return self.subprocess_manager.rm(key=str(port))
-    def rm_all(self, port:int):
-        return self.subprocess_manager.rm_all()
+    def rm(self, port:int=None, module:str=None):
+        module2port = self.port2module
+        if port == None:
+            port = None
+            for p, m in self.port2module.items():
+                if module == m:
+                    port = p
+                    break
+        
+        assert type(port) in [str, int], f'{type(port)}'
+        port = str(port)
 
+        if port not in self.port2module:
+            print(f'rm: {port} is already deleted')
+            return None
+        return self.subprocess_manager.rm(key=port)
+    def rm_all(self):
+        for port in self.port2module:
+            self.rm(port=port)
 
-    def ls(self):
+    def ls_ports(self):
         return self.subprocess_manager.ls()
 
     def add(self,module:str, port:int):
@@ -434,7 +459,7 @@ async def root():
 register = GradioModule.register
 
 
-@app.get("/module/list")
+@app.get("/list")
 async def module_list(path_map:bool=False):
     module = GradioModule.get_instance()
     module_list = module.get_modules()
@@ -446,14 +471,14 @@ async def module_list(path_map:bool=False):
     else:
         return module_list
 
-@app.get("/module/schemas")
+@app.get("/schemas")
 async def module_schemas():
     module = GradioModule.get_instance()
     modules = module.get_module_schemas()
     return modules
 
 
-@app.get("/module/schema")
+@app.get("/schema")
 async def module_schema(module:str, gradio:bool=True):
 
 
@@ -465,14 +490,14 @@ async def module_schema(module:str, gradio:bool=True):
     return module_schema
 
 
-
-@app.get("/module/ls")
+@app.get("/ls_ports")
 async def ls():
     self = GradioModule.get_instance()
     # self.launch(module=module)
-    return self.ls()
+    return self.ls_ports()
 
-@app.get("/module/add")
+
+@app.get("/add")
 async def module_add(module:str=None):
     self = GradioModule.get_instance()
     port = self.suggest_port()
@@ -480,30 +505,30 @@ async def module_add(module:str=None):
     return self.add(port=port, module=module)
 
 
-@app.get("/module/rm")
-async def module_rm(module:str=None ):
+@app.get("/rm")
+async def module_rm(module:str=None, port:str=None ):
     self = GradioModule.get_instance()
-    return self.rm(key=port)
+    return self.rm(port=port, module=module)
 
-@app.get("/module/rm_all")
-async def module_rm(module:str=None, ):
+@app.get("/rm_all")
+async def module_rm_all(module:str=None, ):
     self = GradioModule.get_instance()
     return self.rm_all()
 
 
-@app.get("/module/getattr")
-async def module_rm(key:str='subprocess_map', ):
+@app.get("/getattr")
+async def module_getattr(key:str='subprocess_map', ):
     self = GradioModule.get_instance()
     return getattr(self,key)
 
 
-@app.get("/module/port2module")
+@app.get("/port2module")
 async def port2module(key:str='subprocess_map' ):
     self = GradioModule.get_instance()
     return self.port2module
 
 
-@app.get("/module/module2port")
+@app.get("/module2port")
 async def module2port( key:str='subprocess_map'):
     self = GradioModule.get_instance()
 
@@ -512,8 +537,6 @@ async def module2port( key:str='subprocess_map'):
 
 if __name__ == "__main__":
     
-
-
     if args.api:
         uvicorn.run(f"module:app", host="0.0.0.0", port=8000, reload=True, workers=2)
     else:

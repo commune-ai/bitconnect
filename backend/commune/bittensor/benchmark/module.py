@@ -297,6 +297,7 @@ class BenchmarkModule(BitModule):
         return self.client.local.ls(ls_path)
 
     def rm_json(self, path, recursive=True, **kwargs):
+
         path = self.resolve_path(path)
         return self.client.local.rm(path,recursive=recursive, **kwargs)
 
@@ -320,7 +321,7 @@ if __name__ == '__main__':
     st.write(module.put_json('whadup/bro',['whadup']))
     st.write(module.get_json('bro'))
     st.write(module.glob_json())
-    module.rm_json('whadup/')
+    module.rm_json('whadup')
     st.write(module.glob_json())
 
 
