@@ -41,10 +41,10 @@ class BitModule(BaseModule):
     default_wallet_config = {'name': 'default', 'hotkey': 'default'}
     def __init__(self,
                  config=None, sync=False, **kwargs):
-        BaseModule.__init__(self, config) 
+        BaseModule.__init__(self, config=config) 
         # self.sync_network(network=network, block=block)
-        self.network = config.get('network')
-        self.block = config.get('block')
+        self.network = self.config.get('network')
+        self.block = self.config.get('block')
         self.plot = StreamlitPlotModule()
         self.cli = bittensor.cli()
         self.get_wallet()

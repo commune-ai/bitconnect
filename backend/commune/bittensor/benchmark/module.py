@@ -66,10 +66,9 @@ class RankingModel(nn.Module):
 
 class BenchmarkModule(BitModule):
     __file__ = __file__
-    default_config_path = 'bittensor.benchmark'
+    default_config_path = 'bittensor.benchmark.module'
     def __init__(self, config=None, load_state=True, **kwargs):
-        BaseModule.__init__(self, config=None, **kwargs) 
-        # BitModule.__init__(self, config=config, **kwargs)
+        BitModule.__init__(self, config=config, **kwargs)
         if load_state:
             self.load_state()
     @property
@@ -80,6 +79,7 @@ class BenchmarkModule(BitModule):
         if self.config.get('sync') == True:
             self.sync()
         self.load_dataset()
+        self.load_tokenizer()
         self.load_model()
         self.load_optimizer()
         self.load_metric()
@@ -90,9 +90,18 @@ class BenchmarkModule(BitModule):
         dataset_kwargs.update(kwargs)
         dataset_kwargs.update(self.config.get('dataset'))
         dataset_class = self.import_object(dataset_kwargs['path'])
-        
         self.dataset = dataset_class(**dataset_kwargs['params'])
-        self.tokenizer = self.dataset.tokenizer
+
+    def load_tokenizer(self, **kwargs): 
+        if isinstance(self.dataset, bittensor.dataset):
+            self.tokenizer = self.dataset.tokenizer
+
+        tokenizer_kwargs = dict(path='bittensor.tokenizer',
+                            params=dict(version=bittensor.__version__))
+        tokenizer_kwargs.update(kwargs)
+        tokenizer_kwargs.update(self.config.get('tokenizer'))
+        tokenizer_class = self.import_object(tokenizer_kwargs['path'])
+        self.tokenizer = tokenizer_class(**tokenizer_kwargs['params'])
 
     def load_model(self):
         model_config = self.config['model']
@@ -110,6 +119,12 @@ class BenchmarkModule(BitModule):
     def load_metric(self, **kwargs):
         metric_config = self.config['metric']
         self.metric = RankingLoss(**metric_config['params'])
+
+
+    def restart_receptor_pool(self):
+        del self.receptor_pool
+        self.load_receptor_pool()
+
 
     def load_receptor_pool(self, **kwargs):
 
@@ -156,6 +171,8 @@ class BenchmarkModule(BitModule):
         return [bittensor.synapse.TextCausalLM()]   
 
     def predict(self,text=None, num_endpoints=10, timeout=10):
+        if text == None:
+            text = self.raw_sample()
         endpoints = self.get_endpoints(num_endpoints=num_endpoints)
         if text == None:
             text='yo whadup fam'
@@ -163,9 +180,11 @@ class BenchmarkModule(BitModule):
             text = [text]
         inputs = torch.tensor(self.tokenizer(text=text, padding=True)['input_ids'])
 
+        elasped_time = 0
         with Timer(text='Querying Endpoints: {t}', streamlit=True) as t:
             results = self.receptor_pool.forward(endpoints, synapses=self.synapses, inputs=[inputs] * len(endpoints), timeout=timeout)
-
+            elasped_time = t.elapsed_time
+        
         num_responses = len(results[1])
 
         df = []
@@ -174,11 +193,38 @@ class BenchmarkModule(BitModule):
                 row_dict = e.__dict__
                 row_dict['code'] = results[1][i][0]
                 row_dict['latency'] = results[2][i][0]
+                row_dict['elapsed_time'] = elasped_time
+                row_dict['timeout'] = timeout
+                row_dict['return_endpoints'] = num_responses
+                row_dict['query_endpoints'] = num_endpoints
+                row_dict['output_size'] = sys.getsizeof(results[0][i])
+                row_dict['input_size'] = sys.getsizeof(inputs)
+
+
                 df.append(row_dict)
         
         df = pd.DataFrame(df)
+        df = pd.merge(self.graph.to_dataframe(), df, on='uid')
+
+
         return df
 
+
+    def run_experiment(self, trials=5, timeout_list = [1,2,5], num_endpoints_list=[10,20,50,100,500]):
+        
+        
+        total_trials = len(timeout_list) * len(num_endpoints_list)* trials
+        cnt = 0
+        for timeout in timeout_list:
+            for num_endpoints in num_endpoints_list:
+                for i in range(trials):
+                    cnt += 1 
+
+                    text = self.raw_sample()
+                    df = self.predict(text = text, num_endpoints=num_endpoints, timeout=timeout)
+                    print(f'PROGRESS: {cnt}/{total_trials}')
+                    self.put_json(f'experiments/num_endpoints_{num_endpoints}-timeout_{timeout}-trial_{i}', df)
+                    self.restart_receptor_pool()
     def run(self):
 
         loss_fn = nn.CrossEntropyLoss()
@@ -290,39 +336,34 @@ class BenchmarkModule(BitModule):
 
         return endpoints
 
-    def ls_json(self, path=None):
-        ls_path = self.tmp_dir 
-        if path != None:
-            ls_path = os.path.join(ls_path, path)
-        return self.client.local.ls(ls_path)
-
-    def rm_json(self, path, recursive=True, **kwargs):
-
-        path = self.resolve_path(path)
-        return self.client.local.rm(path,recursive=recursive, **kwargs)
-
-    def glob_json(self, pattern ='**'):
-        paths =  self.client.local.glob(self.tmp_dir+'/'+pattern)
-        return list(filter(lambda f:self.client.local.isfile(f), paths))
-
+    def raw_sample(self):
+        text_field = self.config['dataset']['text_field']
+        return self.dataset[random.randint(1,len(self.dataset))][text_field]
 
 if __name__ == '__main__':
-    module = BenchmarkModule(load_state=False)
-    # module.sync(force_sync=False)
-    # graph_df = module.graph.to_dataframe()
-    # st.write(module.my_endpoints())
-    # st.write(module.endpoints())
+    module = BenchmarkModule(load_state=True)
+    module.sync(force_sync=True)
+    # # graph_df = self.graph.to_dataframe()
+    # # st.write(module.my_endpoints())
+    # # st.write(module.endpoints())
     
-    # st.write(module.synapses)
+    # # st.write(module.synapses)
+    # st.write(module.raw_sample())
 
-    # # st.write('RUN')
-    # df = module.predict(text='hey fam whadup', num_endpoints=100, timeout=2)
-    # df = pd.merge(graph_df, df, on='uid')
-    st.write(module.put_json('whadup/bro',['whadup']))
-    st.write(module.get_json('bro'))
-    st.write(module.glob_json())
-    module.rm_json('whadup')
-    st.write(module.glob_json())
+    # # # st.write('RUN')
+    # df = module.predict(text=module.raw_sample(), num_endpoints=100, timeout=2)
+
+    # module.put_json('df', df)
+    # df = pd.DataFrame(module.get_json('df'))
+    # st.write(module.plot.histogram(df, x='latency'))
+    # st.write(datetime.utcnow().isoformat())
+    module.run_experiment()
+    # st.write(module.put_json('whadup/bro',['whadup']))
+    # st.write(module.put_json('sub/bro',['whadup']))
+    # st.write(module.get_json('whadup/bro'))
+    # st.write(module.glob_json())
+    # module.refresh_json()
+    # st.write(module.glob_json())
 
 
     # st.write(module.plot.histogram(df=df, ))

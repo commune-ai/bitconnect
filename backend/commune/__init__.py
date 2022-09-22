@@ -165,12 +165,21 @@ class BaseModule(ActorModule):
         if root_dir == None:
             root_dir = self.tmp_dir
         # resolving base name
-        
+        if path == None:
+            path = root_dir
+
+        if self.client.local.isdir(os.path.join(root_dir,path)):
+            return os.path.join(root_dir,path)
+        elif self.client.local.isdir(path):
+            return path
+
+        # 
         path_basename, path_ext = os.path.splitext(os.path.basename(path))
         if path_ext != '.json':
             path_ext = extension
         path_basename = path_basename + path_ext
         path_dir = os.path.dirname(path)
+
         # ensure the path has the module cache root
         if self.tmp_dir!=path_dir[:len(self.tmp_dir)]:
             path_dir = os.path.join(root_dir, path_dir)
@@ -246,3 +255,21 @@ class BaseModule(ActorModule):
     def reset_cache(self):
         self.cache = {}
         self.save_cache()
+
+
+    def ls_json(self, path=None):
+        ls_path = self.tmp_dir 
+        if path != None:
+            ls_path = os.path.join(ls_path, path)
+        return self.client.local.ls(ls_path)
+
+    def rm_json(self, path=None, recursive=True, **kwargs):
+
+        path = self.resolve_path(path)
+        return self.client.local.rm(path,recursive=recursive, **kwargs)
+
+    def glob_json(self, pattern ='**'):
+        paths =  self.client.local.glob(self.tmp_dir+'/'+pattern)
+        return list(filter(lambda f:self.client.local.isfile(f), paths))
+    def refresh_json(self):
+        self.rm_json()

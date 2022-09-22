@@ -3,10 +3,24 @@ module: 'BenchmarkModule'
 # client: get_config(client.manager)
 
 client: {}
+# dataset:
+#   path: bittensor.dataset
+#   params:
+#     block_size: 10
+
 dataset:
-  path: bittensor.dataset
+  path: datasets.load_dataset
   params:
-    block_size: 10
+    path: glue
+    name: cola
+    split: test
+  text_field: 'sentence'
+  
+
+tokenizer:
+  path: bittensor.tokenizer
+  params:
+    version: null
 
 num_endpoints: 100
 
