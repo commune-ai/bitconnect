@@ -43,7 +43,8 @@ class Timer:
         self.start = datetime.datetime.utcnow()
         return self
 
-    def __exit__(self, *args):
+    @property
+    def interval(self):
         self.end =  datetime.datetime.utcnow()
         interval = (self.end - self.start)
 
@@ -59,7 +60,12 @@ class Timer:
         else:
             raise NotImplementedError
         
-        self.elapsed_time = self.interval =  interval 
+
+        return interval
+        
+    elapsed_time = interval
+
+    def __exit__(self, *args):
 
 
         if self.streamlit and self.text:
@@ -67,4 +73,4 @@ class Timer:
         else: 
             print(self.text.format(t=self.elapsed_time))
 
-        return self.interval
+

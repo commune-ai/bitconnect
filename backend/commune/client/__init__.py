@@ -1,2 +1,2 @@
 
-from .module import ClientModule
+from .manager.module import ClientModule

@@ -8,7 +8,7 @@ import datasets
 from copy import deepcopy
 from commune import BaseModule
 class ClientModule(BaseModule):
-    default_config_path = 'client.module'
+    default_config_path = 'client.manager.module'
     registered_clients = {}
 
     def __init__(self, config=None ):

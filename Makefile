@@ -4,14 +4,19 @@ stop:
 	make down
 up:
 	./start.sh --backend
+start:
+	make up
 
 up_latest:
 	./start.sh --backend
 
-start:
-	make up
+start_latest:
+	./start.sh --backend
 
 bash_backend: 
+	docker exec -it bittensor-backend bash
+
+backend: 
 	docker exec -it bittensor-backend bash
 
 restart:
@@ -50,10 +55,14 @@ python:
 
 exec:
 	docker exec -it bittensor-backend bash -c "${arg}"
-	
+
 api:
 	docker exec -it bittensor-backend bash -c "python commune/gradio/api/module.py --api"
 
-client:
+
+gradio_api:
+	docker exec -it bittensor-backend bash -c "python commune/gradio/api/module.py --api"
+
+gradio_client:
 	make app arg=gradio/client
 

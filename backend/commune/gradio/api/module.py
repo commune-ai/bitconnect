@@ -379,6 +379,8 @@ class GradioModule(BaseModule):
             assert module in module_list, f'{args.module} is not in {module_list}'
             interface = self.compile(module=module)
         kwargs["port"] = kwargs.pop('port', self.suggest_port()) 
+        if kwargs["port"] == None:
+            return {'error': 'Ports might be full'}
         kwargs["server_port"] = kwargs.pop('port')
         kwargs['server_name'] = self.host
         
@@ -406,6 +408,8 @@ class GradioModule(BaseModule):
 
         kwargs = {**default_kwargs, **kwargs}
         interface.launch(**kwargs)
+
+        return kwargs
 
 
     module = None

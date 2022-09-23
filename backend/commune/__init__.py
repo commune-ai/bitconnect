@@ -37,7 +37,7 @@ def enable_cache(**input_kwargs):
 class BaseModule(ActorModule):
     client = None
     default_config_path = None
-    client_module_class_path = 'client.module.ClientModule'
+    client_module_class_path = 'client.manager.module.ClientModule'
  
     def __init__(self, config=None, override={}, client=None ,**kwargs):
 

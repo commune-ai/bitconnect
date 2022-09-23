@@ -1,1 +1,1 @@
-from .module import BitModule
+from .base.module import BitModule
