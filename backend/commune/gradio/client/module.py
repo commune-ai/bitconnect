@@ -164,7 +164,6 @@ class ClientModule(BaseModule):
             time.sleep(0.5)
             changed_bool = self.num_active_modules  == prev_num_active_ports + 1
             
-            st.write(changed_bool)
             if changed_bool:
                 return return_obj
 
@@ -206,9 +205,12 @@ class ClientModule(BaseModule):
             for k,v in self.get_modules('dir2object', active=False).items():
                 dict_put(module_tree, k,v)
             st.write(module_tree)
-        with st.expander(' Module Tree Paths', True):
-            module_path_df = self.get_modules('dir2full_df', active=False)
-            st.write(module_path_df)
+        with st.expander(' Module2Paths', True):
+            df = self.get_modules('dir2full_df', active=False)
+            df['module'] = df['dir']
+            df['folder_path'] = df['dir'].apply(lambda x: os.path.join(os.getenv('PWD'), x.replace('.', '/')))
+            df = df.drop(columns=['dir', 'full'])
+            st.write(df)
 
 
         port_module_df = self.get_modules('port2dir_df', active=True)
@@ -232,14 +234,35 @@ class ClientModule(BaseModule):
         port_module_df = self.get_modules('port2dir_df', active=True)
 
 
+
+
+
+
+
+        with st.sidebar.expander('Active Modules', True):
+            df = self.get_modules(mode='port2dir_df', active=True)
+
+            df = df.rename(columns={'simple': 'path'})
+            df['status'] = 'active'
+            st.write(df)
+
+            # module.client.rest.get(endpoint='add', params=dict(module='gradio.client.module.ClientModule'))
+        
+
+        running_module_tags  = list(df.apply(lambda r: f"{r['dir']}:{r['port']}", axis=1))
         mode = 'Running Modules'
+
+        if len(df) > 0:
+            running_module_tags  = list(df.apply(lambda r: f"{r['dir']}:{r['port']}", axis=1))
+        else:
+            running_module_tags = []
+
         with st.sidebar.expander(mode, True):
 
-            running_ports = port_module_df['port']
+            running_ports = df['port']
 
 
-            st.write(running_module_tags) 
-            selected_running_module_tags = st.multiselect('Running Modules',  running_module_tags, running_module_tags)
+            selected_running_module_tags = st.multiselect('',  running_module_tags, running_module_tags)
             
             selected_module_tags = [t for t in running_module_tags if t not in selected_running_module_tags]
             
@@ -249,21 +272,15 @@ class ClientModule(BaseModule):
             for port in selected_ports:
                 self.rm(port=port)
 
+            
+            remove_button = st.button('remove', selected_module_tags)
+            if remove_button:
+                selected_ports = [t.split(':')[1] for t in selected_running_module_tags]
+                for port in selected_ports:
+                    self.rm(port=port)
 
 
-
-
-        with st.expander('Active Modules', True):
-            df = self.get_modules(mode='port2dir_df', active=True)
-            df = df.rename(columns={'simple': 'path'})
-            df['status'] = 'active'
-            st.write(df)
-
-            # module.client.rest.get(endpoint='add', params=dict(module='gradio.client.module.ClientModule'))
-        
         sync_button = st.sidebar.button('Sync')
-
-
 from commune.utils import *
 
 
