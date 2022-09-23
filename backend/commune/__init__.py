@@ -192,9 +192,9 @@ class BaseModule(ActorModule):
 
 
     def get_json(self,path, root_dir=None, **kwargs):
+
         path = self.resolve_path(path=path, root_dir=root_dir)
         import streamlit as st
-        st.write(path)
         data = self.client.local.get_json(path=path, **kwargs)
         return data
 

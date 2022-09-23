@@ -151,7 +151,7 @@ class BenchmarkModule(BitModule):
     def num_receptors(self):
         return self.num_endpoints
 
-    def get_endpoints(self, num_endpoints=None, shuffle=False):
+    def get_endpoints(self, num_endpoints=None, shuffle=True):
         if num_endpoints == None:
             num_endpoints =self.num_endpoints
         endpoints =self.graph.endpoint_objs
@@ -210,9 +210,7 @@ class BenchmarkModule(BitModule):
         return df
 
 
-    def run_experiment(self, trials=5, timeout_list = [1,2,5], num_endpoints_list=[10,20,50,100,500]):
-        
-        
+    def run_experiment(self,  trials=5, timeout_list = [1,2,5], num_endpoints_list=[10,20,50,100,500], path='experiments'):
         total_trials = len(timeout_list) * len(num_endpoints_list)* trials
         cnt = 0
         for timeout in timeout_list:
@@ -223,8 +221,21 @@ class BenchmarkModule(BitModule):
                     text = self.raw_sample()
                     df = self.predict(text = text, num_endpoints=num_endpoints, timeout=timeout)
                     print(f'PROGRESS: {cnt}/{total_trials}')
-                    self.put_json(f'experiments/num_endpoints_{num_endpoints}-timeout_{timeout}-trial_{i}', df)
+                    self.put_json(f'{path}/num_endpoints_{num_endpoints}-timeout_{timeout}-trial_{i}', df)
                     self.restart_receptor_pool()
+    
+    
+    def load_experiment(self, path='experiments'):
+        df = []
+
+        for p in self.ls_json(path):
+            df.append(pd.DataFrame(self.get_json(p)))
+
+
+        df = pd.concat(df)
+        returnid2code = {k:f'{v}' for k,v in zip(bittensor.proto.ReturnCode.values(),bittensor.proto.ReturnCode.keys())}
+        df['code'] = df['code'].map(returnid2code)
+        return df
     def run(self):
 
         loss_fn = nn.CrossEntropyLoss()
@@ -342,7 +353,7 @@ class BenchmarkModule(BitModule):
 
 if __name__ == '__main__':
     module = BenchmarkModule(load_state=True)
-    module.sync(force_sync=True)
+    module.sync()
     # # graph_df = self.graph.to_dataframe()
     # # st.write(module.my_endpoints())
     # # st.write(module.endpoints())
@@ -357,7 +368,8 @@ if __name__ == '__main__':
     # df = pd.DataFrame(module.get_json('df'))
     # st.write(module.plot.histogram(df, x='latency'))
     # st.write(datetime.utcnow().isoformat())
-    module.run_experiment()
+    df = module.run_experiment(path='experiments/shuffle')
+
     # st.write(module.put_json('whadup/bro',['whadup']))
     # st.write(module.put_json('sub/bro',['whadup']))
     # st.write(module.get_json('whadup/bro'))
@@ -365,5 +377,24 @@ if __name__ == '__main__':
     # module.refresh_json()
     # st.write(module.glob_json())
 
+    with st.expander('dataframe', True):
+        st.write(df.iloc[:50]) 
 
-    # st.write(module.plot.histogram(df=df, ))
+    with st.expander('Latency Histogram', True):
+        fig =  module.plot.histogram(df, x='latency', color="code")
+        fig.update_layout(legend={'traceorder':'normal'})
+        st.write(fig)
+
+
+    import plotly.express as px
+    with st.expander('Return Code Pie Chart', True):
+        code_count_dict = dict(df['code'].value_counts())
+        codes_count_df =   pd.DataFrame({'codes': list(code_count_dict.keys()), 'values':  list(code_count_dict.values())})
+        fig = px.pie(names=list(code_count_dict.keys()), 
+                    values= list(code_count_dict.values()))
+        st.write(codes_count_df)
+        st.write(fig)
+
+
+    # fig = px.pie(df, values='pop', names='country', title='Population of European continent')
+    # fig.show()
