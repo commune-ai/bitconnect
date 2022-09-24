@@ -110,6 +110,8 @@ class ClientModule(BaseModule):
             port = port_list,
             dir = list(map(self.get_module_dir, module_list))
             )
+
+        st.write(modules_dict)
         return_type = None
         return_types = ['df','pandas']
         for k in return_types:
@@ -206,6 +208,7 @@ class ClientModule(BaseModule):
                 dict_put(module_tree, k,v)
             st.write(module_tree)
         with st.expander(' Module2Paths', True):
+
             df = self.get_modules('dir2full_df', active=False)
             df['module'] = df['dir']
             df['folder_path'] = df['dir'].apply(lambda x: os.path.join(os.getenv('PWD'), x.replace('.', '/')))
@@ -272,7 +275,6 @@ class ClientModule(BaseModule):
             for port in selected_ports:
                 self.rm(port=port)
 
-            
             remove_button = st.button('remove', selected_module_tags)
             if remove_button:
                 selected_ports = [t.split(':')[1] for t in selected_running_module_tags]

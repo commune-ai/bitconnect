@@ -11,6 +11,10 @@ import socket
 from multiprocessing import Process
 from commune.utils import SimpleNamespace
 from commune.utils import *
+import socket
+import argparse
+from fastapi import FastAPI
+import uvicorn
 # from commune.thread import PriorityThreadPoolExecutor
 import argparse
 import streamlit as st
@@ -441,8 +445,8 @@ class GradioModule(BaseModule):
     @property
     def api_config(self):
         default_api_config = dict(
+                app="module:app",
                 root= None,
-                path=f"module:app", 
                 host="0.0.0.0", port=8000, 
                 reload=True, 
                 workers=2
@@ -450,7 +454,7 @@ class GradioModule(BaseModule):
 
         api_config = self.config.get('api', {})
         assert isinstance(api_config, dict)
-        api_conifg = {**default_api_config, **api_config}
+        api_config = {**default_api_config, **api_config}
         return api_config
 
 
@@ -467,13 +471,13 @@ class GradioModule(BaseModule):
             )
         '''
         kwargs = {**self.api_config, **kwargs}
-        root = kwargs.pop('root')
+        root = kwargs.pop('root', None)
         app = self.get_app(app=app, root=root)
-
         uvicorn.run(**kwargs)
 
+    @classmethod
+    def get_app(cls, root=None, app=None, config={}, **kwargs):
 
-    def get_app(self, root=None, app=None):
         if app == None:
             app = FastAPI(**kwargs)
         assert isinstance(app, FastAPI)
@@ -485,17 +489,18 @@ class GradioModule(BaseModule):
         else:
             raise NotImplementedError(root)
         
-        assert isinstance(root, str), f'"{root}" should be a str but is {type(root)}')
+        assert isinstance(root, str), f'"{root}" should be a str but is {type(root)}'
         
-        @app.get("{root}/")
+        @app.get(f"{root}/")
         async def root():
+            self = cls.get_instance()
             module = self.get_instance()
             return {"message": "GradioFlow MothaFucka"}
             
-        @app.get("{root}/list")
+        @app.get(f"{root}/list")
         async def module_list(path_map:bool=False):
-            module = GradioModule.get_instance()
-            module_list = module.get_modules()
+            self = cls.get_instance()
+            module_list = self.get_modules()
             if path_map:
                 module_path_map = {}
                 for module in module_list:
@@ -504,71 +509,71 @@ class GradioModule(BaseModule):
             else:
                 return module_list
 
-        @app.get("{root}/schemas")
+        @app.get(f"{root}/schemas")
         async def module_schemas():
+            self = cls.get_instance()
             modules = self.get_module_schemas()
             return modules
-        @app.get("{root}/schema")
+        @app.get(f"{root}/schema")
         async def module_schema(module:str, gradio:bool=True):
 
-
+            self = cls.get_instance()  
             if gradio:
                 module_schema = self.get_gradio_function_schemas(module, return_type='dict')
             else:
                 module_schema = self.get_module_function_schema(module)
             return module_schema
-        @app.get("{root}/ls_ports")
+        @app.get(f"{root}/ls_ports")
         async def ls():
+
+            self = cls.get_instance()
             return self.ls_ports()
 
-        @app.get("{root}/add")
+        @app.get(f"{root}/add")
         async def module_add(module:str=None):
+
+            self = cls.get_instance()
             port = self.suggest_port()
             # self.launch(module=module)
             return self.add(port=port, module=module)
-        @app.get("{root}/rm")
+        @app.get(f"{root}/rm")
         async def module_rm(module:str=None, port:str=None ):
+            self = cls.get_instance()
             return self.rm(port=port, module=module)
-        @app.get("{root}/rm_all")
+        @app.get(f"{root}/rm_all")
         async def module_rm_all(module:str=None, ):
+            self = cls.get_instance()
             return self.rm_all()
-        @app.get("{root}/getattr")
+        @app.get(f"{root}/getattr")
         async def module_getattr(key:str='subprocess_map', ):
+            self = cls.get_instance()
             return getattr(self,key)
-        @app.get("{root}/port2module")
+        @app.get(f"{root}/port2module")
         async def port2module(key:str='subprocess_map' ):
+            self = cls.get_instance()
             return self.port2module
-        @app.get("{root}/module2port")
+        @app.get(f"{root}/module2port")
         async def module2port( key:str='subprocess_map'):
+            self = cls.get_instance()
             return self.module2port  
+
 
         return app      
 
-    def run_uvicorn(path=f"module:app",
-                    host="0.0.0.0", 
-                    port=8000, 
-                    reload=True,
-                    workers=2)
-
-import socket
-import argparse
-from fastapi import FastAPI
-import uvicorn
 
 
-args = GradioModule.argparse()
+
+
+
 register = GradioModule.register
-
-app = self
-
-
+app = GradioModule.get_app()
 
 
 
 if __name__ == "__main__":
     
-
-       module = GradioModule()
+    args = GradioModule.argparse()
+    module = GradioModule()
 
     if args.api:
         module.run_app()
