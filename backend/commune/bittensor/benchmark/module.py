@@ -151,26 +151,44 @@ class BenchmarkModule(BitModule):
     def num_receptors(self):
         return self.num_endpoints
 
-    def get_endpoints(self, num_endpoints=None, shuffle=True):
+    def get_endpoints(self, num_endpoints=None, random_sample=True):
         if num_endpoints == None:
             num_endpoints =self.num_endpoints
         endpoints =self.graph.endpoint_objs
-        if shuffle:
-            shuffle(endpoints)
-        endpoints = endpoints[:num_endpoints]
+
+        if random_sample == True:
+            endpoint_index_list = list(np.random.randint(0, num_endpoints, (10)))
+            endpoints = [endpoints[idx] for idx in endpoint_index_list]
+        else:
+            endpoints = endpoints[:num_endpoints]
         return endpoints
 
     # def get_loss_fn(self):
     #     return nn.CrossEntropyLoss()
     
+    @staticmethod
+    def str2synapse(synapse:str):
+        return getattr(bittensor.synapse, synapse)()
     @property
     def synapses(self):
         # default_synapses = ['bittensor.synapse.TextCausalLM']
         # synapse_class_strings = self.config.get('synapses', default_synapses)
         # return [self.import_module(s)() for s in synapse_class_strings]
-        return [bittensor.synapse.TextCausalLM()]   
+        # return [bittensor.synapse.TextCausalLM()] 
+        synsapses = list(map(self.str2synapse, self.config.get('synapses',['TextLastHiddenState'])) )
+        return synsapses
 
-    def predict(self,text=None, num_endpoints=10, timeout=10):
+    def predict(self,text=None, num_endpoints=10, timeout=1, synapses = None, return_type='df'):
+        
+
+        if synapses == None:
+            synapses = self.synapses
+        elif isinstance(synspses, str):
+            synapses = [self.str2synapse(synapse)]
+        elif isinstance(synapses, list):
+            if isinstance(synapse[0], str):
+                synapses = list(map(self.str2synapse, synapses))
+
         if text == None:
             text = self.raw_sample()
         endpoints = self.get_endpoints(num_endpoints=num_endpoints)
@@ -187,26 +205,29 @@ class BenchmarkModule(BitModule):
         
         num_responses = len(results[1])
 
-        df = []
-        for i,e in enumerate(endpoints): 
-            if i < num_responses:
-                row_dict = e.__dict__
-                row_dict['code'] = results[1][i][0]
-                row_dict['latency'] = results[2][i][0]
-                row_dict['elapsed_time'] = elasped_time
-                row_dict['timeout'] = timeout
-                row_dict['return_endpoints'] = num_responses
-                row_dict['query_endpoints'] = num_endpoints
-                row_dict['output_size'] = sys.getsizeof(results[0][i])
-                row_dict['input_size'] = sys.getsizeof(inputs)
+        if return_type in ['df']:
+            df = []
+            for i,e in enumerate(endpoints): 
+                if i < num_responses:
+                    row_dict = e.__dict__
+                    row_dict['code'] = results[1][i][0]
+                    row_dict['latency'] = results[2][i][0]
+                    # row_dict['elapsed_time'] = elasped_time
+                    row_dict['timeout'] = timeout
+                    row_dict['return_endpoints'] = num_responses
+                    row_dict['query_endpoints'] = num_endpoints
+                    row_dict['output_size'] = sys.getsizeof(results[0][i])
+                    row_dict['input_size'] = sys.getsizeof(inputs)
 
 
-                df.append(row_dict)
+                    df.append(row_dict)
+            
+            df = pd.DataFrame(df)
+            df = pd.merge(self.graph.to_dataframe(), df, on='uid')
+        elif return_type in ['results', 'result']:
+
+            return torch.cat([tensor[0] for tensor in results[0]], 0)
         
-        df = pd.DataFrame(df)
-        df = pd.merge(self.graph.to_dataframe(), df, on='uid')
-
-
         return df
 
 
@@ -236,6 +257,25 @@ class BenchmarkModule(BitModule):
         returnid2code = {k:f'{v}' for k,v in zip(bittensor.proto.ReturnCode.values(),bittensor.proto.ReturnCode.keys())}
         df['code'] = df['code'].map(returnid2code)
         return df
+
+    def st_experiment(self, path='experiments'):
+
+        df = self.load_experiment()
+        with st.expander('dataframe', True):
+            st.write(df.iloc[:50]) 
+        with st.expander('Latency Histogram', True):
+            fig =  module.plot.histogram(df, x='latency', color="code")
+            fig.update_layout(legend={'traceorder':'normal'})
+            st.write(fig)
+        import plotly.express as px
+        with st.expander('Return Code Pie Chart', True):
+            code_count_dict = dict(df['code'].value_counts())
+            codes_count_df =   pd.DataFrame({'codes': list(code_count_dict.keys()), 'values':  list(code_count_dict.values())})
+            fig = px.pie(names=list(code_count_dict.keys()), 
+                        values= list(code_count_dict.values()))
+            st.write(codes_count_df)
+            st.write(fig)
+
     def run(self):
 
         loss_fn = nn.CrossEntropyLoss()
@@ -368,7 +408,12 @@ if __name__ == '__main__':
     # df = pd.DataFrame(module.get_json('df'))
     # st.write(module.plot.histogram(df, x='latency'))
     # st.write(datetime.utcnow().isoformat())
-    df = module.run_experiment(path='experiments/shuffle')
+    df = module.predict(return_type='results')
+
+    st.write(df.shape)
+
+
+    
 
     # st.write(module.put_json('whadup/bro',['whadup']))
     # st.write(module.put_json('sub/bro',['whadup']))
@@ -377,23 +422,6 @@ if __name__ == '__main__':
     # module.refresh_json()
     # st.write(module.glob_json())
 
-    with st.expander('dataframe', True):
-        st.write(df.iloc[:50]) 
-
-    with st.expander('Latency Histogram', True):
-        fig =  module.plot.histogram(df, x='latency', color="code")
-        fig.update_layout(legend={'traceorder':'normal'})
-        st.write(fig)
-
-
-    import plotly.express as px
-    with st.expander('Return Code Pie Chart', True):
-        code_count_dict = dict(df['code'].value_counts())
-        codes_count_df =   pd.DataFrame({'codes': list(code_count_dict.keys()), 'values':  list(code_count_dict.values())})
-        fig = px.pie(names=list(code_count_dict.keys()), 
-                    values= list(code_count_dict.values()))
-        st.write(codes_count_df)
-        st.write(fig)
 
 
     # fig = px.pie(df, values='pop', names='country', title='Population of European continent')

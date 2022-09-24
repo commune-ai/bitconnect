@@ -29,7 +29,7 @@ model:
   params:
     num_endpoints: local_copy(num_endpoints)
 
-synapses: ['bittensor.synapse.TextCausalLM']
+synapses: ['TextLastHiddenState']
 
 optimizer:
   path: torch.optim.Adam

@@ -436,8 +436,9 @@ class ActorModule:
     def kill_pid(pid):        
         return kill_pid(pid)
 
-        
-
+    @property
+    def __file__(self):
+        return self.get_module_filepath()
 
     @property
     def tmp_dir(self):
