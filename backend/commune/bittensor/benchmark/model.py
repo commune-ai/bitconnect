@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 from sentence_transformers import SentenceTransformer
 
 class RankingLoss(nn.Module):

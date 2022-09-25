@@ -47,23 +47,24 @@ class BitModule(BaseModule):
         self.block = self.config.get('block')
         self.plot = StreamlitPlotModule()
         self.cli = bittensor.cli()
-        self.get_wallet()
+        self.set_wallet()
         # self.sync()
 
 
-    def switch_default_wallet(self, hotkey='default', coldkey='default'):
-        
-        self.wallet = self.wallets[coldkey][hotkey]
+    def set_wallet(self, name:str=None, hotkey:str=None,**kwargs):
+        wallet_config = self.config.get('wallet', self.default_wallet_config)
+        name = wallet_config['name'] if name == None else name
+        hotkey = wallet_config['hotkey'] if hotkey == None else hotkey
+        self.wallet = bittensor.wallet(name=name, hotkey=hotkey)
+        return self.wallet
 
 
     def get_wallet(self, **kwargs):
         wallet_kwargs = self.config.get('wallet', self.default_wallet_config)
- 
         for k in ['name', 'hotkey']:
             kwargs[k] = kwargs.get(k,wallet_kwargs[k])
             assert isinstance(kwargs[k], str), f'{kwargs[k]} is not a string'
 
-        st.write(kwargs)
         self.wallet = bittensor.wallet(**kwargs)
 
         return self.wallet
@@ -224,7 +225,8 @@ class BitModule(BaseModule):
         if update_graph:
             self.get_graph()
 
-
+    set_network = sync_network = sync 
+    
     @property
     def graph_path(self):
         return f'backend/{self.network}B{self.block}.pth'

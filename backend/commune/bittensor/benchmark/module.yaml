@@ -25,7 +25,7 @@ tokenizer:
 num_endpoints: 100
 
 model:
-  path: commune.bittensor.benchmark.RankingModel
+  path: commune.bittensor.benchmark.model.RankingModel
   params:
     num_endpoints: local_copy(num_endpoints)
 
@@ -37,7 +37,7 @@ optimizer:
     lr: 0.00032
 
 metric:
-  path: commune.bittensor.benchmark.RankingLoss
+  path: commune.bittensor.benchmark.model.RankingLoss
   params: {}
 
 
@@ -45,15 +45,19 @@ receptor_pool:
   max_worker_threads: 64
   max_active_receptors: 512
 
-# network: nobunaga
-network: nakamoto
+network: nobunaga
+# network: nakamoto
 block: null
 blocks_behind_sync_threshold: 1000
 
 
+# wallet: 
+#   name: const
+#   hotkey: Tiberius
+
 wallet: 
-  name: const
-  hotkey: Tiberius
+  name: default
+  hotkey: default
 
 actor:
   name: local_copy(module)

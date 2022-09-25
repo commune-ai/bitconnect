@@ -18,49 +18,6 @@ from commune.utils import *
 
 import torch
 from torch import nn
-from sentence_transformers import SentenceTransformer
-
-
-
-class RankingLoss(nn.Module):
-    def __init__(self):
-        super(RankingLoss, self).__init__()
-
-    def forward(self, x, y):
-        print(self)
-        loss = torch.mean((x - y) ** 2)
-        return loss
-
-
-class RankingModel(nn.Module):
-    def __init__(self, num_endpoints: int):
-
-        super().__init__()
-        self.num_endpoints = num_endpoints
-
-        self.transformer = SentenceTransformer(
-            "sentence-transformers/all-distilroberta-v1"
-        )
-
-        # TODO match embedding dim to transformer
-        self.embeddings = torch.nn.Embedding(
-            num_embeddings=num_endpoints,
-            embedding_dim=self.transformer.get_sentence_embedding_dimension(),
-        )
-
-    def forward(self, sequence):
-
-        seq_embeddings = torch.tensor(self.transformer.encode(sequence))
-
-        # (num_receptors, dim)
-        endpoint_embeddings = self.embeddings(torch.arange(0, self.num_endpoints))
-        endpoint_embeddings = torch.nn.functional.normalize(endpoint_embeddings, p=2, dim=1)
-
-        # (batch_size, num_endpoints)
-        sims = torch.matmul(seq_embeddings, endpoint_embeddings.T)
-        sims = (sims + 1) / 2  # bound from (0, 1)
-
-        return sims
 
 
 
@@ -105,7 +62,8 @@ class BenchmarkModule(BitModule):
 
     def load_model(self):
         model_config = self.config['model']
-        self.model = RankingModel(**model_config['params'])
+        model_class = self.import_object(model_config.get('path'))
+        self.model = model_class(**model_config['params'])
         self.num_endpoints = self.model.num_endpoints
     
     def load_optimizer(self,**kwargs):
@@ -118,7 +76,8 @@ class BenchmarkModule(BitModule):
 
     def load_metric(self, **kwargs):
         metric_config = self.config['metric']
-        self.metric = RankingLoss(**metric_config['params'])
+        metric_class = self.import_object(metric_config.get('path'))
+        self.metric = metric_class(**metric_config['params'])
 
 
     def restart_receptor_pool(self):
@@ -157,7 +116,7 @@ class BenchmarkModule(BitModule):
         endpoints =self.graph.endpoint_objs
 
         if random_sample == True:
-            endpoint_index_list = list(np.random.randint(0, num_endpoints, (10)))
+            endpoint_index_list = list(np.random.randint(0, self.n, (num_endpoints)))
             endpoints = [endpoints[idx] for idx in endpoint_index_list]
         else:
             endpoints = endpoints[:num_endpoints]
@@ -175,10 +134,10 @@ class BenchmarkModule(BitModule):
         # synapse_class_strings = self.config.get('synapses', default_synapses)
         # return [self.import_module(s)() for s in synapse_class_strings]
         # return [bittensor.synapse.TextCausalLM()] 
-        synsapses = list(map(self.str2synapse, self.config.get('synapses',['TextLastHiddenState'])) )
+        synsapses = list(map(self.str2synapse, self.config.get('synapses',['TextCausalLM'])) )
         return synsapses
 
-    def predict(self,text=None, num_endpoints=10, timeout=1, synapses = None, return_type='df'):
+    def predict(self,text, num_endpoints, timeout=1, synapses = None, return_type='result', **kwargs):
         
 
         if synapses == None:
@@ -191,7 +150,14 @@ class BenchmarkModule(BitModule):
 
         if text == None:
             text = self.raw_sample()
-        endpoints = self.get_endpoints(num_endpoints=num_endpoints)
+
+        endpoints = kwargs.get('endpoints')
+        if endpoints == None:
+            endpoints = self.get_endpoints(num_endpoints=num_endpoints)
+
+
+        num_endpoints = len(endpoints)
+
         if text == None:
             text='yo whadup fam'
         if isinstance(text, str):
@@ -223,11 +189,16 @@ class BenchmarkModule(BitModule):
                     df.append(row_dict)
             
             df = pd.DataFrame(df)
+
+            returnid2code = {k:f'{v}' for k,v in zip(bittensor.proto.ReturnCode.values(),bittensor.proto.ReturnCode.keys())}
+            df['code'] = df['code'].map(returnid2code)
             df = pd.merge(self.graph.to_dataframe(), df, on='uid')
+
+        
         elif return_type in ['results', 'result']:
 
-            return torch.cat([tensor[0] for tensor in results[0]], 0)
-        
+            # return torch.cat([tensor[0] for tensor in results[0]], 0)
+            return results
         return df
 
 
@@ -288,13 +259,11 @@ class BenchmarkModule(BitModule):
             print("getting next batch of data")
             with Timer(text='Get Batch: {t}', streamlit=True) as t:
                 inputs = next(self.dataset)
-                st.write(inputs)
 
 
             with Timer(text='Tokenize: {t}', streamlit=True) as t:
                 str_inputs = [self.tokenizer.decode(s) for s in inputs]
 
-            st.write(str_inputs)
             print(f"Querying endpoints")
             # endpoints = self.get_endpoints()
             endpoints = self.get_endpoints()
@@ -361,27 +330,29 @@ class BenchmarkModule(BitModule):
     def coldkey_address(self):
         return self.wallet.coldkeypub.ss58_address
 
-    def endpoints(self, return_type='list'):
-        endpoints = self.graph.endpoint_objs
-        if return_type =='list':
-            endpoints = [e.__dict__ for e in endpoints]
-        elif return_type == 'df':
-            endpoints = pd.Dataframe([e.__dict__ for e in endpoints])
-        return endpoints
+    @property
+    def hotkey_address(self):
+        return self.wallet.hotkey.ss58_address
 
+    @property
+    def endpoints(self):
+        return self.graph.endpoint_objs
+    @property
+    def hotkey_endpoints(self):
+        return self.my_endpoints(mode='hotkey')
 
-    def my_endpoints(self, return_type = 'endpoint'):
+    @property
+    def coldkey_endpoints(self):
+        return self.my_endpoints(mode='coldkey')
+
+    @property
+    def my_endpoints(self, mode = 'hotkey'):
         endpoints = self.graph.endpoint_objs
         
-        endpoints = [e for e in endpoints if (e.coldkey == self.coldkey_address and e.ip != "0.0.0.0") ]
-        st.write(self.coldkey_address)
-        if return_type == 'endpoint':
-            endpoints = endpoints
-        elif return_type =='list':
-            endpoints = [e.__dict__ for e in endpoints]
-    
-        elif return_type == 'df':
-            endpoints = pd.Dataframe([e.__dict__ for e in endpoints])
+        if mode == 'hotkey':
+            endpoints = [e for e in endpoints if (e.hotkey == self.hotkey_address and e.ip != "0.0.0.0") ]
+        elif mode == 'coldkey':
+            endpoints = [e for e in endpoints if (e.coldkey == self.coldkey_address and e.ip != "0.0.0.0") ]
         else:
             raise NotImplementedError
 
@@ -391,9 +362,76 @@ class BenchmarkModule(BitModule):
         text_field = self.config['dataset']['text_field']
         return self.dataset[random.randint(1,len(self.dataset))][text_field]
 
+    def st_sidebar(self):
+
+
+        mode = 'Network'
+        with st.sidebar.expander(mode):
+            with st.form(mode):
+                network2idx = {n:n_idx for n_idx, n in  enumerate(self.networks)}
+                default_idx = network2idx['nakamoto']
+                network = st.selectbox('Select Network', self.networks,default_idx)
+                # block = st.number_input('Select Block', 0,self.current_block, self.current_block-1)
+                
+                force_sync = st.checkbox('Force Sync', False)
+
+                submit_button = st.form_submit_button('Sync')
+                if submit_button:
+                    self.set_network(network=network,force_sync=force_sync)
+                
+        mode = 'Wallet'
+        with st.sidebar.expander(mode, True):
+            with st.form(mode):
+                cold2hot_wallets = self.wallets
+                cold_wallet_options = list(cold2hot_wallets.keys())
+                selected_coldwallet = st.selectbox('Cold Wallet:', cold_wallet_options, 0)
+                hot_wallet_options = list(cold2hot_wallets[selected_coldwallet].keys())
+                selected_hotwallet = st.selectbox('Cold Wallet:', hot_wallet_options, 0)
+                
+                submit_button = st.form_submit_button(mode)
+                if submit_button:
+                    self.set_wallet(name=selected_coldwallet, 
+                                    hotkey=selected_hotwallet)
+                
+
+
+
+    def st_main(self):
+
+        with st.expander('Query', True):
+            with st.form('Query'):
+                # input side
+                text = st.text_area('Input Text', 'Whadup dawg')
+                num_endpoints = st.slider('Number of Endpoints', 0, len(self.endpoints), 50)
+
+                timeout = st.slider('Timeout (seconds)', 0, 20, 2)
+
+                return_type = st.selectbox('Select Return Type', ['df', 'result'], 0)
+
+                submit_button = st.form_submit_button('Query')
+                
+                if submit_button:
+                    output = self.predict(text=text, num_endpoints=num_endpoints, return_type = return_type, timeout=timeout)
+                    st.write('Output')
+                    st.write(output)
+            
+        with st.expander('My Endpoints', True):
+            my_endpoints = self.my_endpoints
+            my_endpoints_df = pd.DataFrame([e.__dict__ for e in my_endpoints])
+            
+            st.write(my_endpoints_df)
+            if len(my_endpoints_df)>0:
+                my_endpoints_df.drop(columns=['hotkey', 'coldkey'], inplace=True)
+                st.write(my_endpoints_df)
+            else:
+                st.write('No Endpoints')
+            # my_selected_endpoints = st.multiselect('',my_endpoints, my_endpoints)
+        
+
+
 if __name__ == '__main__':
     module = BenchmarkModule(load_state=True)
-    module.sync()
+    module.sync(force_sync=False)
     # # graph_df = self.graph.to_dataframe()
     # # st.write(module.my_endpoints())
     # # st.write(module.endpoints())
@@ -408,9 +446,17 @@ if __name__ == '__main__':
     # df = pd.DataFrame(module.get_json('df'))
     # st.write(module.plot.histogram(df, x='latency'))
     # st.write(datetime.utcnow().isoformat())
-    df = module.predict(return_type='results')
+    # df = module.predict(return_type='results')
 
-    st.write(df.shape)
+    # st.write(df.shape)
+
+    # my_endpoints = module.my_endpoints()
+    st.set_page_config(layout="wide")
+    module.st_sidebar()
+    module.st_main()
+
+    # st.write(module.predict(text=None, endpoints = my_endpoints , return_type='results'))
+    # st.write(module.my_endpoints()[0].__dict__)
 
 
     

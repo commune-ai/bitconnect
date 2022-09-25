@@ -492,11 +492,10 @@ class GradioModule(BaseModule):
         assert isinstance(root, str), f'"{root}" should be a str but is {type(root)}'
         
         @app.get(f"{root}/")
-        async def root():
+        async def root_endpoint():
             self = cls.get_instance()
             module = self.get_instance()
             return {"message": "GradioFlow MothaFucka"}
-            
         @app.get(f"{root}/list")
         async def module_list(path_map:bool=False):
             self = cls.get_instance()
