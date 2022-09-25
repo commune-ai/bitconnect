@@ -33,10 +33,10 @@ class NeuronModule(BitModule):
 
     def load_neuron(self):
         self.sync(force_sync=False)
-        st.write(self.wallet, self.graph, self.subtensor)
+        st.write(self.wallet, self.metagraph, self.subtensor)
         self.neuron =  bittensor.neurons.core_server.neuron(subtensor=self.subtensor, 
                                                 wallet=self.wallet,
-                                                 axon=None, metagraph = self.graph)
+                                                 axon=None, metagraph = self.metagraph)
 
     @classmethod
     def argparse(cls):

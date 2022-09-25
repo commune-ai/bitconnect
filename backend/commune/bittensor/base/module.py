@@ -86,6 +86,39 @@ class BitModule(BaseModule):
         self._block = block
         self.config['block'] = block
 
+    @property
+    def neuron(self):
+        return self.subtensor.neuron_for_pubkey(self.wallet.hotkey.ss58_address)
+    
+    @property
+    def uid(self):
+        return self.metagraph.hotkeys.index( self.wallet.hotkey.ss58_address )
+
+    @property
+    def coldkey_address(self):
+        return self.wallet.coldkeypub.ss58_address
+
+    @property
+    def hotkey_address(self):
+        return self.wallet.hotkey.ss58_address
+    
+    @property
+    def endpoints(self):
+        return self.metagraph.endpoint_objs
+
+    @property
+    def my_endpoints(self, mode = 'hotkey'):
+        endpoints = self.metagraph.endpoint_objs
+        
+        if mode == 'hotkey':
+            endpoints = [e for e in endpoints if (e.hotkey == self.hotkey_address and e.ip != "0.0.0.0") ]
+        elif mode == 'coldkey':
+            endpoints = [e for e in endpoints if (e.coldkey == self.coldkey_address and e.ip != "0.0.0.0") ]
+        else:
+            raise NotImplementedError
+
+        return endpoints
+
 
     @property
     def subtensor(self):
@@ -234,26 +267,26 @@ class BitModule(BaseModule):
     set_network = sync_network = sync 
     
     @property
-    def graph_path(self):
+    def metagraph_path(self):
         return f'backend/{self.network}B{self.block}.pth'
 
 
     def load_graph(self):
-        # graph_state_dict = self.client['minio'].load_model(path=self.graph_path) 
-        # self.graph.load_from_state_dict(graph_state_data)
+        # metagraph_state_dict = self.client['minio'].load_model(path=self.metagraph_path) 
+        # self.metagraph.load_from_state_dict(metagraph_state_data)
 
-        self.graph.load()
-        self.block = self.graph.block.item()
+        self.metagraph.load()
+        self.block = self.metagraph.block.item()
         if not self.should_sync_graph:
-            self.set_graph_state()
+            self.set_metagraph_state()
         
 
 
-    def set_graph_state(self, sample_n=None, sample_mode='rank', **kwargs):
-        graph_state = self.graph.state_dict()
-        # self.graph_state =  self.sample_graph_state(graph_state=graph_state, sample_n=sample_n, sample_mode=sample_mode, **kwargs)
-        self.graph_state = graph_state
-    def sample_graph_state(self, graph_state , sample_n=None,  sample_mode='rank', **kwargs ):
+    def set_metagraph_state(self, sample_n=None, sample_mode='rank', **kwargs):
+        metagraph_state = self.metagraph.state_dict()
+        # self.metagraph_state =  self.sample_metagraph_state(metagraph_state=metagraph_state, sample_n=sample_n, sample_mode=sample_mode, **kwargs)
+        self.metagraph_state = metagraph_state
+    def sample_metagraph_state(self, metagraph_state , sample_n=None,  sample_mode='rank', **kwargs ):
         '''
         Args:
             sample_mode: 
@@ -276,37 +309,37 @@ class BitModule(BaseModule):
 
         self.sampled_uid_indices = sampled_uid_indices
 
-        sampled_graph_state = {}
-        for k,v in graph_state.items():
+        sampled_metagraph_state = {}
+        for k,v in metagraph_state.items():
             if len(v.shape)==0:
                 continue
             elif (len(v.shape) == 1 and v.shape[0] == self.n) or k in ['endpoints'] :
-                sampled_graph_state[k] = v[sampled_uid_indices]
+                sampled_metagraph_state[k] = v[sampled_uid_indices]
             elif len(v.shape) == 2 and v.shape[0] == self.n and v.shape[1] == self.n:
-                sampled_graph_state[k] = v[sampled_uid_indices]
-                sampled_graph_state[k] = sampled_graph_state[k][:, sampled_uid_indices]
+                sampled_metagraph_state[k] = v[sampled_uid_indices]
+                sampled_metagraph_state[k] = sampled_metagraph_state[k][:, sampled_uid_indices]
             else:
-                sampled_graph_state[k] = v
+                sampled_metagraph_state[k] = v
             
-        return sampled_graph_state
+        return sampled_metagraph_state
 
     def sync_graph(self,block=None):
 
-        self.graph.sync(block=block)
-        # once the graph syncs, set the block
-        self.block = self.graph.block.item()
-        self.set_graph_state()
+        self.metagraph.sync(block=block)
+        # once the metagraph syncs, set the block
+        self.block = self.metagraph.block.item()
+        self.set_metagraph_state()
 
 
     def save_graph(self):
-        # graph_state_dict = self.graph.state_dict()
+        # metagraph_state_dict = self.metagraph.state_dict()
 
-        # graph_state_data = self.client['minio'].save_model(path=self.graph_path,
-        #                                                     data=graph_state_dict) 
+        # metagraph_state_data = self.client['minio'].save_model(path=self.metagraph_path,
+        #                                                     data=metagraph_state_dict) 
   
-        # self.graph.load_from_state_dict(graph_state_data)
-        # self.block = self.graph.block.item()
-        self.graph.save()
+        # self.metagraph.load_from_state_dict(metagraph_state_data)
+        # self.block = self.metagraph.block.item()
+        self.metagraph.save()
         
     def argsort_uids(self, metric='rank', descending=True):
         prohibited_params = ['endpoints', 'uids', 'version']
@@ -314,7 +347,7 @@ class BitModule(BaseModule):
         if metric in prohibited_params:
             return None
 
-        metric_tensor = getattr(self.graph, metric, None)
+        metric_tensor = getattr(self.metagraph, metric, None)
 
         if metric_tensor == None :
             return None
@@ -335,7 +368,7 @@ class BitModule(BaseModule):
     def get_graph(self):
 
         # Fetch data from URL here, and then clean it up.
-        self.graph = bittensor.metagraph(network=self.network, subtensor=self.subtensor)
+        self.metagraph = bittensor.metagraph(network=self.network, subtensor=self.subtensor)
         self.load_graph()
         if self.should_sync_graph:
             self.sync_graph()
@@ -358,18 +391,18 @@ class BitModule(BaseModule):
 
 
     def adjacency(mode='W', ):
-        return torch.nonzero(self.graph.weights)
+        return torch.nonzero(self.metagraph.weights)
 
-    def describe_graph_state(self, shape=True):
-        return {k:dict(shape=v.shape, type=v.dtype ) for k,v in  self.graph_state.items()}
+    def describe_metagraph_state(self, shape=True):
+        return {k:dict(shape=v.shape, type=v.dtype ) for k,v in  self.metagraph_state.items()}
 
 
     @property
-    def graph_state_params(self):
-        return self.graph_state.keys()
+    def metagraph_state_params(self):
+        return self.metagraph_state.keys()
 
     def agg_param(self, param='rank', agg='sum', decimals=2):
-        param_tensor = getattr(self.graph, param)
+        param_tensor = getattr(self.metagraph, param)
         return round(getattr(torch,agg)(param_tensor).item(), decimals)
 
 
@@ -439,6 +472,42 @@ class BitModule(BaseModule):
             content_fn()
 
 
+
+
+    @property
+    def rank(self):
+        return self.neuron.rank
+
+    @property
+    def stake(self):
+        return self.neuron.stake
+
+    @property
+    def consensus(self):
+        return self.neuron.consensus
+
+    @property
+    def incentive(self):
+        return self.neuron.incentive
+
+    @property
+    def emmision(self):
+        return self.neuron.emmision
+
+    @property
+    def trust(self):
+        return self.neuron.trust
+    
+    @property
+    def uid_data(self):
+        nn = self.neuron
+        return {'stake': nn.stake,
+                'rank': nn.rank,
+                'trust': nn.trust,
+                'consensus': nn.consensus,
+                'incentive': nn.incentive,
+                'emission': nn.emission}
+
     def view_graph(self):
 
         n= 100
@@ -458,12 +527,12 @@ class BitModule(BaseModule):
 
         self.plot.dag.build(nodes=nodes, edges=edges)
     
-    def st_describe_graph_state(self):
-        with st.sidebar.expander('Graph Params'):
-            st.write(self.describe_graph_state())
+    def st_describe_metagraph_state(self):
+        with st.sidebar.expander('metagraph Params'):
+            st.write(self.describe_metagraph_state())
 
     def plot_sandbox(self):
-        self.plot.run(data=self.graph.to_dataframe())
+        self.plot.run(data=self.metagraph.to_dataframe())
     
     def st_sidebar(self):
         bt_url = 'https://yt3.ggpht.com/9fs6F292la5PLdf-ATItg--4bhjzGfu5FlIV1ujfmqlS0pqKzGleXzMjjPorZwgUPfglMz3ygg=s900-c-k-c0x00ffffff-no-rj'
@@ -475,14 +544,14 @@ class BitModule(BaseModule):
         # ''')
         self.st_select_network()
         self.st_sample_params()
-        self.st_describe_graph_state()
+        self.st_describe_metagraph_state()
 
     def st_main(self):
 
         self.st_metrics()
         
-        df = self.graph_df()
-        with st.expander('Graph Dataframe'):
+        df = self.metagraph_df()
+        with st.expander('metagraph Dataframe'):
             st.write(df)
         plot_df = df.drop(['uid', 'active'], axis=1)
         self.st_distributions(df = plot_df)
@@ -496,7 +565,7 @@ class BitModule(BaseModule):
     def st_relationmap(self):
         with st.expander('Relation Map'):
             metric = st.selectbox('Select a Matric', ['weights', 'bonds'], 0)
-            z = self.graph_state[metric]
+            z = self.metagraph_state[metric]
             # z[torch.nonzero(z==1)] = 0
             cols =st.columns([1,5,1])
 
@@ -549,17 +618,17 @@ class BitModule(BaseModule):
 
 
 
-    def graph_df(self):
+    def metagraph_df(self):
         df_dict= {
-                'uid': self.graph_state['uids'],
-                'active': self.graph_state['active'],             
-                'stake': self.graph_state['stake'],             
-                'rank': self.graph_state['ranks'],            
-                'trust': self.graph_state['trust'],             
-                'consensus': self.graph_state['consensus'],             
-                'incentive': self.graph_state['incentive'],             
-                'dividends': self.graph_state['dividends'],          
-                'emission': self.graph_state['emission']
+                'uid': self.metagraph_state['uids'],
+                'active': self.metagraph_state['active'],             
+                'stake': self.metagraph_state['stake'],             
+                'rank': self.metagraph_state['ranks'],            
+                'trust': self.metagraph_state['trust'],             
+                'consensus': self.metagraph_state['consensus'],             
+                'incentive': self.metagraph_state['incentive'],             
+                'dividends': self.metagraph_state['dividends'],          
+                'emission': self.metagraph_state['emission']
             }
 
 
@@ -574,8 +643,10 @@ class BitModule(BaseModule):
             submitted = st.form_submit_button("Sample")
 
             if submitted:
-                self.set_graph_state()
+                self.set_metagraph_state()
 
+
+    
 if __name__ == '__main__':
 
     st.set_page_config(layout="wide")
@@ -589,7 +660,7 @@ if __name__ == '__main__':
     # module.sync(network='nakamoto', update_graph=False)
     # st.write(module.register())
 
-    # endpoint_0 = module.graph.endpoints[0]
+    # endpoint_0 = module.metagraph.endpoints[0]
     # den = bittensor.dendrite(wallet = module.wallet)
     # representations, _, _ = den.forward_text (
     #     endpoints = endpoint_0,

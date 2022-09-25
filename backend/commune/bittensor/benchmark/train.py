@@ -20,7 +20,7 @@ bittensor.logging(debug=False)
 data = bittensor.dataset(block_size=128)
 tokenizer = data.tokenizer
 x = 64
-graph = bittensor.metagraph().sync()
+metagraph = bittensor.metagraph().sync()
 wallet = bittensor.wallet(name="const", hotkey="Tiberius")
 seed(0)
 shuffle(endpoints)

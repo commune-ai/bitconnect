@@ -421,7 +421,7 @@ def serve(
                     wallet = wallet,
                 )
                 
-                self.graph.sync()
+                self.metagraph.sync()
                 if did_set:
                     logger.success('Successfully set weights on the chain')
                 else:

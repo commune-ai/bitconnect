@@ -113,7 +113,7 @@ class BenchmarkModule(BitModule):
     def get_endpoints(self, num_endpoints=None, random_sample=True):
         if num_endpoints == None:
             num_endpoints =self.num_endpoints
-        endpoints =self.graph.endpoint_objs
+        endpoints =self.metagraph.endpoint_objs
 
         if random_sample == True:
             endpoint_index_list = list(np.random.randint(0, self.n, (num_endpoints)))
@@ -192,7 +192,7 @@ class BenchmarkModule(BitModule):
 
             returnid2code = {k:f'{v}' for k,v in zip(bittensor.proto.ReturnCode.values(),bittensor.proto.ReturnCode.keys())}
             df['code'] = df['code'].map(returnid2code)
-            df = pd.merge(self.graph.to_dataframe(), df, on='uid')
+            df = pd.merge(self.metagraph.to_dataframe(), df, on='uid')
 
         
         elif return_type in ['results', 'result']:
@@ -336,7 +336,7 @@ class BenchmarkModule(BitModule):
 
     @property
     def endpoints(self):
-        return self.graph.endpoint_objs
+        return self.metagraph.endpoint_objs
     @property
     def hotkey_endpoints(self):
         return self.my_endpoints(mode='hotkey')
@@ -347,7 +347,7 @@ class BenchmarkModule(BitModule):
 
     @property
     def my_endpoints(self, mode = 'hotkey'):
-        endpoints = self.graph.endpoint_objs
+        endpoints = self.metagraph.endpoint_objs
         
         if mode == 'hotkey':
             endpoints = [e for e in endpoints if (e.hotkey == self.hotkey_address and e.ip != "0.0.0.0") ]
@@ -433,7 +433,7 @@ class BenchmarkModule(BitModule):
 if __name__ == '__main__':
     module = BenchmarkModule(load_state=True)
     module.sync(force_sync=False)
-    # # graph_df = self.graph.to_dataframe()
+    # # graph_df = self.metagraph.to_dataframe()
     # # st.write(module.my_endpoints())
     # # st.write(module.endpoints())
     
