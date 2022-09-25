@@ -52,10 +52,14 @@ class BitModule(BaseModule):
 
 
     def set_wallet(self, name:str=None, hotkey:str=None,**kwargs):
+
         wallet_config = self.config.get('wallet', self.default_wallet_config)
-        name = wallet_config['name'] if name == None else name
-        hotkey = wallet_config['hotkey'] if hotkey == None else hotkey
+        wallet_config['name'] = wallet_config['name'] if name == None else name
+        wallet_config['hotkey'] = wallet_config['hotkey'] if hotkey == None else hotkey
         self.wallet = bittensor.wallet(name=name, hotkey=hotkey)
+        
+        self.config['wallet'] = wallet_config
+
         return self.wallet
 
 
@@ -80,6 +84,7 @@ class BitModule(BaseModule):
     @block.setter
     def block(self, block):
         self._block = block
+        self.config['block'] = block
 
 
     @property
@@ -193,6 +198,7 @@ class BitModule(BaseModule):
     def network(self, network):
         assert network in self.networks, f'{network} is not in {self.networks}'
         self._network = network
+        self.config['network'] = network
         return self._network
 
     @property

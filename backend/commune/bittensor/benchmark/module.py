@@ -362,6 +362,7 @@ class BenchmarkModule(BitModule):
         text_field = self.config['dataset']['text_field']
         return self.dataset[random.randint(1,len(self.dataset))][text_field]
 
+
     def st_sidebar(self):
 
 
@@ -452,8 +453,9 @@ if __name__ == '__main__':
 
     # my_endpoints = module.my_endpoints()
     st.set_page_config(layout="wide")
-    module.st_sidebar()
-    module.st_main()
+    # module.st_sidebar()
+    # module.st_main()
+    st.write(module.wallet)
 
     # st.write(module.predict(text=None, endpoints = my_endpoints , return_type='results'))
     # st.write(module.my_endpoints()[0].__dict__)
