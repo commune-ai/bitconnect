@@ -108,6 +108,8 @@ def is_class(cls):
     return type(cls).__name__ == 'type'
 
 
+
+
 def is_fn_schema_complete(fn_schema):
 
     return  not (len(fn_schema['output'])==0 or len(fn_schema['input'])==0)

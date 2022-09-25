@@ -205,13 +205,13 @@ class GradioModule(BaseModule):
 
     @staticmethod
     def register(inputs, outputs):
+        
         def register_gradio(func):
             GradioModule.expose(gradio='True', 
                                 inputs=inputs,
                                 outputs=outputs)(func=func)
             return func
         return register_gradio
-
 
 
     def get_modules(self, force_update=True):

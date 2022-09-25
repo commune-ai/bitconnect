@@ -443,3 +443,20 @@ class ActorModule:
     @property
     def tmp_dir(self):
         return f'/tmp/commune/{self.name}'
+
+    "Base class to expose instance methods"
+    _exposable_ = None  # Not necessary, just for pylint
+    class __metaclass__(type):
+        def __new__(cls, name, bases, state):
+            methods = state['_exposed_'] = dict()
+
+            # inherit bases exposed methods
+            for base in bases:
+                methods.update(getattr(base, '_exposed_', {}))
+
+            for name, member in state.items():
+                meta = getattr(member, '__meta__', None)
+                if meta is not None:
+                    print "Found", name, meta
+                    methods[name] = member
+            return type.__new__(cls, name, bases, state)
