@@ -41,24 +41,54 @@ class BitModule(BaseModule):
     default_wallet_config = {'name': 'default', 'hotkey': 'default'}
     def __init__(self,
                  config=None, sync=False, **kwargs):
+        
+        
         BaseModule.__init__(self, config=config) 
         # self.sync_network(network=network, block=block)
-        self.network = self.config.get('network')
-        self.block = self.config.get('block')
         self.plot = StreamlitPlotModule()
         self.cli = bittensor.cli()
-        self.set_wallet()
-        # self.sync()
 
+        # should we load
+        load_kwargs = kwargs.get('load')
+        if load_kwargs == None:
+            pass
+        else:
+            if load_kwargs == None:
+                pass
+            elif isinstance(load_kwargs, bool):
+                if load_kwargs == True:
+                    load_kwargs = {}
+                else:
+                    load_kwargs = None
+            elif isinstance(load_kwargs, dict):
+                load_kwargs = load_kwargs
+            elif isinstance(load_kwargs, str):
+                load_kwargs = {'path': load_kwargs}
+            else:
+                raise NotImplementedError
+
+            if isinstance(load_kwargs, dict):
+                self.load(**load_kwargs)
+
+
+    def load(self, path=None, **kwargs):
+        self.get_config(path=path)
+        self.sync(**kwargs)
+        
+    def save(self, path=None ,**kwargs):
+        self.put_config(path=path, **kwargs)
 
     def set_wallet(self, name:str=None, hotkey:str=None,**kwargs):
 
         wallet_config = self.config.get('wallet', self.default_wallet_config)
         wallet_config['name'] = wallet_config['name'] if name == None else name
         wallet_config['hotkey'] = wallet_config['hotkey'] if hotkey == None else hotkey
-        self.wallet = bittensor.wallet(name=name, hotkey=hotkey)
+
+        st.write(wallet_config )
+        self.wallet = bittensor.wallet(**wallet_config)
         
         self.config['wallet'] = wallet_config
+        st.write(self.config['wallet'] , 'BRO')
 
         return self.wallet
 
@@ -76,8 +106,8 @@ class BitModule(BaseModule):
 
     @property
     def block(self):
-        if self._block is None:
-            return self.current_block
+        if not hasattr(self, '_block'):
+            self._block = self.current_block
         
         return self._block
 
@@ -247,22 +277,21 @@ class BitModule(BaseModule):
 
 
 
-    def sync(self, force_sync=False, network=None, block=None, update_graph=True):
+    def sync(self, force_sync=False, network=None, block=None, wallet={}):
         self.force_sync = force_sync
         # Fetch data from URL here, and then clean it up.
         if network == None:
             network = self.network
-        else:
-            self.network = network
+        self.network = network
 
         if block == None:
             block = self.block
-        else:
-            self.block = block
+        self.block = block
 
         self.get_subtensor(network=network)
-        if update_graph:
-            self.get_graph()
+        self.get_metagraph()
+
+        self.set_wallet(**wallet)
 
     set_network = sync_network = sync 
     
@@ -365,7 +394,7 @@ class BitModule(BaseModule):
     def blocks_behind(self):
         return self.current_block - self.block
 
-    def get_graph(self):
+    def get_metagraph(self):
 
         # Fetch data from URL here, and then clean it up.
         self.metagraph = bittensor.metagraph(network=self.network, subtensor=self.subtensor)
@@ -613,10 +642,6 @@ class BitModule(BaseModule):
             network = 'local'
 
 
-        
-
-
-
 
     def metagraph_df(self):
         df_dict= {
@@ -646,16 +671,18 @@ class BitModule(BaseModule):
                 self.set_metagraph_state()
 
 
+
     
 if __name__ == '__main__':
 
     st.set_page_config(layout="wide")
     
     module = BitModule.deploy(actor=False)
-    
-    module.sync(force_sync=False)
-    st.write(module.list_hotkeys())
-    st.write(module.list_coldkeys())
+    module.load(skip_state=False)
+    st.write(module.receptor)
+
+    # st.write(module.list_hotkeys())
+    # st.write(module.uid_data)
 
     # module.sync(network='nakamoto', update_graph=False)
     # st.write(module.register())

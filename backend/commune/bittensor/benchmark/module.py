@@ -24,23 +24,39 @@ from torch import nn
 class BenchmarkModule(BitModule):
     __file__ = __file__
     default_config_path = 'bittensor.benchmark.module'
-    def __init__(self, config=None, load_state=True, **kwargs):
+    def __init__(self, config=None, load=True, **kwargs):
+
         BitModule.__init__(self, config=config, **kwargs)
-        if load_state:
-            self.load_state()
+        if load not in [None, False]:
+            if not isinstance(load, dict):
+                load = {}
+            self.load(**load)
     @property
     def debug(self):
         return self.config.get('debug', False)
 
-    def load_state(self):
-        if self.config.get('sync') == True:
-            self.sync()
-        self.load_dataset()
-        self.load_tokenizer()
-        self.load_model()
-        self.load_optimizer()
-        self.load_metric()
-        self.load_receptor_pool()
+    def load_state(self, load_keys=None,
+                  load_kwargs={}, 
+                load_args={}, 
+                **kwargs):
+
+        if load_keys == None:
+            load_keys=['dataset', 'tokenizer', 'model', 'metric', 'receptor_pool']
+
+
+        for load_key in load_keys:
+            load_kwargs.get(load_key, {}) 
+            load_fn = getattr(self, f'load_{load_key}', None)
+            assert load_fn != None, f'{load_key} is suppose to be a function'
+            load_fn_kwargs = load_kwargs.get(load_key, {})
+            load_fn_args = load_args.get(load_key, [])
+            load_fn(*load_fn_args, **load_fn_kwargs)
+
+    def load(self, path=None, skip_state=False, refresh=False, **kwargs):
+        if refresh == False:
+            BitModule.load(self=self, path=path, **kwargs)
+        if skip_state == False:
+            self.load_state(**kwargs)
 
     def load_dataset(self, **kwargs):
         dataset_kwargs = dict(path='bittensor.dataset', params=dict(block_size=128))
@@ -427,12 +443,21 @@ class BenchmarkModule(BitModule):
             else:
                 st.write('No Endpoints')
             # my_selected_endpoints = st.multiselect('',my_endpoints, my_endpoints)
-        
+
+
 
 
 if __name__ == '__main__':
-    module = BenchmarkModule(load_state=True)
-    module.sync(force_sync=False)
+    module = BenchmarkModule(load_state=False)
+    module.load(skip_state=False)
+    module.set_wallet(name='const', hotkey='Tiberius')
+    module.save()
+    # st.write(module.config)
+    # st.write(module.config.get('wallet'))
+    st.write(module.network)
+    st.write(module.wallet)
+
+    # st.write(module.uid_data)
     # # graph_df = self.metagraph.to_dataframe()
     # # st.write(module.my_endpoints())
     # # st.write(module.endpoints())
@@ -452,10 +477,9 @@ if __name__ == '__main__':
     # st.write(df.shape)
 
     # my_endpoints = module.my_endpoints()
-    st.set_page_config(layout="wide")
     # module.st_sidebar()
     # module.st_main()
-    st.write(module.wallet)
+
 
     # st.write(module.predict(text=None, endpoints = my_endpoints , return_type='results'))
     # st.write(module.my_endpoints()[0].__dict__)

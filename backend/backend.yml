@@ -13,10 +13,10 @@ services:
       # - 5000:5000
       - 8501-8505:8501-8505
       - 8080:8080 # 
-      - 8265:8265 # ray dashboard 
-      - 7865-7870:7865-7870 # gradio ports
-      - 8000:8000 # api
-      - 8888:8888 # jupyterlab
+      - 8266:8265 # ray dashboard 
+      # - 7865-7870:7865-7870 # gradio ports
+      - 8001:8000 # api
+      - 8889:8888 # jupyterlab
 
 
     volumes:

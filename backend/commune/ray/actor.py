@@ -33,27 +33,22 @@ class ActorModule:
     def get_current_timestamp():
         return  datetime.datetime.utcnow().timestamp()
         
-    def resolve_config(self, config, override={}, local_var_dict={}, recursive=True):
+    def resolve_config(self, config, override={}, local_var_dict={}, recursive=True, **kwargs):
         if config == None:
-            config = getattr(self,'config',  None)
+            config = getattr(self,'config',  self.default_config_path)
         elif (type(config) in  [list, dict]): 
             if len(config) == 0:
                 assert isinstance(self.default_config_path, str)
                 config = self.default_config_path
+        elif isinstance(config, str):
+            config = config
         else:
             raise NotImplementedError(config)
-
-        if config == None:
-            assert isinstance(self.default_config_path, str)
-            config = self.default_config_path
-
-        if override == None:
-            override = {}
 
         config = self.load_config(config=config, 
                              override=override, 
                             local_var_dict=local_var_dict,
-                            recursive=True)
+                            recursive=recursive)
 
 
         
@@ -142,49 +137,49 @@ class ActorModule:
         return ray.is_initialized()
 
     @classmethod 
-    def deploy(cls, config=None, actor=False , override={}, local_var_dict={}, **kwargs):
+    def deploy(cls, actor=False , skip_ray=False, **kwargs):
         """
         deploys process as an actor or as a class given the config (config)
         """
+        config = kwargs.pop('config', None)
+        config = ActorModule.resolve_config(self=cls,config=config, **kwargs)
+        ray_config = config.get('ray', {})
+        actor_config =  config.get('actor', {})
 
-
-        config = ActorModule.resolve_config(cls, config=config, local_var_dict=local_var_dict, override=override)
-        
-        ray_bool = kwargs.get('ray')
-
-        if ray_bool == False:
-            assert actor==False, f'actor should be disabled'
-        else:
-            ray_context =  cls.get_ray_context(init_kwargs=config.get('ray', {}))
+        if skip_ray == False:
+            ray_context =  cls.get_ray_context(init_kwargs=ray_config)
 
 
         if actor:
-            config['actor'] = config.get('actor', {})
+
             if isinstance(actor, dict):
-                config['actor'].update(actor)
+                actor_config.update(actor)
             elif isinstance(actor, bool):
                 pass
             else:
                 raise Exception('Only pass in dict (actor args), or bool (uses config["actor"] as kwargs)')  
-            
-            return cls.deploy_actor(cls_kwargs=dict(config=config), **config['actor'])
+            config['actor'] = actor_config
+            kwargs['config'] = config
+            return cls.deploy_actor(**actor_config, **kwargs)
         else:
-            return cls(config=config)
 
-    @staticmethod
-    def get_ray_context(init_kwargs, reinit=True):
-        default_ray_env = {'address': 'auto', 'namespace': 'default'}
+                
+            kwargs['config'] = config
+            return cls(**kwargs)
 
+    default_ray_env = {'address': 'auto', 'namespace': 'default'}
+    @classmethod
+    def get_ray_context(cls,init_kwargs=None, reinit=True):
+        
         if init_kwargs == None:
-            init_kwargs = default_ray_env
+            init_kwargs = cls.default_ray_env
 
             
-        
         if isinstance(init_kwargs, dict):
 
             
             for k in ['address', 'namespace']:
-                default_value= default_ray_env.get(k)
+                default_value= cls.default_ray_env.get(k)
                 init_kwargs[k] = init_kwargs.get(k,default_value)
                 assert isinstance(init_kwargs[k], str), f'{k} is not in args'
             
@@ -198,19 +193,24 @@ class ActorModule:
         else:
             raise NotImplementedError(f'{init_kwargs} is not supported')
     
+
+
     @classmethod
     def deploy_actor(cls,
-                        config=None,
-                        cls_kwargs={},
+                        cls_kwargs=None,
                         name='actor',
                         detached=True,
                         resources={'num_cpus': 1, 'num_gpus': 0.1},
                         max_concurrency=1,
                         refresh=False,
                         verbose = True, 
-                        redundant=False):
-        if isinstance(config, dict):
-            cls_kwargs = {'config': config}
+                        redundant=False, 
+                        return_actor_handle=True,
+                        **kwargs):
+    
+        if cls_kwargs == None:
+            cls_kwargs = kwargs
+
         return create_actor(cls=cls,
                         name=name,
                         cls_kwargs=cls_kwargs,
@@ -218,7 +218,7 @@ class ActorModule:
                         resources=resources,
                         max_concurrency=max_concurrency,
                         refresh=refresh,
-                        return_actor_handle=True,
+                        return_actor_handle=return_actor_handle,
                         verbose=verbose,
                         redundant=redundant)
 

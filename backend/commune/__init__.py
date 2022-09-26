@@ -271,5 +271,34 @@ class BaseModule(ActorModule):
     def glob_json(self, pattern ='**'):
         paths =  self.client.local.glob(self.tmp_dir+'/'+pattern)
         return list(filter(lambda f:self.client.local.isfile(f), paths))
+    
     def refresh_json(self):
         self.rm_json()
+
+    def put_config(self, path=None):
+        if path ==  None:
+            path = 'config'
+        return self.put_json(path, self.config)
+
+    def get_config(self,  path=None):
+        if path ==  None:
+            path = 'config'
+        self.config = self.get_json(path)
+
+
+
+    def put_state_dict(self, path=None, exclude=None, include=None):
+        if path == None:
+            path = 'state_dict'
+
+        state_dict = self.__dict__
+        return self.put_json(path, state_dict)
+
+
+    def get_state_dict(self, path=None):
+        if path == None:
+            path = 'state_dict'
+
+        state_dict =  self.get_json(path)
+        self.__dict__ =  state_dict
+
