@@ -8,9 +8,8 @@ from commune import BaseModule
 from inspect import getfile
 import inspect
 import socket
-from multiprocessing import Process
-from commune.utils import SimpleNamespace
 from commune.utils import *
+from copy import deepcopy
 # from commune.thread import PriorityThreadPoolExecutor
 import argparse
 import streamlit as st
@@ -25,10 +24,6 @@ class bcolor:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
-    
-
-
-
     
 
 class GradioModule(BaseModule):
@@ -130,15 +125,16 @@ class GradioModule(BaseModule):
 
 
     def active_port(self, port:int=1):
-        is_active = port in self.port2module
-        return is_active
+        return port in self.port2module
 
 
     def port_connected(self ,port : int):
+        """
+            Check if the given param port is already running
+        """
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)       
         result = s.connect_ex((self.host, int(port)))
-        if result == 0: return True
-        return False
+        return result == 0
 
     @property
     def subprocess_map(self):
@@ -214,22 +210,29 @@ class GradioModule(BaseModule):
         return register_gradio
 
 
+    @property
+    def simple2path(self):
+        module_list = self.module_list
+        simple2path = {}
+        for m in module_list:
+            assert m.split('.')[-2] == 'module', f'{m}'
+            simple_path = '.'.join(m.split('.')[:-2])
+            simple2path[simple_path] = m
+
+        return simple2path
+
 
     def get_modules(self, force_update=True):
         modules = []
         failed_modules = []
         for root, dirs, files in self.client.local.walk('/app/commune'):
             if all([f in files for f in ['module.py', 'module.yaml']]):
-
-
                 try:
-                    
                     cfg = self.config_loader.load(root)   
                     if cfg == None:
                         cfg = {}           
                 except Exception as e:
                     cfg = {}
-
 
                 module_path = root.lstrip(os.environ['PWD']).replace('/', '.')
                 module_path = '.'.join(module_path.split('.')[1:])
@@ -240,6 +243,9 @@ class GradioModule(BaseModule):
                     failed_modules.append(root)
 
         return modules
+    @property
+    def module_list(self):
+        return self.get_modules()
 
     def get_gradio_modules(self):
         return list(self.get_module_schemas().keys())
@@ -349,8 +355,7 @@ class GradioModule(BaseModule):
         return self.subprocess_manager.ls()
 
     def add(self,module:str, port:int):
-        module_list = self.get_modules()
-        assert module in module_list, f'{module} is not in {module_list}'
+        module = self.resolve_module_path(module)
         command  = f'python {__file__} --module={module} --port={port}'
         process = self.subprocess_manager.add(key=str(port), command=command, add_info= {'module':module })
         return {
@@ -358,6 +363,16 @@ class GradioModule(BaseModule):
             'port': port,
         }
     submit = add
+
+    def resolve_module_path(self, module):
+        simple2path = deepcopy(self.simple2path)
+        module_list = list(simple2path.values())
+
+        if module in simple2path:
+            module = simple2path[module]
+    
+        assert module in module_list, f'{module} not found in {module_list}'
+        return module
 
     def launch(self, interface:gradio.Interface=None, module:str=None, **kwargs):
         """
@@ -370,8 +385,8 @@ class GradioModule(BaseModule):
             that is created by the gradio 
             package and send it to the flaks api
         """
+        module = self.resolve_module_path(module)
         
-
         if interface == None:
     
             assert isinstance(module, str)
@@ -444,15 +459,24 @@ class GradioModule(BaseModule):
 import socket
 import argparse
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 app = FastAPI()
 
+origins = [
+    "http://localhost:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 args = GradioModule.argparse()
-
-
-
-
 
 @app.get("/")
 async def root():
@@ -464,9 +488,24 @@ register = GradioModule.register
 
 
 @app.get("/list")
-async def module_list(path_map:bool=False):
+async def module_list(path_map:bool=False, mode='simple'):
     module = GradioModule.get_instance()
-    module_list = module.get_modules()
+    if mode == 'full':
+        module_list = module.module_list
+    elif mode == 'simple':
+        module_list = list(module.simple2path.keys()) 
+    elif mode == 'gradio':
+        module_list = []
+        for path in module.simple2path.keys():
+            try:
+                mod = module.resolve_module_path(path)
+                schema = module.get_gradio_function_schemas(mod, return_type='dict')
+                module_list.append(dict(path=path, read=True)) if schema else module_list.append(dict(path=path, read=False))
+            except Exception:   
+                module_list.append(dict(path=path, read=False))
+                continue
+    else:
+        raise NotImplementedError()
     if path_map:
         module_path_map = {}
         for module in module_list:
@@ -474,6 +513,12 @@ async def module_list(path_map:bool=False):
         return module_path_map
     else:
         return module_list
+
+@app.get("/simple2path")
+async def module_list(path_map:bool=False):
+    module = GradioModule.get_instance()
+
+    return module.simple2path
 
 @app.get("/schemas")
 async def module_schemas():

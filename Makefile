@@ -16,8 +16,11 @@ start_latest:
 bash_backend: 
 	docker exec -it bittensor-backend bash
 
+frontend:
+	docker exec -it frontend bash
+
 backend: 
-	docker exec -it bittensor-backend bash
+	docker exec -it luca-bittensor-backend bash
 
 restart:
 	make down && make up;
@@ -57,7 +60,7 @@ exec:
 	docker exec -it bittensor-backend bash -c "${arg}"
 
 api:
-	docker exec -it bittensor-backend bash -c "python commune/gradio/api/module.py --api"
+	docker exec -it luca-bittensor-backend bash -c "python commune/gradio/api/module.py --api"
 
 
 gradio_api:

@@ -2,8 +2,8 @@ version: "3.2"
 
 services:
   backend:
-    image: commune/bittensor/backend
-    container_name: bittensor-backend
+    image: commune/luca/bittensor/backend
+    container_name: luca-bittensor-backend
     build: ./
     # entrypoint: ["gunicorn", "--worker-class", "eventlet", "-w", "1", "-b", "0.0.0.0:5000", "--preload", "server.app:app"]
     
@@ -11,12 +11,10 @@ services:
       - LOCAL_SUBTENSOR_HOST=subtensor
     ports:
       # - 5000:5000
-      - 8501-8505:8501-8505
-      - 8080:8080 # 
-      - 8265:8265 # ray dashboard 
+      # - 8501-8505:8501-8505
+      # - 8080:8080 #  
       - 7865-7870:7865-7870 # gradio ports
       - 8000:8000 # api
-      - 8888:8888 # jupyterlab
 
 
     volumes:

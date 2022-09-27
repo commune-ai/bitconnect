@@ -18,7 +18,7 @@ import time
 class ClientModule(BaseModule):
     default_config_path =  'gradio.client.module'
 
-    def bro(self, bro='bro', sup='fam',   fam='bro', output_example={'bro': 'fuck you jesus'}):
+    def bro(self, bro='bro', sup='sup', nice='nice', output_example={'bro': 'fuck you jesus'}):
         return output_example 
 
 

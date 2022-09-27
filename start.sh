@@ -98,6 +98,11 @@ while :; do
         
         ;;
 
+        --frontend)
+        COMPOSE_FILES+=" -f ModuleFlow/frontend.yml"
+
+        ;;
+
         --ipfs)
         COMPOSE_FILES+=" -f ipfs/ipfs.yml"
         
