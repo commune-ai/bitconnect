@@ -38,6 +38,7 @@ from commune import BaseModule
 
 
 
+
 class Receptor(nn.Module, BaseModule):
 
     def __init__(

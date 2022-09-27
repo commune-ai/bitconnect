@@ -60,7 +60,6 @@ class Launcher(BaseModule):
         dict_hash(job_kwargs)
 
     def send_job(self, job_kwargs, block=False):
-        print('BRO')
         self.client['ray'].queue.put(topic=self.config['queue']['in'], item=job_kwargs, block=block )
         
 
@@ -97,7 +96,6 @@ class Launcher(BaseModule):
         # self.load_balance(proposed_actor=actor_name)
 
         actor = self.get_module(config=module, actor=True, override=override) 
-        
         actor_name = self.register_actor(actor=actor)
         return actor, actor_name
 

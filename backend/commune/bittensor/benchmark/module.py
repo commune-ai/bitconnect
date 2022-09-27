@@ -39,17 +39,21 @@ class BenchmarkModule(BitModule):
     def debug(self):
         return self.config.get('debug', False)
 
-
     def load_env(self, path=None, **kwargs):
         return BitModule.load(self=self, path=path, **kwargs)
 
-    def load(self, keys=['env', 'receptor_pool'], load_kwargs={}, load_args={}, **kwargs):
+    def load(self, keys=True, load_kwargs={}, load_args={}, **kwargs):
+        
+        if keys == True:
+            keys = ['env', 'tokenizer', 'receptor_pool']
+        
         if keys in [False, None]:
             return
         
         load_keys = keys
 
-        for load_key in keys:
+        for load_key in load_keys:
+
             load_kwargs.get(load_key, {}) 
             load_fn = getattr(self, f'load_{load_key}', None)
             assert load_fn != None, f'{load_key} is suppose to be a function'
@@ -66,7 +70,7 @@ class BenchmarkModule(BitModule):
         self.dataset = dataset_class(**dataset_kwargs['params'])
 
     def load_tokenizer(self, **kwargs): 
-        if isinstance(self.dataset, bittensor.dataset):
+        if isinstance(getattr(self, 'dataset', None), bittensor.dataset):
             self.tokenizer = self.dataset.tokenizer
 
         tokenizer_kwargs = dict(path='bittensor.tokenizer',
@@ -96,13 +100,9 @@ class BenchmarkModule(BitModule):
         self.metric = metric_class(**metric_config['params'])
 
 
-    def restart_receptor_pool(self):
-        del self.receptor_pool
-        self.load_receptor_pool()
 
 
-    def load_receptor_pool(self, **kwargs):
-
+    def load_receptor_pool(self, replicas=3, refresh=True, **kwargs):
 
         receptor_kwargs = dict(max_worker_threads=150, max_active_receptors=512)
         config_receptor = self.config.get('receptor_pool', {})
@@ -117,8 +117,13 @@ class BenchmarkModule(BitModule):
         receptor_module_path = config_receptor_kwargs.get('module',default_receptor_path )
         receptor_pool_module = self.get_object(receptor_module_path)
 
+        with Timer(text='Deploying Actors: {t}', streamlit=True) as t:
+            actors = [receptor_pool_module.deploy(actor={'refresh': refresh, 'name': f'ReceptorPool{i}'},wallet=self.wallet,**receptor_kwargs) for i in range(replicas)]
+            # st.write(ray.get([a.getattr.remote('actor_name') for a in actors]))
+            st.write(actors)
+            self.receptor_pool = ActorPool(actors=actors)
 
-        self.receptor_pool = receptor_pool_module.deploy(actor={'refresh': False},**receptor_kwargs,wallet=self.wallet)
+
 
         return self.receptor_pool
     @staticmethod
@@ -175,7 +180,34 @@ class BenchmarkModule(BitModule):
                 synapses = list(map(self.str2synapse, synapses))
 
 
-    def predict(self,text, num_endpoints=100, timeout=1, synapses = None, return_type='result',  **kwargs):
+
+    def receptor_pool_forward(self, endpoints, inputs, synapses=None , timeout=1, splits=5):
+        if synapses == None:
+            synapses = self.synapses
+
+        endpoints_split_list = chunk(endpoints, num_chunks=splits)
+
+        kwargs_list = []
+
+        for endpoints_split in endpoints_split_list:
+
+            kwargs_list.append(dict(endpoints=endpoints_split, inputs=[inputs]*len(endpoints_split), synapses=synapses , timeout=timeout))
+
+        agg_results = [[],[],[]]
+        results_generator = self.receptor_pool.map_unordered(lambda a,v: a.forward.remote(**v), kwargs_list)
+       
+        for results in results_generator:
+            for i,result in enumerate(results):
+                agg_results[i].extend(result)
+
+
+        # st.write(len(results[0]), len(results[1]),  len(results[2]))
+        # st.write([(len(result), type(result)) for result in results])
+        return agg_results
+            
+
+
+    def predict(self,text, num_endpoints=100, timeout=1, synapses = None, return_type='result', splits=10,  **kwargs):
         
         receptor_kwargs = kwargs.get('receptor')
 
@@ -201,7 +233,7 @@ class BenchmarkModule(BitModule):
 
         elasped_time = 0
         with Timer(text='Querying Endpoints: {t}', streamlit=True) as t:
-            results = ray.get(self.receptor_pool.forward.remote(endpoints, synapses=self.synapses, inputs=[inputs] * len(endpoints), timeout=timeout))
+            results = self.receptor_pool_forward(endpoints=endpoints, synapses=self.synapses, inputs=inputs, timeout=timeout, splits=splits )
             elasped_time = t.elapsed_time
         
         num_responses = len(results[1])
@@ -244,8 +276,9 @@ class BenchmarkModule(BitModule):
                 metric_dict['elapsed_time'] = elasped_time.total_seconds()
                 metric_dict['samples_per_second'] = metric_dict['success_count'] / metric_dict['elapsed_time']
                 for k in ['trust', 'consensus','stake', 'incentive', 'dividends', 'emission', 'latency']:
-                    for mode in ['mean', 'std', 'max', 'min']:
-                        metric_dict[f'{k}_{mode}'] =  getattr(df[k], mode)()
+                    # for mode in ['mean', 'std', 'max', 'min']:
+                    metric_dict[k] =  getattr(df[k], 'mean')()
+
                 metric_dict = {k:float(v)for k,v in metric_dict.items()}
                 return metric_dict
             else:
@@ -257,25 +290,47 @@ class BenchmarkModule(BitModule):
             return results
 
 
-    def run_experiment(self,   trials=1, timeout_list = [1,2,5], token_length_list=[4, 8, 16,32, 64, 128, 256], num_endpoints_list=[10,20,50,100,500], path='experiments'):
-        total_trials = len(timeout_list) * len(num_endpoints_list)* len(token_length_list)
+
+    def run_experiment(self,  trials=1,
+                     timeout_list = [1,2,5], 
+                     token_length_list=[ 32],
+                     num_endpoints_list=[10,20,50,100,500],
+                     max_worker_threads_list=[50, 100, 200],
+                     replicas_list = [4, 2, 1],
+                     max_active_receptors=[128,512],
+                     path='experiments') :
+        total_trials = len(timeout_list) *\
+                     len(num_endpoints_list)* \
+                     len(token_length_list) * \
+                     len(max_active_receptors) * \
+                     len(replicas_list)
+
+
         cnt = 0
 
         text_base = 'hello'
                
-        for token_length in token_length_list:
-            text = [text_base]*token_length
-            for timeout in timeout_list:
-                for num_endpoints in num_endpoints_list:
-                    for i in range(trials):
-                        cnt += 1 
-                        
-                        df = self.predict(text = text, num_endpoints=num_endpoints, timeout=timeout, return_type='metric')
-                        st.write(f'PROGRESS: {cnt}/{total_trials}')
-                        self.put_json(f'{path}/object_{cnt}', df)
-                        self.restart_receptor_pool()
-    
-    
+
+        for max_worker_threads in max_worker_threads_list:
+
+            # self.load_receptor_pool(replicas=replicas, max_worker_threads=max_worker_threads , refresh=True)
+
+            for replicas in replicas_list:
+                self.load_receptor_pool(replicas=replicas, max_worker_threads=max_worker_threads , refresh=True)
+  
+                for token_length in token_length_list:
+                    text = [text_base]*token_length
+                    for timeout in timeout_list:
+                        for num_endpoints in num_endpoints_list:
+                            for i in range(trials):
+                                cnt += 1 
+                                
+                                df = self.predict(text = text, num_endpoints=num_endpoints, timeout=timeout, splits=replicas,  return_type='metric')
+                                st.write(f'PROGRESS: {cnt}/{total_trials}')
+                                self.put_json(f'{path}/object_{cnt}', df)
+                                # self.restart_receptor_pool()
+            
+
     def load_experiment(self, path='experiments'):
         df = []
 
@@ -483,8 +538,28 @@ class BenchmarkModule(BitModule):
             # my_selected_endpoints = st.multiselect('',my_endpoints, my_endpoints)
 
 
+    
 
 
+
+    @classmethod
+    def st_terminal(cls):
+
+        input_command = st.text_input('input',  'ls')
+        submit_input = st.button('Run')
+
+        if submit_input:
+            stdout_output = cls.run_command(input_command).stdout
+            output = '\n'.join(stdout_output.split('\n'))
+            
+            with st.expander('output', True):
+                for output in output.split('\n'):
+                    st.write(output)
+        else:
+            output = 'Type in Terminal'
+
+    
+        st.write(output)
 
 
 
@@ -492,11 +567,47 @@ if __name__ == '__main__':
 
 
     import ray
-    module = BenchmarkModule.deploy(actor=False, load=['env', 'dataset', 'tokenizer', 'receptor_pool'])
+    # st.write(BenchmarkModule.metagraph)
+    # module = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark'})
+
+    module = BenchmarkModule.deploy(actor={'refresh': False})
+
+    # st.write([i for i in actor_pool.map(lambda a,v: a.getattr.remote('actor_name'),  [1,2,3])])
+    # st.write(ray.get(module.load.remote(keys=['env', 'tokenizer', 'receptor_pool'])))
+    
+    # BenchmarkModule.st_terminal()
+
+    # module1 = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark_0'})
+
+    # module1 = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark_2'})
+
+    # del module1
+    # st.write(module)
+
     # st.write(module._ray_method_signatures)
-    actor_name = 'BenchmarkModule'
-    # st.write(ray.get(module.getattr.remote('metagraph')))
+    # actor_name = 'BenchmarkModule'
+    # st.write(module.__dict__)
 
-    st.write(module.predict(text=['hello']*32, num_endpoints=500, return_type = 'metric', timeout=1 ))
-    # module.plot.run(=data)
 
+    # for output in module.receptor_pool.map_unordered(lambda a,v: a.getattr.remote(v), ['actor_name']*2):
+    #     st.write(output)
+
+
+
+    # ray.get(module.receptor_pool._idle_actors[0].getattr.remote('actor_name'))
+
+    
+
+    # st.write(ray.get(module.predict.remote(text=['hello']*32, num_endpoints=500, return_type = 'metric', timeout=1 )))
+    # st.write(module.predict(text=['hello']*32, num_endpoints=300, return_type = 'metric', timeout=1 ))
+
+    # module.run_experiment()
+    df = ray.get(module.load_experiment.remote())
+
+    st.write(df)
+    # st.write(module)
+    # st.write(module.load_experiment())
+
+
+
+    # module.plot.run(df)

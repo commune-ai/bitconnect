@@ -43,9 +43,9 @@ class QueueServer(BaseModule):
 
 
 
-    def create_topic(self, topic,
-                     maxsize=10,
-                     actor_options=None,
+    def create_topic(self, topic:str,
+                     maxsize:int=10,
+                     actor_options:dict=None,
                      refresh=False,
                      verbose=False, **kwargs):
 

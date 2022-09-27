@@ -286,8 +286,6 @@ class BaseModule(ActorModule):
         if isinstance(config, dict):
             self.config = config
 
-
-
     def put_state_dict(self, path=None, exclude=None, include=None):
         if path == None:
             path = 'state_dict'

@@ -49,31 +49,18 @@ class BitModule(BaseModule):
         self.cli = bittensor.cli()
 
         # should we load
-        load_kwargs = kwargs.get('load')
-        if load_kwargs == None:
-            pass
-        else:
-            if load_kwargs == None:
-                pass
-            elif isinstance(load_kwargs, bool):
-                if load_kwargs == True:
-                    load_kwargs = {}
-                else:
-                    load_kwargs = None
-            elif isinstance(load_kwargs, dict):
-                load_kwargs = load_kwargs
-            elif isinstance(load_kwargs, str):
-                load_kwargs = {'path': load_kwargs}
-            else:
-                raise NotImplementedError
-
-            if isinstance(load_kwargs, dict):
-                self.load(**load_kwargs)
+        load = kwargs.get('load')
+        if load not in [None, False]:
+            if not isinstance(load, dict):
+                load = {}
+            self.load(**load)
 
 
     def load(self, path=None, **kwargs):
+        
         self.get_config(path=path)
         self.sync(**kwargs)
+        st.write(self.metagraph)
         
     def save(self, path=None ,**kwargs):
         self.put_config(path=path, **kwargs)
@@ -678,8 +665,6 @@ if __name__ == '__main__':
     st.set_page_config(layout="wide")
     
     module = BitModule.deploy(actor=False)
-    module.load(skip_state=False)
-    st.write(module.receptor)
 
     # st.write(module.list_hotkeys())
     # st.write(module.uid_data)

@@ -10,6 +10,8 @@ import datetime
 import inspect
 from types import ModuleType
 from importlib import import_module
+from .actor_pool import ActorPool
+
 class ActorModule: 
     default_ray_env = {'address': 'auto', 'namespace': 'default'}
     ray_context = None
@@ -119,12 +121,14 @@ class ActorModule:
         """
         config = kwargs.pop('config', None)
         config = ActorModule.resolve_config(self=cls,config=config, **kwargs)
-        
+        if cls.ray_initialized():
+            skip_ray = True
 
         if skip_ray == False:
             ray_config = config.get('ray', {})
             ray_context =  cls.get_ray_context(init_kwargs=ray_config)
-
+        import streamlit as st
+        # st.write(ray_context, ray_config)
         if actor:
             actor_config =  config.get('actor', {})
             if isinstance(actor, dict):
@@ -135,9 +139,11 @@ class ActorModule:
                 raise Exception('Only pass in dict (actor args), or bool (uses config["actor"] as kwargs)')  
             config['actor'] = actor_config
             kwargs['config'] = config
-            return cls.deploy_actor(**actor_config, **kwargs)
+            # import streamlit as st
+            # st.write(actor_config, kwargs)
+            return cls.deploy_actor(**actor_config, cls_kwargs=kwargs)
         else:
-
+            
                 
             kwargs['config'] = config
             return cls(**kwargs)
@@ -146,6 +152,10 @@ class ActorModule:
     @classmethod
     def get_ray_context(cls,init_kwargs=None, reinit=True):
         
+        if cls.ray_initialized():
+            return
+
+
         if init_kwargs == None:
             init_kwargs = cls.default_ray_env
 
@@ -161,7 +171,7 @@ class ActorModule:
             if ActorModule.ray_initialized() and reinit == True:
                 ray.shutdown()
             init_kwargs['include_dashboard'] = True
-            init_kwargs['dashboard_host'] = '0.0.0.0'
+            init_kwargs['dashboard_host'] = '172.28.0.2'
             return ray.init(ignore_reinit_error=True, **init_kwargs)
         else:
             raise NotImplementedError(f'{init_kwargs} is not supported')
@@ -199,10 +209,10 @@ class ActorModule:
         return self.getattr(key)
 
     def getattr(self, key):
-        return dict_get(self.__dict__, key)
+        return getattr(self, key)
 
     def setattr(self, key, value):
-        return dict_put(self.__dict__, key,value)
+        return self.__setattr__(key,value)
 
     def down(self):
         self.kill_actor(self.config['actor']['name'])
@@ -219,7 +229,6 @@ class ActorModule:
     @staticmethod
     def get_actor(actor_name):
         return ray.get_actor(actor_name)
-
 
     @property
     def ray_context(self):
@@ -394,7 +403,27 @@ class ActorModule:
         return ActorModule.import_object(module)(**kwargs)
 
 
-    @property
+
+    @classmethod
+    def ray_stop(cls):
+        cls.run_command('ray stop')
+
+    @classmethod
+    def ray_start(cls):
+        cls.run_command('ray start --head')
+
+
+    @classmethod
+    def ray_restart(cls):
+        cls.ray_stop()
+        cls.ray_start()
+
+    @classmethod
+    def ray_status(cls):
+        cls.run_command('ray status')
+
+        
+    @staticmethod
     def run_command(command:str):
 
         process = subprocess.run(shlex.split(command), 
@@ -410,6 +439,16 @@ class ActorModule:
         else:
             return getattr(self, key)
 
+    @classmethod
+    def create_pool(cls, replicas=3, actor_kwargs_list=[], **kwargs):
+        if actor_list == None:
+            actor_kwargs_list = [kwargs]*replicas
+
+        actors = []
+        for actor_kwargs in actor_kwargs_list:
+            actors.append(cls.deploy(**a_kwargs))
+
+        return ActorPool(actors=actors)
 
     @staticmethod
     def check_pid(pid):        

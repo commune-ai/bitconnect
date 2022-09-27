@@ -6,7 +6,7 @@ module: 'BitModule'
 network: nobunaga
 block: null
 
-blocks_behind_sync_threshold: 10000
+blocks_behind_sync_threshold: 1000
 
 wallet: 
   name: default
