@@ -11,6 +11,7 @@ import ray
 class ClientModule(BaseModule):
 
     default_config_path = 'ray.client.module'
+    server_module = None
     def __init__(self, config=None, **kwargs):
         BaseModule.__init__(self, config=config)
         self.config['server'] = kwargs.get('server', self.config.get('server'))
@@ -29,7 +30,20 @@ class ClientModule(BaseModule):
         elif ray_wait:
             return ray.wait(obj_id_batch)
     
-    
+    # def __getattribute__(self, item):
+    #         # Calling the super class to avoid recursion
+    #         server_module = BaseModule.__getattribute__(self,  'server_module')
+    #         if server_module == None:
+    #             return BaseModule.__getattribute__(self, item)
+    #         return ray.get(server_module.getattr.remote(item))
+    # def __setattr__(self, name, value):
+    #         # Calling the super class to avoid recursion
+    #         server_module = BaseModule.__getattribute__(self, 'server_module')
+    #         if server_module == None:
+    #             return BaseModule.__setattr__(self, name, value)
+    #         return ray.get(server_module.getattr.remote(name, value))
+
+
     def parse(self):
         self.fn_signature_map = {}
         fn_ray_method_signatures = self.server_module._ray_method_signatures
@@ -50,10 +64,10 @@ class ClientModule(BaseModule):
 
    
                 if ray_get == True:
-                    output_objects =  ray.get(object_id)
+                    output_objects =  ray.get(object_ids)
 
                 else:
-                    output_objects =  object_id
+                    output_objects =  object_ids
 
                 if is_batched:
                     return output_objects

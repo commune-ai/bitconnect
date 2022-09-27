@@ -39,20 +39,22 @@ class Launcher(BaseModule):
     def __inif__(self, config=None, **kwargs):
         BaseModule.__init__(self, config=config, **kwargs)
         self.actor_map = {}
-        self.actor2jobs = {}
-        self.cron_jobs = {}
 
-        self.job2queue = {}
         self.config['queue'] = {
             'in': 'launcher.in',
             'out': 'launcher.out'
         }
 
-
+    @property
+    def actor_map(self):
+        self.config['actor_map'] = self.config.get('actor_map', {} )
+        return self.config['actor_map']
         # self.spawn_actors()
+
+    default_max_actor_count = 10
     @property
     def max_actor_count(self):
-        return self.config['max_actor_count']
+        return self.config.get('max_actor_count', self.default_max_actor_count)
 
     def get_job_results(job_kwargs):
         dict_hash(job_kwargs)
@@ -131,16 +133,19 @@ class Launcher(BaseModule):
     def actor_count(self):
         return len(self.actors)
 
+
+
     def remove_actor(self,actor):
         '''
         params:
             actor: name of actor or handle
         '''
+        self.get_config()
 
         assert actor in self.actor_map, 'Please specify an actor in the actor map'
         self.kill_actor(actor)
-        del self.actor2jobs[actor]
         del self.actor_map[actor]
+        self.put_config()
 
   
     rm = remove = remove_actor
@@ -151,52 +156,11 @@ class Launcher(BaseModule):
 
     rm_all = remove_all = remove_all_actors
 
-    @staticmethod
-    def getArgparse():
-        import argparse
-        parser = argparse.ArgumentParser()
-        parser.add_argument('--mode', dest='mode', default='server')
-        input_args = parser.parse_args()
-        return input_args
-
-    def get_modules(self, force_update=True):
-        modules = []
-        failed_modules = []
-        for root, dirs, files in self.client.local.walk('/app/commune'):
-            if all([f in files for f in ['module.py', 'module.yaml']]):
-
-                print(root, files)
-
-                try:
-                    
-                    cfg = self.config_loader.load(root)   
-                    if cfg == None:
-                        cfg = {}           
-                except Exception as e:
-                    cfg = {}
-
-
-                module_path = root.lstrip(os.environ['PWD']).replace('/', '.')
-                module_path = '.'.join(module_path.split('.')[1:])
-                if isinstance(cfg.get('module'), str):
-                    module_name = cfg.get('module').split('.')[-1]
-                    modules.append(f"{module_path}.module.{module_name}")
-                elif module_path == None: 
-                    failed_modules.append(root)
-
-        return modules
-
-    # @BaseModule.enable_cache(refresh=True)
-    def bro(self):
-        self.put_cache('sup.bro', {}) 
-        self.del_cache('sup.bro') 
-
 
 
 if __name__=="__main__":
     import streamlit as st
     module = Launcher.deploy()
-    st.write(module.get_modules())
 
     module.bro()
 

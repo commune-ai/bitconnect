@@ -19,7 +19,7 @@ from commune.utils import *
 import torch
 from torch import nn
 
-
+from commune.ray.actor_pool import ActorPool
 
 class BenchmarkModule(BitModule):
     __file__ = __file__
@@ -27,24 +27,29 @@ class BenchmarkModule(BitModule):
     def __init__(self, config=None, load=True, **kwargs):
 
         BitModule.__init__(self, config=config, **kwargs)
-        if load not in [None, False]:
-            if not isinstance(load, dict):
-                load = {}
+
+        
+        if type(load) in [dict]:
             self.load(**load)
+        else:
+            self.load(load)
+
+
     @property
     def debug(self):
         return self.config.get('debug', False)
 
-    def load_state(self, load_keys=None,
-                  load_kwargs={}, 
-                load_args={}, 
-                **kwargs):
 
-        if load_keys == None:
-            load_keys=['dataset', 'tokenizer', 'model', 'metric', 'receptor_pool']
+    def load_env(self, path=None, **kwargs):
+        return BitModule.load(self=self, path=path, **kwargs)
 
+    def load(self, keys=['env', 'receptor_pool'], load_kwargs={}, load_args={}, **kwargs):
+        if keys in [False, None]:
+            return
+        
+        load_keys = keys
 
-        for load_key in load_keys:
+        for load_key in keys:
             load_kwargs.get(load_key, {}) 
             load_fn = getattr(self, f'load_{load_key}', None)
             assert load_fn != None, f'{load_key} is suppose to be a function'
@@ -52,11 +57,6 @@ class BenchmarkModule(BitModule):
             load_fn_args = load_args.get(load_key, [])
             load_fn(*load_fn_args, **load_fn_kwargs)
 
-    def load(self, path=None, skip_state=False, refresh=False, **kwargs):
-        if refresh == False:
-            BitModule.load(self=self, path=path, **kwargs)
-        if skip_state == False:
-            self.load_state(**kwargs)
 
     def load_dataset(self, **kwargs):
         dataset_kwargs = dict(path='bittensor.dataset', params=dict(block_size=128))
@@ -103,12 +103,24 @@ class BenchmarkModule(BitModule):
 
     def load_receptor_pool(self, **kwargs):
 
-        receptor_kwargs = dict(max_worker_threads=64, max_active_receptors=512)
-        receptor_kwargs.update(kwargs)
-        receptor_kwargs.update(self.config.get('receptor_pool', {}))
-        receptor_pool = self.get_object('bittensor.receptor.pool.module.ReceptorPoolModule')
-        self.receptor_pool = receptor_pool(**receptor_kwargs,wallet=self.wallet)
 
+        receptor_kwargs = dict(max_worker_threads=150, max_active_receptors=512)
+        config_receptor = self.config.get('receptor_pool', {})
+        
+        config_receptor_kwargs = config_receptor.get('params', config_receptor.get('kwargs', {}) )
+        
+        receptor_kwargs.update(config_receptor_kwargs)
+        receptor_kwargs.update(kwargs)
+
+
+        default_receptor_path = 'bittensor.receptor.pool.module.ReceptorPoolModule'
+        receptor_module_path = config_receptor_kwargs.get('module',default_receptor_path )
+        receptor_pool_module = self.get_object(receptor_module_path)
+
+
+        self.receptor_pool = receptor_pool_module.deploy(actor={'refresh': False},**receptor_kwargs,wallet=self.wallet)
+
+        return self.receptor_pool
     @staticmethod
     def causal_lm_loss(labels, logits):
         batch_size = logits.shape[0]
@@ -153,9 +165,7 @@ class BenchmarkModule(BitModule):
         synsapses = list(map(self.str2synapse, self.config.get('synapses',['TextCausalLM'])) )
         return synsapses
 
-    def predict(self,text, num_endpoints, timeout=1, synapses = None, return_type='result', **kwargs):
-        
-
+    def resolve_synapses(self, synapses=None):
         if synapses == None:
             synapses = self.synapses
         elif isinstance(synspses, str):
@@ -164,6 +174,18 @@ class BenchmarkModule(BitModule):
             if isinstance(synapse[0], str):
                 synapses = list(map(self.str2synapse, synapses))
 
+
+    def predict(self,text, num_endpoints=100, timeout=1, synapses = None, return_type='result',  **kwargs):
+        
+        receptor_kwargs = kwargs.get('receptor')
+
+        if  kwargs.get('receptor') not in [None, False]:
+            receptor_kwargs = kwargs.get('receptor', {}) 
+            if type(receptor_kwargs) not in [dict]:
+                receptor_kwargs = {}
+            self.load_receptor_pool(**receptor_kwargs)
+        synapses = self.resolve_synapses(synapses=synapses)
+
         if text == None:
             text = self.raw_sample()
 
@@ -171,24 +193,22 @@ class BenchmarkModule(BitModule):
         if endpoints == None:
             endpoints = self.get_endpoints(num_endpoints=num_endpoints)
 
-
         num_endpoints = len(endpoints)
 
-        if text == None:
-            text='yo whadup fam'
         if isinstance(text, str):
             text = [text]
         inputs = torch.tensor(self.tokenizer(text=text, padding=True)['input_ids'])
 
         elasped_time = 0
         with Timer(text='Querying Endpoints: {t}', streamlit=True) as t:
-            results = self.receptor_pool.forward(endpoints, synapses=self.synapses, inputs=[inputs] * len(endpoints), timeout=timeout)
+            results = ray.get(self.receptor_pool.forward.remote(endpoints, synapses=self.synapses, inputs=[inputs] * len(endpoints), timeout=timeout))
             elasped_time = t.elapsed_time
         
         num_responses = len(results[1])
 
-        if return_type in ['df']:
+        if return_type in ['df'] or return_type in ['metric', 'metrics']:
             df = []
+   
             for i,e in enumerate(endpoints): 
                 if i < num_responses:
                     row_dict = e.__dict__
@@ -199,7 +219,9 @@ class BenchmarkModule(BitModule):
                     row_dict['return_endpoints'] = num_responses
                     row_dict['query_endpoints'] = num_endpoints
                     row_dict['output_size'] = sys.getsizeof(results[0][i])
-                    row_dict['input_size'] = sys.getsizeof(inputs)
+                    row_dict['output_length'] = results[0][i][0].shape[0]
+                    row_dict['input_length'] = int(inputs.shape[0])
+    
 
 
                     df.append(row_dict)
@@ -211,38 +233,59 @@ class BenchmarkModule(BitModule):
             df = pd.merge(self.metagraph.to_dataframe(), df, on='uid')
 
         
+            if return_type in ['metrics', 'metric']:
+                metric_dict = {}
+                metric_dict['success_count'] = int(df['code'].apply(lambda x: x == 'Success').sum())
+                metric_dict['success_rate'] = df['code'].apply(lambda x: x == 'Success').mean()
+                metric_dict['num_endpoints'] = num_endpoints
+                metric_dict['timeout'] = int(df['timeout'].iloc[0])
+                metric_dict['latency'] = df['latency'].iloc[0]
+                metric_dict['input_length'] = df['input_length'].iloc[0]
+                metric_dict['elapsed_time'] = elasped_time.total_seconds()
+                metric_dict['samples_per_second'] = metric_dict['success_count'] / metric_dict['elapsed_time']
+                for k in ['trust', 'consensus','stake', 'incentive', 'dividends', 'emission', 'latency']:
+                    for mode in ['mean', 'std', 'max', 'min']:
+                        metric_dict[f'{k}_{mode}'] =  getattr(df[k], mode)()
+                metric_dict = {k:float(v)for k,v in metric_dict.items()}
+                return metric_dict
+            else:
+                return df
+
         elif return_type in ['results', 'result']:
 
             # return torch.cat([tensor[0] for tensor in results[0]], 0)
             return results
-        return df
 
 
-    def run_experiment(self,  trials=5, timeout_list = [1,2,5], num_endpoints_list=[10,20,50,100,500], path='experiments'):
-        total_trials = len(timeout_list) * len(num_endpoints_list)* trials
+    def run_experiment(self,   trials=1, timeout_list = [1,2,5], token_length_list=[4, 8, 16,32, 64, 128, 256], num_endpoints_list=[10,20,50,100,500], path='experiments'):
+        total_trials = len(timeout_list) * len(num_endpoints_list)* len(token_length_list)
         cnt = 0
-        for timeout in timeout_list:
-            for num_endpoints in num_endpoints_list:
-                for i in range(trials):
-                    cnt += 1 
 
-                    text = self.raw_sample()
-                    df = self.predict(text = text, num_endpoints=num_endpoints, timeout=timeout)
-                    print(f'PROGRESS: {cnt}/{total_trials}')
-                    self.put_json(f'{path}/num_endpoints_{num_endpoints}-timeout_{timeout}-trial_{i}', df)
-                    self.restart_receptor_pool()
+        text_base = 'hello'
+               
+        for token_length in token_length_list:
+            text = [text_base]*token_length
+            for timeout in timeout_list:
+                for num_endpoints in num_endpoints_list:
+                    for i in range(trials):
+                        cnt += 1 
+                        
+                        df = self.predict(text = text, num_endpoints=num_endpoints, timeout=timeout, return_type='metric')
+                        st.write(f'PROGRESS: {cnt}/{total_trials}')
+                        self.put_json(f'{path}/object_{cnt}', df)
+                        self.restart_receptor_pool()
     
     
     def load_experiment(self, path='experiments'):
         df = []
 
         for p in self.ls_json(path):
-            df.append(pd.DataFrame(self.get_json(p)))
+            df.append(self.get_json(p))
 
-
-        df = pd.concat(df)
-        returnid2code = {k:f'{v}' for k,v in zip(bittensor.proto.ReturnCode.values(),bittensor.proto.ReturnCode.keys())}
-        df['code'] = df['code'].map(returnid2code)
+        df =  pd.DataFrame(df)
+        # df = pd.concat(df)
+        # returnid2code = {k:f'{v}' for k,v in zip(bittensor.proto.ReturnCode.values(),bittensor.proto.ReturnCode.keys())}
+        # df['code'] = df['code'].map(returnid2code)
         return df
 
     def st_experiment(self, path='experiments'):
@@ -286,7 +329,7 @@ class BenchmarkModule(BitModule):
     
 
             with Timer(text='Querying Endpoints: {t}', streamlit=True) as t:
-                results = self.receptor_pool.forward(endpoints, synapses=self.synapses, inputs=[inputs] * len(endpoints), timeout=10)
+                results = ray.get(self.receptor_poolforward.remote(endpoints, synapses=self.synapses, inputs=[inputs] * len(endpoints), timeout=10))
 
             df = []
             for i,e in enumerate(endpoints): 
@@ -385,31 +428,26 @@ class BenchmarkModule(BitModule):
         mode = 'Network'
         with st.sidebar.expander(mode):
             with st.form(mode):
-                network2idx = {n:n_idx for n_idx, n in  enumerate(self.networks)}
+                networks = ray.get(self.getattr.remote('networks'))
+                network2idx = {n:n_idx for n_idx, n in  enumerate(networks)}
                 default_idx = network2idx['nakamoto']
-                network = st.selectbox('Select Network', self.networks,default_idx)
+                network = st.selectbox('Select Network', networks ,default_idx)
                 # block = st.number_input('Select Block', 0,self.current_block, self.current_block-1)
                 
                 force_sync = st.checkbox('Force Sync', False)
 
                 submit_button = st.form_submit_button('Sync')
                 if submit_button:
-                    self.set_network(network=network,force_sync=force_sync)
+                    ray.get(self.set_network.remote(network=network,force_sync=force_sync))
                 
         mode = 'Wallet'
         with st.sidebar.expander(mode, True):
-            with st.form(mode):
-                cold2hot_wallets = self.wallets
-                cold_wallet_options = list(cold2hot_wallets.keys())
-                selected_coldwallet = st.selectbox('Cold Wallet:', cold_wallet_options, 0)
-                hot_wallet_options = list(cold2hot_wallets[selected_coldwallet].keys())
-                selected_hotwallet = st.selectbox('Cold Wallet:', hot_wallet_options, 0)
-                
-                submit_button = st.form_submit_button(mode)
-                if submit_button:
-                    self.set_wallet(name=selected_coldwallet, 
-                                    hotkey=selected_hotwallet)
-                
+            cold2hot_wallets = ray.get(self.getattr.remote('wallets'))
+            cold_wallet_options = list(cold2hot_wallets.keys())
+            selected_coldwallet = st.selectbox('Cold Wallet:', cold_wallet_options, 0)
+            hot_wallet_options = list(cold2hot_wallets[selected_coldwallet].keys())
+            selected_hotwallet = st.selectbox('Cold Wallet:', hot_wallet_options, 0)
+            
 
 
 
@@ -447,54 +485,18 @@ class BenchmarkModule(BitModule):
 
 
 
+
+
+
 if __name__ == '__main__':
-    module = BenchmarkModule(load_state=False)
-    module.load(skip_state=False)
-    module.set_wallet(name='const', hotkey='Tiberius')
-    module.save()
-    # st.write(module.config)
-    # st.write(module.config.get('wallet'))
-    st.write(module.network)
-    st.write(module.wallet)
-
-    # st.write(module.uid_data)
-    # # graph_df = self.metagraph.to_dataframe()
-    # # st.write(module.my_endpoints())
-    # # st.write(module.endpoints())
-    
-    # # st.write(module.synapses)
-    # st.write(module.raw_sample())
-
-    # # # st.write('RUN')
-    # df = module.predict(text=module.raw_sample(), num_endpoints=100, timeout=2)
-
-    # module.put_json('df', df)
-    # df = pd.DataFrame(module.get_json('df'))
-    # st.write(module.plot.histogram(df, x='latency'))
-    # st.write(datetime.utcnow().isoformat())
-    # df = module.predict(return_type='results')
-
-    # st.write(df.shape)
-
-    # my_endpoints = module.my_endpoints()
-    # module.st_sidebar()
-    # module.st_main()
 
 
-    # st.write(module.predict(text=None, endpoints = my_endpoints , return_type='results'))
-    # st.write(module.my_endpoints()[0].__dict__)
+    import ray
+    module = BenchmarkModule.deploy(actor=False, load=['env', 'dataset', 'tokenizer', 'receptor_pool'])
+    # st.write(module._ray_method_signatures)
+    actor_name = 'BenchmarkModule'
+    # st.write(ray.get(module.getattr.remote('metagraph')))
 
+    st.write(module.predict(text=['hello']*32, num_endpoints=500, return_type = 'metric', timeout=1 ))
+    # module.plot.run(=data)
 
-    
-
-    # st.write(module.put_json('whadup/bro',['whadup']))
-    # st.write(module.put_json('sub/bro',['whadup']))
-    # st.write(module.get_json('whadup/bro'))
-    # st.write(module.glob_json())
-    # module.refresh_json()
-    # st.write(module.glob_json())
-
-
-
-    # fig = px.pie(df, values='pop', names='country', title='Population of European continent')
-    # fig.show()

@@ -79,35 +79,11 @@ class ActorModule:
     config_template = default_cfg
     _config = default_cfg
 
-    @staticmethod
-    def get_module(config, actor=False, override={}):
-        """
-        config: path to config or actual config
-        client: client dictionary to avoid child processes from creating new clients
-        """
-        module_class = None
-        # if this is a class return the class
-        if is_class(config):
-            module_class = config
-            return module_class
+    @classmethod
+    def get_module(cls, module:str, **kwargs):
 
-
-        if isinstance(config, str):
-            # check if object is a path to module, return None if it does not exist
-            module_class = ActorModule.get_object(key=config)
-
-
-        if isinstance(module_class, type):
-            
-            config = module_class.default_cfg()
-       
-        else:
-
-            config = ActorModule.load_config(config)
-            ActorModule.check_config(config)
-            module_class = ActorModule.get_object(config['module'])
-
-        return module_class.deploy(config=config, override=override, actor=actor)
+        module_class = cls.get_object(module)
+        return module_class.deploy(**kwargs)
 
     @staticmethod
     def check_config(config):
@@ -143,15 +119,14 @@ class ActorModule:
         """
         config = kwargs.pop('config', None)
         config = ActorModule.resolve_config(self=cls,config=config, **kwargs)
-        ray_config = config.get('ray', {})
-        actor_config =  config.get('actor', {})
+        
 
         if skip_ray == False:
+            ray_config = config.get('ray', {})
             ray_context =  cls.get_ray_context(init_kwargs=ray_config)
 
-
         if actor:
-
+            actor_config =  config.get('actor', {})
             if isinstance(actor, dict):
                 actor_config.update(actor)
             elif isinstance(actor, bool):
@@ -185,11 +160,9 @@ class ActorModule:
             
             if ActorModule.ray_initialized() and reinit == True:
                 ray.shutdown()
-
             init_kwargs['include_dashboard'] = True
             init_kwargs['dashboard_host'] = '0.0.0.0'
-            print(init_kwargs)
-            return ray.init(**init_kwargs)
+            return ray.init(ignore_reinit_error=True, **init_kwargs)
         else:
             raise NotImplementedError(f'{init_kwargs} is not supported')
     
@@ -226,7 +199,10 @@ class ActorModule:
         return self.getattr(key)
 
     def getattr(self, key):
-        return getattr(self, key)
+        return dict_get(self.__dict__, key)
+
+    def setattr(self, key, value):
+        return dict_put(self.__dict__, key,value)
 
     def down(self):
         self.kill_actor(self.config['actor']['name'])
@@ -255,8 +231,11 @@ class ActorModule:
 
     @property
     def actor_name(self):
-        return self.config['actor']['name']
+        return self.config.get('actor', {}).get('name')
     
+    @property
+    def actor_config(self):
+        return self.config.get('actor',None)
 
     @property
     def actor_handle(self):
@@ -286,6 +265,10 @@ class ActorModule:
         '''
         attr_obj = getattr(self, from_key)  if hasattr(self, from_key) else None
         setattr(self, to, attr_obj)
+
+
+    def dict_keys(self):
+        return self.__dict__.keys()
 
 
     @staticmethod

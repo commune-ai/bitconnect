@@ -20,9 +20,6 @@ class StreamlitPlotModule:
     theme= 'plotly_dark'
     def __init__(self):
         self.add_plot_tools()
-
-
-
         
     def add_plot_tools(self):
         # sync plots from express
@@ -135,6 +132,7 @@ class StreamlitPlotModule:
         df = df if isinstance(df, pd.DataFrame) else self.df
         column_options = list(df.columns)
         plotly_kwargs = {}
+        
         with self.cols[0]:
             st.markdown("## X Axis")
             plotly_kwargs['x'] = st.selectbox("X Axis", column_options, 0)
@@ -148,6 +146,9 @@ class StreamlitPlotModule:
             st.markdown("## Box Group Mode")
             plotly_kwargs['boxmode'] = st.selectbox("Choose Box Mode", ["group", "overlay"], 0)
 
+        # df[ plotly_kwargs['x']] = df[ plotly_kwargs['x']].apply(lambda x: str(x)) 
+        
+        
         fig = px.box(df, **plotly_kwargs)
         fig.update_layout(width=self.width, height=self.height, font_size=20)
         return fig
