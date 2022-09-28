@@ -3,44 +3,19 @@ from commune.config.loader import ConfigLoader
 from commune.ray.actor import ActorModule
 import streamlit as st
 import os
-
-def enable_cache(**input_kwargs):
-    load_kwargs = dict_any(x=input_kwargs, keys=['load', 'read'], default={})
-    if isinstance(load_kwargs, bool):
-        load_kwargs = dict(enable=load_kwargs)
-
-    save_kwargs = dict_any(x=input_kwargs, keys=['save', 'write'], default={})
-    if isinstance(save_kwargs, bool):
-        save_kwargs = dict(enable=save_kwargs)
-
-    refresh = dict_any(x=input_kwargs, keys=['refresh', 'refresh_cache'], default=False)
-    assert isinstance(refresh, bool), f'{type(refresh)}'
-
-    def wrapper_fn(fn):
-        def new_fn(self, *args, **kwargs):
-
-            if refresh: 
-                self.cache = {}
-            else:
-                self.load_cache(**load_kwargs)
-
-            output = fn(self, *args, **kwargs)
-            self.save_cache(**save_kwargs)
-            return output
-        
-        return new_fn
-    return wrapper_fn
-
-
-
+from .utils import enable_cache, cache
+from munch import Munch
 class BaseModule(ActorModule):
     client = None
     default_config_path = None
     client_module_class_path = 'client.manager.module.ClientModule'
- 
+    
+    # assumes BaseModule is .../{src}/base/module.py
+    root_path = '/'.join(__file__.split('/'))
+    root = root_path
+    root_dirname = root_path.split('/')[-1]
+    root_dirname = __file__.split('/')[-3]
     def __init__(self, config=None, override={}, client=None ,**kwargs):
-
-        
 
         ActorModule.__init__(self,config=config, override=override)
         
@@ -153,6 +128,9 @@ class BaseModule(ActorModule):
     def enable_cache(**input_kwargs):
         return enable_cache(**input_kwargs)
 
+    @classmethod
+    def cache(cls,keys=None,**kwargs):
+        return cache(keys=keys, **kwargs)
     enable_cache = cache_enable = cache_wrap = enable_cache
 
     @property
@@ -255,12 +233,18 @@ class BaseModule(ActorModule):
         self.cache = {}
         self.save_cache()
 
-
     def ls_json(self, path=None):
         ls_path = self.tmp_dir 
         if path != None:
             ls_path = os.path.join(ls_path, path)
         return self.client.local.ls(ls_path)
+        
+    def exists_json(self, path=None):
+        exists_path = self.tmp_dir 
+        if exists_path != None:
+            exists_path = os.path.join(exists_path, path)
+        return self.client.local.exists(exists_path)
+
 
     def rm_json(self, path=None, recursive=True, **kwargs):
 
@@ -279,6 +263,12 @@ class BaseModule(ActorModule):
             path = 'config'
         return self.put_json(path, self.config)
 
+    def rm_config(self, path=None):
+        if path ==  None:
+            path = 'config'
+        return self.rm_json(path, self.config)
+
+    refresh_config = rm_config
     def get_config(self,  path=None, handle_error =True):
         if path ==  None:
             path = 'config'
@@ -293,6 +283,26 @@ class BaseModule(ActorModule):
         state_dict = self.__dict__
         return self.put_json(path, state_dict)
 
+    @property
+    def module2path(self):
+        module2path = {}
+        for k in self.simple_module_list:
+            module2path[k] =  '/'.join([os.getenv('PWD'), self.root_dirname, k.replace('.', '/')])
+
+        return module2path
+    @property
+    def module_fs(self):
+        module_fs = {}
+        for k in self.simple2module.keys():
+            
+            module_path = '/'.join([os.getenv('PWD'), 'commune',k.replace('.', '/')])
+            file_list = self.client.local.ls(module_path)
+            dict_put(module_fs,k, file_list)
+            st.write(__file__.split('/')[-3])
+
+        
+        st.write(os.getenv('PWD'))
+        return module_fs
 
     def get_state_dict(self, path=None):
         if path == None:
@@ -301,9 +311,22 @@ class BaseModule(ActorModule):
         state_dict =  self.get_json(path)
         self.__dict__ =  state_dict
 
+    @property
+    def simple_module_list(self):
+        return list(self.simple2module.keys())
+
+    module_list = simple_module_list
 
     @property
-    def module_tree(self):
+    def simple2module(self):
+        return {'.'.join(k.split('.')[:-2]):k for k in self.full_module_list}
+
+    @property
+    def module2simple(self):
+        return {v:k for k,v in self.simple2module.items()}
+
+    @property
+    def full_module_list(self):
         modules = []
         failed_modules = []
         for root, dirs, files in self.client.local.walk('/app/commune'):
@@ -325,3 +348,5 @@ class BaseModule(ActorModule):
                     failed_modules.append(root)
 
         return modules
+
+    module_tree = module_list

@@ -7,19 +7,53 @@ from commune import BaseModule
 from functools import partial
 import ray
 
-
 class ClientModule(BaseModule):
-
     default_config_path = 'ray.client.module'
-    server_module = None
     def __init__(self, config=None, **kwargs):
         BaseModule.__init__(self, config=config)
-        self.config['server'] = kwargs.get('server', self.config.get('server'))
-        self.server_module =self.get_actor(self.config['server'])
+        actor = kwargs.get('server', kwargs.get('actor'))
+        if isinstance(actor, str):
+            actor = self.get_actor(self.config['server'])
+        elif isinstance(actor, dict):
+            actor = self.get_module(**actor)
+        assert isinstance(actor, ray.actor.ActorHandle)
+        actor_name = ray.get(actor.getattr.remote('actor_name'))
+        self.config['server'] = actor_name
+
+        self.actor = actor
         self.parse()
 
-    def submit(fn, fn_kwargs={}, fn_args=[], *args, **kwargs):
-        ray_fn = getattr(self, fn)(*fn_args, **fn_kwargs)
+
+    @property
+    def actor_id(self):
+        return self.getattr('actor_id')
+
+    @property
+    def actor_name(self):
+        return self.getattr('actor_name')
+
+
+
+
+    def getattr(self, ray_get=True, *args,**kwargs):
+        object_id = self.actor.getattr.remote(*args,**kwargs)
+        if ray_get:
+            return ray.get(object_id)
+        else:
+            return object_id
+
+    def setattr(self, ray_get=True, *args,**kwargs):
+        object_id = self.actor.setattr.remote(*args,**kwargs)
+        if ray_get:
+            return ray.get(object_id)
+        else:
+            return object_id
+
+
+    def submit(fn, *args, **kwargs):
+        ray_get = kwargs.get('ray_get', True)
+        ray_fn = getattr(self, fn)(*args, **kwargs)
+
 
     def submit_batch(fn, batch_kwargs=[], batch_args=[], *args, **kwargs):
         ray_get = kwargs.get('ray_get', True)
@@ -29,24 +63,15 @@ class ClientModule(BaseModule):
             return ray.get(obj_id_batch)
         elif ray_wait:
             return ray.wait(obj_id_batch)
-    
-    # def __getattribute__(self, item):
-    #         # Calling the super class to avoid recursion
-    #         server_module = BaseModule.__getattribute__(self,  'server_module')
-    #         if server_module == None:
-    #             return BaseModule.__getattribute__(self, item)
-    #         return ray.get(server_module.getattr.remote(item))
-    # def __setattr__(self, name, value):
-    #         # Calling the super class to avoid recursion
-    #         server_module = BaseModule.__getattribute__(self, 'server_module')
-    #         if server_module == None:
-    #             return BaseModule.__setattr__(self, name, value)
-    #         return ray.get(server_module.getattr.remote(name, value))
+
+    @property
+    def ray_signatures(self):
+        return self.actor._ray_method_signatures
 
 
     def parse(self):
         self.fn_signature_map = {}
-        fn_ray_method_signatures = self.server_module._ray_method_signatures
+        fn_ray_method_signatures = self.actor._ray_method_signatures
         for fn_key in fn_ray_method_signatures:
 
             def fn(self, fn_key,server, *args, **kwargs):
@@ -77,9 +102,25 @@ class ClientModule(BaseModule):
 
 
             self.fn_signature_map[fn_key] = fn_ray_method_signatures
-            setattr(self, fn_key, partial(fn, self, fn_key, self.server_module))
+            setattr(self, fn_key, partial(fn, self, fn_key, self.actor))
         
         
+
+    # def __getattribute__(self, item):
+    #         # Calling the super class to avoid recursion
+    #         actor = BaseModule.__getattribute__(self,  'actor')
+    #         if actor == None:
+    #             return BaseModule.__getattribute__(self, item)
+    #         return ray.get(actor.getattr.remote(item))
+    # def __setattr__(self, name, value):
+    #         # Calling the super class to avoid recursion
+    #         actor = BaseModule.__getattribute__(self, 'actor')
+    #         if actor == None:
+    #             return BaseModule.__setattr__(self, name, value)
+    #         return ray.get(actor.getattr.remote(name, value))
+
+
+
 if __name__ == '__main__':
     module = ClientModule.deploy(actor=True)
     # st.write(module.get_functions(module))

@@ -11,7 +11,7 @@ import inspect
 from types import ModuleType
 from importlib import import_module
 from .actor_pool import ActorPool
-
+from munch import Munch
 class ActorModule: 
     default_ray_env = {'address': 'auto', 'namespace': 'default'}
     ray_context = None
@@ -35,7 +35,7 @@ class ActorModule:
     def get_current_timestamp():
         return  datetime.datetime.utcnow().timestamp()
         
-    def resolve_config(self, config, override={}, local_var_dict={}, recursive=True, **kwargs):
+    def resolve_config(self, config, override={}, local_var_dict={}, recursive=True, return_munch=False, **kwargs):
         if config == None:
             config = getattr(self,'config',  self.default_config_path)
         elif (type(config) in  [list, dict]): 
@@ -51,9 +51,9 @@ class ActorModule:
                              override=override, 
                             local_var_dict=local_var_dict,
                             recursive=recursive)
-
-
         
+        if return_munch:
+            config = Munch(config)
 
         return config
 
@@ -91,7 +91,6 @@ class ActorModule:
     def check_config(config):
         assert isinstance(config, dict)
         assert 'module' in config
-
     @staticmethod
     def get_object(path:str, prefix = 'commune'):
         return get_object(path=path, prefix=prefix)
@@ -113,6 +112,26 @@ class ActorModule:
     @staticmethod
     def ray_initialized():
         return ray.is_initialized()
+
+    @property
+    def actor_id(self):
+        return self.get_id()
+
+    def get_id(self):
+        return self.config.get('actor_id', None)
+
+
+    @staticmethod
+    def add_actor_metadata(actor):
+        actor_id = ActorModule.get_actor_id(actor)
+        actor.config_set.remote('actor_id', actor_id)
+        actor_name = ray.get(actor.getattr.remote('actor_name'))
+        setattr(actor, 'actor_id', actor_id)
+        setattr(actor, 'actor_name', actor_name)
+        setattr(actor, 'id', actor_id)
+        setattr(actor, 'name', actor_name)
+        return actor
+
 
     @classmethod 
     def deploy(cls, actor=False , skip_ray=False, **kwargs):
@@ -141,10 +160,19 @@ class ActorModule:
             kwargs['config'] = config
             # import streamlit as st
             # st.write(actor_config, kwargs)
-            return cls.deploy_actor(**actor_config, cls_kwargs=kwargs)
+            actor = cls.deploy_actor(**actor_config, cls_kwargs=kwargs)
+
+
+            actor_id = cls.get_actor_id(actor)
+            actor_name = ray.get(actor.getattr.remote('actor_name'))
+            setattr(actor, 'actor_id', actor_id)
+            setattr(actor, 'actor_name', actor_name)
+            setattr(actor, 'id', actor_id)
+            setattr(actor, 'name', actor_name)
+   
+            return cls.add_actor_metadata(actor)
         else:
             
-                
             kwargs['config'] = config
             return cls(**kwargs)
 
@@ -228,7 +256,9 @@ class ActorModule:
 
     @staticmethod
     def get_actor(actor_name):
-        return ray.get_actor(actor_name)
+        actor =  ray.get_actor(actor_name)
+        actor = ActorModule.add_actor_metadata(actor)
+        return actor
 
     @property
     def ray_context(self):
@@ -345,7 +375,7 @@ class ActorModule:
 
     @classmethod
     def get_config_path(cls):
-        path =  cls.get_module_filepath().replace('.py', '.yaml')
+        path =  ActorModule.get_module_filepath().replace('.py', '.yaml')
         assert os.path.exists(path), f'{path} does not exist'
         assert os.path.isfile(path), f'{path} is not a dictionary'
         return path
@@ -377,6 +407,13 @@ class ActorModule:
             obj = cls
         return get_module_function_schema(obj, **kwargs)
 
+    def config_set(self,k,v, **kwargs):
+        return dict_put(self.config, k,v)
+
+    def config_get(self,k, ):
+        return dict_get(self.config, k,v)
+
+
     def override_config(self,override:dict={}):
         self.dict_override(input_dict=self.config, override=override)
     
@@ -390,12 +427,16 @@ class ActorModule:
         object_name = path.split('.')[-1]
         return getattr(import_module(module), object_name)
 
-    @classmethod
-    def module_path(cls, include_root=True):
-        path =  os.path.dirname(cls.__file__).replace(os.getenv('PWD')+'/', '')
-        if include_root == False:
-            path = '/'.join(path.split('/')[1:])
-        return path
+
+    @property
+    def module_path(self):
+        return self.get_module_path()
+
+
+
+    def get_module_path(self):
+        return self.default_config_path.replace('.module', '')
+
 
     @staticmethod
     def load_object(module:str, __dict__:dict, **kwargs):
@@ -481,3 +522,8 @@ class ActorModule:
                     print("Found", name, meta)
                     methods[name] = member
             return type.__new__(cls, name, bases, state)
+
+    @staticmethod
+    def get_actor_id( actor):
+        assert isinstance(actor, ray.actor.ActorHandle)
+        return actor.__dict__['_ray_actor_id'].hex()
