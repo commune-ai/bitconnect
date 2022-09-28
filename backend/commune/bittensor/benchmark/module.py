@@ -173,10 +173,10 @@ class BenchmarkModule(BitModule):
     def resolve_synapses(self, synapses=None):
         if synapses == None:
             synapses = self.synapses
-        elif isinstance(synspses, str):
-            synapses = [self.str2synapse(synapse)]
+        elif isinstance(synapses, str):
+            synapses = [self.str2synapse(synapses)]
         elif isinstance(synapses, list):
-            if isinstance(synapse[0], str):
+            if isinstance(synapses[0], str):
                 synapses = list(map(self.str2synapse, synapses))
 
 
@@ -293,19 +293,23 @@ class BenchmarkModule(BitModule):
 
     def run_experiment(self,  trials=1,
                      timeout_list = [1,2,5], 
-                     token_length_list=[ 32],
+                     token_length_list=[ 16, 32, 64],
                      num_endpoints_list=[10,20,50,100,500],
                      max_worker_threads_list=[50, 100, 200],
                      replicas_list = [4, 2, 1],
                      max_active_receptors=[128,512],
+                     synapse_list = None,
                      path='experiments') :
+
+        self.rm_config()
         total_trials = len(timeout_list) *\
                      len(num_endpoints_list)* \
                      len(token_length_list) * \
                      len(max_active_receptors) * \
                      len(replicas_list)
 
-
+        if synapse_list  == None:
+            synapse_list = list(self.synapse_map.values())
         cnt = 0
 
         text_base = 'hello'
@@ -322,13 +326,14 @@ class BenchmarkModule(BitModule):
                     text = [text_base]*token_length
                     for timeout in timeout_list:
                         for num_endpoints in num_endpoints_list:
-                            for i in range(trials):
-                                cnt += 1 
-                                
-                                df = self.predict(text = text, num_endpoints=num_endpoints, timeout=timeout, splits=replicas,  return_type='metric')
-                                st.write(f'PROGRESS: {cnt}/{total_trials}')
-                                self.put_json(f'{path}/object_{cnt}', df)
-                                # self.restart_receptor_pool()
+                            for synapse in synapse_list:
+                                for i in range(trials):
+                                    cnt += 1 
+                                    
+                                    metrics_dict = self.predict(text = text, num_endpoints=num_endpoints, timeout=timeout, splits=replicas, synapses=[synapse], return_type='metric')
+                                    metrics_dict['synapse'] = synapse.__name__
+                                    print(f'PROGRESS: {cnt}/{total_trials}')
+                                    self.put_json(f'{path}/metrics_dict_{cnt}', metrics_dict)
             
 
     def load_experiment(self, path='experiments'):
@@ -538,10 +543,19 @@ class BenchmarkModule(BitModule):
             # my_selected_endpoints = st.multiselect('',my_endpoints, my_endpoints)
 
 
+    @property
+    def available_synapses(self):
+        return [f for f in dir(bittensor.synapse) if f.startswith('Text')]
     
+    @property
+    def synapse_map(self):
+        return {f:getattr(bittensor.synapse,f) for f in self.available_synapses}
 
 
+    def get_synapse(self, synapse, *args, **kwargs):
+        return self.synapse_map[synapse](*args, **kwargs)
 
+    resolve_synapse = get_synapse
     @classmethod
     def st_terminal(cls):
 
@@ -570,7 +584,9 @@ if __name__ == '__main__':
     # st.write(BenchmarkModule.metagraph)
     # module = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark'})
 
-    module = BenchmarkModule.deploy(actor={'refresh': False})
+    # module = BenchmarkModule.deploy(actor={'refresh': False})
+
+    module = BenchmarkModule.deploy(actor={'refresh':True})
 
     # st.write([i for i in actor_pool.map(lambda a,v: a.getattr.remote('actor_name'),  [1,2,3])])
     # st.write(ray.get(module.load.remote(keys=['env', 'tokenizer', 'receptor_pool'])))
@@ -593,6 +609,7 @@ if __name__ == '__main__':
     #     st.write(output)
 
 
+    # st.write(type(ray.get(module.get_synapse.remote('TextCausalLM'))))
 
     # ray.get(module.receptor_pool._idle_actors[0].getattr.remote('actor_name'))
 
@@ -602,9 +619,9 @@ if __name__ == '__main__':
     # st.write(module.predict(text=['hello']*32, num_endpoints=300, return_type = 'metric', timeout=1 ))
 
     # module.run_experiment()
-    df = ray.get(module.load_experiment.remote())
+    df = ray.get(module.run_experiment.remote())
 
-    st.write(df)
+    # st.write(df)
     # st.write(module)
     # st.write(module.load_experiment())
 

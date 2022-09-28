@@ -24,6 +24,7 @@ services:
       - ./commune:/app/commune
       - ./.bittensor:/root/.bittensor
       - ./scripts:/app/scripts
+      - /tmp/wholetensor:/tmp
 
 
     deploy:

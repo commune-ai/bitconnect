@@ -35,12 +35,15 @@ class QueueServer(BaseModule):
         self.queue.pop(topic)
 
 
-    def get_queue(self, topic, **kwargs):
-        return self.queue.get(topic)
+    def get_queue(self, topic, *args,**kwargs):
+        return self.queue.get(topic, *args,**kwargs)
     
-    def topic_exists(self, topic, **kwargs):
+    get = get_queue
+    
+    def topic_exists(self, topic, *args,**kwargs):
         return isinstance(self.queue.get(topic), Queue)
 
+    exists = topic_exists
 
 
     def create_topic(self, topic:str,
@@ -103,13 +106,9 @@ class QueueServer(BaseModule):
         return self.queue[topic].get(block=block, timeout=timeout)
 
 
-    def exists(self, topic, **kwargs):
-        return bool(topic in self.topics)
-
     def delete_all(self):
-        for topic in self.topics():
+        for topic in self.topics:
             self.delete_topic(topic, force=True)
-
 
     def get_topic(self, topic, *args, **kwargs):
         if dict_has(self.queue, topic):
@@ -192,11 +191,16 @@ class QueueClient(QueueServer):
 
         return queue 
 
+
     def list_topics(self):
         return list(self.queue.keys())
 
     ls = list_topics
-    topics = list_topics
+
+    @property
+    def topics(self):
+        return self.list_topics()
+
 
     def put(self, topic, item, block=True, timeout=None, queue_kwargs=dict(maxsize=10,actor_options=None,refresh=False,verbose=False)):
         """
@@ -225,7 +229,7 @@ class QueueClient(QueueServer):
 
 
     def exists(self, topic):
-        return bool(topic in self.topics())
+        return bool(topic in self.topics)
 
     def delete_all(self):
         for topic in self.topics:

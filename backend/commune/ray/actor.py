@@ -30,6 +30,14 @@ class ActorModule:
     def current_timestamp(self):
         return self.get_current_timestamp()
 
+    def current_datetime(self):
+        datetime.datetime.fromtimestamp(self.current_timestamp)
+    
+
+    def start_datetime(self):
+        datetime.datetime.fromtimestamp(self.start_timestamp)
+    
+
 
     @staticmethod
     def get_current_timestamp():
@@ -118,13 +126,19 @@ class ActorModule:
         return self.get_id()
 
     def get_id(self):
-        return self.config.get('actor_id', None)
+        return dict_get(self.config, 'actor.id')
+    def get_name(self):
+        return dict_get(self.config, 'actor.name')
+
+    def actor_info(self):
+        return dict_get(self.config, 'actor')
 
 
     @staticmethod
     def add_actor_metadata(actor):
         actor_id = ActorModule.get_actor_id(actor)
-        actor.config_set.remote('actor_id', actor_id)
+        actor.config_set.remote('actor.id', actor_id)
+
         actor_name = ray.get(actor.getattr.remote('actor_name'))
         setattr(actor, 'actor_id', actor_id)
         setattr(actor, 'actor_name', actor_name)
@@ -162,14 +176,7 @@ class ActorModule:
             # st.write(actor_config, kwargs)
             actor = cls.deploy_actor(**actor_config, cls_kwargs=kwargs)
 
-
-            actor_id = cls.get_actor_id(actor)
-            actor_name = ray.get(actor.getattr.remote('actor_name'))
-            setattr(actor, 'actor_id', actor_id)
-            setattr(actor, 'actor_name', actor_name)
-            setattr(actor, 'id', actor_id)
-            setattr(actor, 'name', actor_name)
-   
+            actor_id = cls.get_actor_id(actor)   
             return cls.add_actor_metadata(actor)
         else:
             
@@ -238,6 +245,9 @@ class ActorModule:
 
     def getattr(self, key):
         return getattr(self, key)
+
+    def hasattr(self, key):
+        return hasattr(self, key)
 
     def setattr(self, key, value):
         return self.__setattr__(key,value)
@@ -433,9 +443,9 @@ class ActorModule:
         return self.get_module_path()
 
 
-
-    def get_module_path(self):
-        return self.default_config_path.replace('.module', '')
+    @classmethod
+    def get_module_path(cls):
+        return cls.default_config_path.replace('.module', '')
 
 
     @staticmethod
@@ -527,3 +537,11 @@ class ActorModule:
     def get_actor_id( actor):
         assert isinstance(actor, ray.actor.ActorHandle)
         return actor.__dict__['_ray_actor_id'].hex()
+
+    def get_resources(self):
+        return self.config.get('actor', {}).get('resources', None)
+
+    @classmethod
+    def wrap_actor(cls, actor):
+        wrapper_module_path = 'ray.client.module.ClientModule'
+        return cls.get_module(module=wrapper_module_path, server=actor)

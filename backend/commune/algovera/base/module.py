@@ -11,4 +11,4 @@ class Module(BaseModule):
 
 
 
-st.write(['.'.join(v.split('.')[:-2]) for v in Module().module_tree])
+# st.write(['.'.join(v.split('.')[:-2]) for v in Module().module_tree])

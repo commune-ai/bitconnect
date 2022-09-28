@@ -51,9 +51,10 @@ class Launcher(BaseModule):
         actor_names = self.config.get('actor_names', [])
         actor_map = {}
         for actor_name in actor_names:
-            actor_map[k] = self.get_actor(actor_name)
+            if self.actor_exists(actor_name):
+                actor_map[actor_name] = ray.get_actor(actor_name)
             
-    
+        self.put_config()
         return actor_map
         # self.spawn_actors()
 
@@ -91,10 +92,6 @@ class Launcher(BaseModule):
         return {'gpu': torch.cuda.device_count(), 
                 'cpu': multiprocessing.cpu_count()}
 
-    @classmethod
-    def wrap_actor(cls, actor):
-        wrapper_module_path = 'ray.client.module.ClientModule'
-        return cls.get_module(module=wrapper_module_path, server=actor)
     # def load_balance(self, proposed_actor = None):
 
     #     while self.actor_count >= self.max_actor_count:
@@ -104,33 +101,66 @@ class Launcher(BaseModule):
 
 
     def resolve_module(self, module):
-        if module in self.simple2module:
-            module = self.simple2module[module]
+
         return module
 
-    def add_actor(self, module,   **kwargs):
-        self.rm_config()
-        self.get_config()
-        # self.load_balance(proposed_actor=actor_name)
-        module = self.resolve_module(module=module)
-        actor_class= self.get_object(module)
-        actor_name = actor_class._config()['module']
-        kwargs['actor'] = kwargs.get('actor', {'refresh': True, 'name': actor_name})
-        actor = actor_class.deploy(**kwargs)
-        # st.write(actor.__dict__)
+    def resolve_actor_class(self,module):
+        assert module in self.simple2module, f'options are {list(self.simple2module.keys())}'
+        module_path = self.simple2module[module]
+        actor_class= self.get_object(module_path)
+        return actor_class
 
-        actor_id = actor.id
-        self.actor_map[actor_name] = actor_id
+    def add_actor(self, module, 
+                    tag=None,
+                    refresh=False,
+                    resources={'num_gpus':0, 'num_cpus': 1},
+                    wrap = False,
+                     **kwargs):
+
+
+        if kwargs.get('refresh_cache')==True:
+            self.rm_config()
+
+        self.get_config()
+
+
+        if tag == None:
+            if len(module.split('-')) == 1:
+                module = module
+            elif len(module.split('-')) == 2:
+                module, tag = module.split('-')
+
+
+        actor_class = self.resolve_actor_class(module)
+        actor_name = actor_class.get_module_path()
+        if tag != None:
+            actor_name = '-'.join([actor_name, tag])
+        kwargs['actor'] = kwargs.get('actor',  {})
+        kwargs['actor'] = dict(refresh=refresh, name=actor_name, resources=resources)
+
+
+
+
+        actor = actor_class.deploy(**kwargs)
+
+        # # st.write(actor.__dict__)
+
+
+        self.actor_map[actor_name] = actor.id
         self.config['actor_names'] = self.actor_names
         self.config['actor_names'].append(actor_name)
+
         self.put_config()
-        
+
+        if wrap:
+            actor = self.wrap_actor(actor)
+
         return actor
 
-    @staticmethod
-    def actor_exists(actor):
-        actor_exists(actor)
+        
+        # return actor
 
+    get_actor = add_actor
     def get_actor_replicas(self, actor_name):
         return list(filter(lambda f: actor_name == self.actor_names[:len(actor_name)], self.actor_names))       
 
@@ -158,6 +188,13 @@ class Launcher(BaseModule):
     def actor_count(self):
         return len(self.actors)
 
+    def list_actors(self, key=None):
+        actor_names = self.actor_names
+        if key == None:
+            return actor_names
+        else:
+            return [a for a in actor_names if a.startswith(key)]   
+
     def remove_actor(self,actor):
         '''
         params:
@@ -167,9 +204,26 @@ class Launcher(BaseModule):
 
         assert actor in self.actor_map, 'Please specify an actor in the actor map'
         self.kill_actor(actor)
-        del self.actor_map[actor]
         self.config['actor_names'] = self.actor_names
         self.put_config()
+
+    @staticmethod
+    def st_test():
+
+        import streamlit as st
+        module = Launcher.wrap_actor(Launcher.deploy(actor={'refresh': False}))
+        # # st.write(module.module_tree)
+        actor = Launcher.wrap_actor(module.get_actor('algovera.base-1', refresh=True))
+        st.write(actor.actor_info())
+        # st.write(actor.get_name(), actor.get_resources())
+        # st.write(actor.get_id())
+        # st.write(module.getattr('actor_map'))
+
+        # module.add_actor('algovera.base-2')
+        # st.write(module.getattr('actor_map'))
+        
+
+
 
   
     rm = remove = remove_actor
@@ -187,30 +241,5 @@ class Launcher(BaseModule):
 
 if __name__=="__main__":
 
-    import streamlit as st
-    module = Launcher.deploy(actor=False)
-    st.write(module.module_tree)
 
-    actor = module.add_actor('algovera.base', actor={'refresh':False})
-    st.write(ray.get(actor.bro.remote()))
-    st.write(module.config)
-    st.write(module.module_path)
-    st.write(os.path.dirname(module.__file__).replace(module.root_path,'').replace('/','.'))
-
-    # st.write(module.actor_id, module.__dict__)
-    # st.write(module.id)
-    # st.write(module.actor_name)
-    # st.write(ray.get(module.getattr.remote('module_tree')))
-
-    # # st.write(module.simple2module)
-    # st.write(ray.get(module.getattr.remote('actor_id')))
-    
-    # st.write(Launcher.wrap_actor(actor=module).getattr('simple2module'))
-
-    # st.write(module.module_list)
-    # selected_module = st.selectbox('Select a Module',module.module_list, False)
-    
-    
-
-    
-
+    Launcher.st_test()

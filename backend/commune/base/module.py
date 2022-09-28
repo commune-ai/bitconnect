@@ -249,6 +249,8 @@ class BaseModule(ActorModule):
     def rm_json(self, path=None, recursive=True, **kwargs):
 
         path = self.resolve_path(path)
+        if not self.client.local.exists(path):
+            return
         return self.client.local.rm(path,recursive=recursive, **kwargs)
 
     def glob_json(self, pattern ='**'):
@@ -266,7 +268,7 @@ class BaseModule(ActorModule):
     def rm_config(self, path=None):
         if path ==  None:
             path = 'config'
-        return self.rm_json(path, self.config)
+        return self.rm_json(path)
 
     refresh_config = rm_config
     def get_config(self,  path=None, handle_error =True):
@@ -298,10 +300,9 @@ class BaseModule(ActorModule):
             module_path = '/'.join([os.getenv('PWD'), 'commune',k.replace('.', '/')])
             file_list = self.client.local.ls(module_path)
             dict_put(module_fs,k, file_list)
-            st.write(__file__.split('/')[-3])
 
         
-        st.write(os.getenv('PWD'))
+        # st.write(os.getenv('PWD'))
         return module_fs
 
     def get_state_dict(self, path=None):
