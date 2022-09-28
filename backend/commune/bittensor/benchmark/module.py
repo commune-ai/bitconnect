@@ -301,7 +301,7 @@ class BenchmarkModule(BitModule):
                      synapse_list = None,
                      path='experiments') :
 
-        self.rm_config()
+        # self.rm_config()
         total_trials = len(timeout_list) *\
                      len(num_endpoints_list)* \
                      len(token_length_list) * \
@@ -338,9 +338,12 @@ class BenchmarkModule(BitModule):
 
     def load_experiment(self, path='experiments'):
         df = []
-
-        for p in self.ls_json(path):
-            df.append(self.get_json(p))
+        if self.client.local.exists(path):
+            for p in self.client.local.ls(path):
+                df.append(self.client.local.get_json(p))
+        else:
+            for p in self.ls_json(path):
+                df.append(self.get_json(p))
 
         df =  pd.DataFrame(df)
         # df = pd.concat(df)
@@ -581,12 +584,20 @@ if __name__ == '__main__':
 
 
     import ray
+    st.set_page_config(layout="wide")
+
     # st.write(BenchmarkModule.metagraph)
     # module = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark'})
 
     # module = BenchmarkModule.deploy(actor={'refresh': False})
 
-    module = BenchmarkModule.deploy(actor={'refresh':True})
+    module = BenchmarkModule.deploy(actor=False, load=False)
+    df = []
+    for p in module.client.local.ls('/tmp/commune/BenchmarkModule/experiments'):
+        df.append(module.client.local.get_json(p))
+
+    df = pd.DataFrame(df)
+    st.write(df)
 
     # st.write([i for i in actor_pool.map(lambda a,v: a.getattr.remote('actor_name'),  [1,2,3])])
     # st.write(ray.get(module.load.remote(keys=['env', 'tokenizer', 'receptor_pool'])))
@@ -619,7 +630,7 @@ if __name__ == '__main__':
     # st.write(module.predict(text=['hello']*32, num_endpoints=300, return_type = 'metric', timeout=1 ))
 
     # module.run_experiment()
-    df = ray.get(module.run_experiment.remote())
+    # df = ray.get(module.run_experiment.remote())
 
     # st.write(df)
     # st.write(module)
@@ -627,4 +638,4 @@ if __name__ == '__main__':
 
 
 
-    # module.plot.run(df)
+    module.plot.run(df)

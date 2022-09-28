@@ -36,7 +36,7 @@ class StreamlitPlotModule:
         return [fn for fn in dir(self) if fn.startswith('st_')]  
 
 
-    def run(self, data, plots=[], default_plot  ='histogram'):
+    def run(self, data, plots=[], default_plot  ='histogram', ):
 
         self.cols= st.columns([1,3])
         if len(plots) == 0:
@@ -60,7 +60,7 @@ class StreamlitPlotModule:
 
         else:
             raise NotImplementedError(f'Broooooo, hold on, you can only use the following {supported_types}')
-        
+        fig.update_layout(height=800)
         self.show(fig)
         
     @property
