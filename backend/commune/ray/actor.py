@@ -157,7 +157,7 @@ class ActorModule:
         return cls.deploy( actor=actor,**kwargs)
 
     @classmethod 
-    def deploy(cls, actor=False , skip_ray=False, **kwargs):
+    def deploy(cls, actor=False , skip_ray=False, wrap=False,  **kwargs):
         """
         deploys process as an actor or as a class given the config (config)
         """
@@ -185,8 +185,13 @@ class ActorModule:
             # st.write(actor_config, kwargs)
             actor = cls.deploy_actor(**actor_config, **kwargs)
 
-            actor_id = cls.get_actor_id(actor)   
-            return cls.add_actor_metadata(actor)
+            actor_id = cls.get_actor_id(actor)  
+
+            actor =  cls.add_actor_metadata(actor)
+            if wrap:
+                actor = cls.wrap_actor(actor)
+
+            return actor 
         else:
             
             kwargs['config'] = config

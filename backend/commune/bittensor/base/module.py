@@ -68,11 +68,9 @@ class BitModule(BaseModule):
         wallet_config['name'] = wallet_config['name'] if name == None else name
         wallet_config['hotkey'] = wallet_config['hotkey'] if hotkey == None else hotkey
 
-        st.write(wallet_config )
         self.wallet = bittensor.wallet(**wallet_config)
         
         self.config['wallet'] = wallet_config
-        st.write(self.config['wallet'] , 'BRO')
 
         return self.wallet
 
@@ -459,33 +457,6 @@ class BitModule(BaseModule):
 
         row_column_bundles(fn_list= fn_list, fn_args_list=fn_args_list, cols_per_row=3)
 
-    @classmethod
-    def describe(cls, module =None, sidebar = True, detail=False, expand=True):
-        
-        if module is None:
-            module = cls
-
-        _st = st.sidebar if sidebar else st
-        st.sidebar.markdown('# '+str(module))
-        fn_list = list(filter(lambda fn: callable(getattr(module,fn)) and '__' not in fn,  dir(module)))
-        
-        
-        def content_fn(fn_list=fn_list):
-            fn_list = _st.multiselect('fns', fn_list)
-            for fn_key in fn_list:
-                fn = getattr(module,fn_key)
-                if callable(fn):
-                    _st.markdown('#### '+fn_key)
-                    _st.write(fn)
-                    _st.write(type(fn))
-        if expand:
-            with st.sidebar.expander(str(module)):
-                content_fn()
-        else:
-            content_fn()
-
-
-
 
     @property
     def rank(self):
@@ -594,6 +565,9 @@ class BitModule(BaseModule):
             fn_args_list = [[col,] for col in plot_columns]
             row_column_bundles(fn_list=fn_list, fn_args_list=fn_args_list)
 
+    response_id2code_map = {k:f'{v}' for k,v in zip(bittensor.proto.ReturnCode.values(),bittensor.proto.ReturnCode.keys())}
+
+
     def st_scatter(self, df):
         plot_columns = ['stake', 'rank', 'trust', 'consensus', 'incentive', 'dividends', 'emission']
         
@@ -655,6 +629,23 @@ class BitModule(BaseModule):
                 self.set_metagraph_state()
 
 
+    @property
+    def coldkey_address(self):
+        return self.wallet.coldkeypub.ss58_address
+    @property
+    def hotkey_address(self):
+        return self.wallet.hotkey.ss58_address
+    @property
+    def endpoints(self):
+        return self.metagraph.endpoint_objs
+    @property
+    def hotkey_endpoints(self):
+        return self.my_endpoints(mode='hotkey')
+    @property
+    def coldkey_endpoints(self):
+        return self.my_endpoints(mode='coldkey')
+
+
 
     
 if __name__ == '__main__':
@@ -662,24 +653,6 @@ if __name__ == '__main__':
     st.set_page_config(layout="wide")
     
     module = BitModule.deploy(actor=False)
-
-    # st.write(module.list_hotkeys())
-    # st.write(module.uid_data)
-
-    # module.sync(network='nakamoto', update_graph=False)
-    # st.write(module.register())
-
-    # endpoint_0 = module.metagraph.endpoints[0]
-    # den = bittensor.dendrite(wallet = module.wallet)
-    # representations, _, _ = den.forward_text (
-    #     endpoints = endpoint_0,
-    #     inputs = "Hello World"
-    # )
-
-
-
-    # st.write(dir(cli))
-
     
 
     

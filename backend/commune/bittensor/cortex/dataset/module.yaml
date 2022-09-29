@@ -20,8 +20,12 @@ num_endpoints: 100
 synapses: ['TextLastHiddenState']
 
 receptor_pool:
-  max_worker_threads: 64
-  max_active_receptors: 512
+  path: bittensor.receptor.pool.module.ReceptorPoolModule
+  params:
+    max_worker_threads: 64
+    max_active_receptors: 512
+
+  replicas: 3
 
 # network: nobunaga
 network: nakamoto
@@ -38,3 +42,4 @@ actor:
   name: local_copy(module)
   refresh: False
   resources: {num_cpus: 1.0}
+

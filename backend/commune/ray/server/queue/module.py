@@ -1,7 +1,7 @@
 import ray
 import os,sys
 sys.path.append(os.getenv('PWD'))
-from ray.util.queue import Queue
+from commune.ray.queue import Queue
 from commune.utils import dict_put,dict_get,dict_has,dict_delete
 from copy import deepcopy
 from commune import BaseModule
@@ -17,13 +17,64 @@ class QueueServer(BaseModule):
     def __init__(self,config=None, **kwargs):
         BaseModule.__init__(self, config=config, **kwargs)
         self.queue = {}
+        # self.topic2actorname = {}
+
+    def topic2actorname(self, topic):
+        root = self.actor_name
+        if root == None:
+            root = self.config.get('actor_name',
+                                    self.config.get('root', 'queue'))
+
+        return f'{root}.{topic}'
+
+    def create_topic(self, topic:str,
+                     maxsize:int=-1,
+                     refresh=False,
+                      **kwargs):
         
+        self.get_config()
+        
+        actor_name = kwargs.get('actor_name', self.topic2actorname(topic))
+
+        if refresh :
+            if self.actor_exists(topic):
+                self.kill_actor(topic)
+        queue = Queue(maxsize=maxsize, actor_options= dict( name=actor_name))
+        self.queue[topic] = queue
+
+        self.config['topic2actor'] = self.config.get('topic2actor', {})
+        self.config['topic2actor'][topic] = actor_name
+
+
+        self.put_config()
+        return self.queue[topic] 
+
+
+
+
+    @property
+    def topic2actor(self):
+        self.get_config()
+        topic2actor =  self.config.get('topic2actor', {})
+        new_topic2actor = {}
+        for topic, actor in topic2actor.items():
+            if self.actor_exists(actor):
+                new_topic2actor[topic] = actor
+        
+        self.config['topic2actor'] = new_topic2actor
+
+        self.put_config()
+        return new_topic2actor
+
+
     def delete_topic(self,topic,
                      force=False,
                      grace_period_s=5,
                      verbose=False):
 
-        queue = self.queue.get(topic)
+        queue = self.get_queue(topic)
+
+
         if isinstance(queue, Queue) :
             queue.shutdown(force=force, grace_period_s=grace_period_s)
             if verbose:
@@ -34,11 +85,11 @@ class QueueServer(BaseModule):
         # delete queue topic in dict
         self.queue.pop(topic)
 
+    rm = delete = delete_topic
 
     def get_queue(self, topic, *args,**kwargs):
-        return self.queue.get(topic, *args,**kwargs)
-    
-    get = get_queue
+        # actor_name = self.topic2actorname(topic)
+        return self.queue.get(topic)
     
     def topic_exists(self, topic, *args,**kwargs):
         return isinstance(self.queue.get(topic), Queue)
@@ -46,87 +97,53 @@ class QueueServer(BaseModule):
     exists = topic_exists
 
 
-    def create_topic(self, topic:str,
-                     maxsize:int=10,
-                     actor_options:dict=None,
-                     refresh=False,
-                     verbose=False, **kwargs):
 
-
-        if self.topic_exists(topic):
-            if refresh:
-                # kill the queue
-                self.delete_topic(topic=topic,force=True)
-                queue = Queue(maxsize=maxsize, actor_options=actor_options)
-
-                if verbose:
-                    print(f"{topic} Created (maxsize: {maxsize})")
-
-            else:
-                if verbose:
-                    print(f"{topic} Already Exists (maxsize: {maxsize})")
-        else:
-            queue = Queue(maxsize=maxsize, actor_options=actor_options)
-            if verbose:
-                print(f"{topic} Created (maxsize: {maxsize})")
-
-        self.queue[topic] = queue
-
-        return queue 
 
     def list_topics(self, **kwargs):
-        return list(self.queue.keys())
-
+        return list(self.topic2actor.keys())
     ls = list_topics
     topics = property(list_topics)
 
-    def put(self, topic, item, block=True, timeout=None, queue_kwargs=dict(maxsize=10,actor_options=None,refresh=False,verbose=False), **kwargs):
-        """
-        Adds an item to the queue.
 
-            If block is True and the queue is full, blocks until the queue is no longer full or until timeout.
-            There is no guarantee of order if multiple producers put to the same full queue.
-            
-            Raises
-                Full – if the queue is full and blocking is False.
-                
-                Full – if the queue is full, blocking is True, and it timed out.
-                
-                ValueError – if timeout is negative.
-        """
-
+    def put(self, topic, item, block=False, timeout=None, **kwargs):
         if not self.exists(topic):
-            queue_kwargs['topic'] = topic
-            self.create_topic(**queue_kwargs)
-
-        self.queue[topic].put(item, block=block, timeout=timeout)
-
-
-    def get(self, topic, block=True, timeout=None, **kwargs):
-        return self.queue[topic].get(block=block, timeout=timeout)
-
-
-    def delete_all(self):
-        for topic in self.topics:
-            self.delete_topic(topic, force=True)
-
-    def get_topic(self, topic, *args, **kwargs):
-        if dict_has(self.queue, topic):
-            return dict_get(self.queue, topic)
-        else:
             self.create_topic(topic=topic, **kwargs)
+        return self.get_queue(topic).put(item, block=block, timeout=timeout)
+
+    def put_batch(self, topic, items, **kwargs):
+        if not self.exists(topic):
+            self.create_topic(topic=topic, **kwargs)
+        return self.get_queue(topic).put_nowait_batch(items)
+
+
+    def get_batch(self,topic, num_items=1):
+        q = self.get_queue(topic)
+        return q.get_nowait_batch(num_items = num_items)
+
+    def get(self, topic, block=False, timeout=None, **kwargs):
+        q = self.get_queue(topic)
+        return q.get(block=block, timeout=timeout)
+
+    def delete_all(self, force=True, *args, **kwargs):
+        for topic in self.topics:
+            self.delete_topic(topic, force=force, *args, **kwargs)
+
+    rm_all = delete_all
+
+
     def size(self, topic):
         # The size of the queue
-        return self.get_topic(topic).size()
+        return self.get_queue(topic).size()
 
     def empty(self, topic):
         # Whether the queue is empty.
 
-        return self.get_topic(topic).empty()
+        return self.get_queue(topic).empty()
+
 
     def full(self, topic):
         # Whether the queue is full.
-        return self.get_topic(topic).full()
+        return self.get_queue(topic).full()
 
 
 
@@ -143,118 +160,35 @@ class QueueClient(QueueServer):
                      grace_period_s=5,
                      verbose=False):
 
-        queue = self.queue.get(topic)
-        if isinstance(queue, Queue) :
-            queue.shutdown(force=force, grace_period_s=grace_period_s)
-            if verbose:
-                print(f"{topic} shutdown (force:{force}, grace_period(s): {grace_period_s})")
-        else:
-            if verbose:
-                print(f"{topic} does not exist" )
-        # delete queue topic in dict
-        self.queue.pop(topic)
+        
+
+        queue_actor = self.get_queue(topic)
+        return self.kill_actor(queue_actor)
 
 
-    def get_queue(self, topic):
-        return self.queue.get(topic)
-    
-    def topic_exists(self, topic):
-        return isinstance(self.queue.get(topic), Queue)
-
-
-
-    def create_topic(self, topic,
-                     maxsize=10,
-                     actor_options=None,
-                     refresh=False,
-                     verbose=False, **kwargs):
-
-
-        if self.topic_exists(topic):
-            if refresh:
-                # kill the queue
-                self.delete_topic(topic=topic,force=True)
-                queue = Queue(maxsize=maxsize, actor_options=actor_options)
-
-                if verbose:
-                    print(f"{topic} Created (maxsize: {maxsize})")
-
-            else:
-                if verbose:
-                    print(f"{topic} Already Exists (maxsize: {maxsize})")
-        else:
-            queue = Queue(maxsize=maxsize, actor_options=actor_options)
-            if verbose:
-                print(f"{topic} Created (maxsize: {maxsize})")
-
-        self.queue[topic] = queue
-
-        return queue 
-
-
-    def list_topics(self):
-        return list(self.queue.keys())
-
-    ls = list_topics
-
-    @property
-    def topics(self):
-        return self.list_topics()
-
-
-    def put(self, topic, item, block=True, timeout=None, queue_kwargs=dict(maxsize=10,actor_options=None,refresh=False,verbose=False)):
-        """
-        Adds an item to the queue.
-
-            If block is True and the queue is full, blocks until the queue is no longer full or until timeout.
-            There is no guarantee of order if multiple producers put to the same full queue.
-            
-            Raises
-                Full – if the queue is full and blocking is False.
-                
-                Full – if the queue is full, blocking is True, and it timed out.
-                
-                ValueError – if timeout is negative.
-        """
-
-        if not self.exists(topic):
-            queue_kwargs['topic'] = topic
-            self.create_topic(**queue_kwargs)
-
-        self.queue[topic].put(item, block=block, timeout=timeout)
-
-
-    def get(self, topic, block=True, timeout=None):
-        return self.queue[topic].get(block=block, timeout=timeout)
-
-
-    def exists(self, topic):
-        return bool(topic in self.topics)
 
     def delete_all(self):
         for topic in self.topics:
             self.delete_topic(topic, force=True)
-        
 
 
-    def get_topic(self, topic, *args, **kwargs):
-        if dict_has(self.queue, topic):
-            return dict_get(self.queue, topic)
-        else:
-            self.create_topic(topic=topic, **kwargs)
+    def size_map(self):
+        return {t: self.size(t) for t in self.topics}
+            
     def size(self, topic):
         # The size of the queue
-        return self.get_topic(topic).size()
+        return self.get_queue(topic).size()
 
-    def empty(self, topic):
+    def isempty(self, topic):
         # Whether the queue is empty.
 
-        return self.get_topic(topic).empty()
+        return self.get_queue(topic).empty()
+    empty = isempty 
 
-    def full(self, topic):
+    def isfull(self, topic):
         # Whether the queue is full.
-        return self.get_topic(topic).full()
-
+        return self.get_queue(topic).full()
+    full = isfull
 
     def __del__(self):
         self.delete_all()
@@ -283,18 +217,16 @@ class RayActorClient:
 if __name__ == '__main__':
     import streamlit as st
     actor_name =  'queue_server'
-    module = QueueServer.deploy(actor={'refresh':False, 'name': actor_name},ray={'address': 'auto', 'namespace': 'default'})
+    module = QueueServer.deploy(actor={'refresh':True, 'name': actor_name}, wrap=False)
     
-    st.write(module)
-    client_module = QueueServer.import_module_class('ray.client.module.ClientModule')
-    st.write(client_module(server=actor_name).put('bro', 'fam'))
-    st.write(client_module(server=actor_name).get('bro', ray_get=True))
-    # client = RayActorClient(module)
-    # st.write(client.put('bro', {'whadup'}, ray_get=True))
-    # st.write(client.get('bro', ray_get=True))
-    # st.write(ray.get(module.ls.remote()))
-    # st.write(ray.get(module.put.remote('bro', {'whatup'})))
-    # st.write(ray.get(module.describe.remote())['QueueServer'].describe())
 
-    # with module.get_ray_context({'address': 'auto', 'namespace': 'default'}) as r:
-    #     st.write(r.__dict__)
+
+
+
+
+
+    x = ['fam']*1000
+    st.write(ray.get(module.put_batch.remote('fam',[x]*1000)))
+    st.write(ray.get(module.size.remote('fam')))
+    # st.write(ray.get(module.get_batch.remote('fam', 2)))
+    st.write(ray.get(module.getattr.remote('topic2actor')))
