@@ -1040,6 +1040,11 @@ video {
   background-color: transparent;
 }
 
+.bg-neutral-800 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(38 38 38 / var(--tw-bg-opacity));
+}
+
 .bg-Warm-Blue {
   --tw-bg-opacity: 1;
   background-color: rgb(40 58 184 / var(--tw-bg-opacity));
@@ -1063,6 +1068,11 @@ video {
 .bg-Warm-Orange {
   --tw-bg-opacity: 1;
   background-color: rgb(254 169 89 / var(--tw-bg-opacity));
+}
+
+.bg-neutral-900 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(23 23 23 / var(--tw-bg-opacity));
 }
 
 .bg-gradient-to-bl {
@@ -1472,12 +1482,12 @@ video {
           text-decoration-line: underline;
 }
 
-.opacity-60 {
-  opacity: 0.6;
-}
-
 .opacity-50 {
   opacity: 0.5;
+}
+
+.opacity-60 {
+  opacity: 0.6;
 }
 
 .shadow-lg {
@@ -1507,12 +1517,6 @@ video {
 .outline-none {
   outline: 2px solid transparent;
   outline-offset: 2px;
-}
-
-.brightness-50 {
-  --tw-brightness: brightness(.5);
-  -webkit-filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
-          filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
 }
 
 .filter {

@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import { Icon } from 'semantic-ui-react'
+import { Icon, Loader } from 'semantic-ui-react'
 import Import from '../Modal/importer'
 import { random_colour, random_emoji } from "../../helper/visual";
 
@@ -22,7 +22,8 @@ export default class Navbar extends Component{
             emoji : props.emoji || [],
             mode : false,
             modal : false,
-            error : false
+            error : false,
+            loading : false
            }
        
     }
@@ -37,12 +38,14 @@ export default class Navbar extends Component{
      *  @return null
      */
     fetch_classes = async () => {
+        this.setState({loading : true})
         try {
-            await fetch(`http://localhost:8000/list?${new URLSearchParams({ mode : "simple"})}`, { method: 'GET', mode : 'cors',})
+            await fetch(`http://localhost:8000/list?${new URLSearchParams({ mode : "gradio" })}`, { method: 'GET', mode : 'cors',})
                 .then(response => response.json())
                 .then(data => {
                     this.handelTabs(this.state.menu, data)
-                    this.setState({menu : data})
+                    this.setState({loading : false})
+                    this.setState({menu : data.sort(function(x, y) {return (x.read === y.read)? 0 : x.read? -1 : 1;})})
                 })
                 .catch(error => {console.log(error)}) 
         }catch(e){
@@ -184,12 +187,12 @@ export default class Navbar extends Component{
      */
     subComponents(item, index){
         return(<>
-                <li key={`${index}-li`} onDragStart={(event) => this.onDragStart(event, 'custom', item, index)} 
+                <li key={`${index}-li`} onDragStart={(event) => this.onDragStart(event, 'custom', item.path, index)} 
                     className={` text-white text-md flex flex-col text-center items-center cursor-grab shadow-lg
-                                 p-5 px-2 mt-4 rounded-md ${ this.state.open ? `  ${this.state.colour[index] === null ? "" : this.state.colour[index]} ` : `hidden`}  break-all -z-20`} draggable>
+                                 p-5 px-2 mt-4 rounded-md ${ this.state.open ? `${item.read ? "hover:animate-pulse" : "opacity-50 select-none"}  ${this.state.colour[index] === null ? "" : this.state.colour[index]} ` : `hidden`}  break-all -z-20`} draggable={item.read}>
 
                     <div key={`${index}-div`}  className=" absolute -mt-2 text-4xl opacity-60 z-10 ">{`${this.state.emoji[index] === null ? "" : this.state.emoji[index]}`}</div>    
-                    <h4 key={`${index}-h4`}  className={`  max-w-full font-sans text-blue-50 leading-tight font-bold text-xl flex-1 z-20  ${this.state.open ? "" : "hidden"}`} style={{"textShadow" : "0px 1px 2px rgba(0, 0, 0, 0.25)"}} >{`${item}`} </h4>
+                    <h4 key={`${index}-h4`}  className={`  max-w-full font-sans text-blue-50 leading-tight font-bold text-xl flex-1 z-20  ${this.state.open ? "" : "hidden"}`} style={{"textShadow" : "0px 1px 2px rgba(0, 0, 0, 0.25)"}} >{`${item.path}`} </h4>
 
                 </li >      
 
@@ -220,9 +223,9 @@ export default class Navbar extends Component{
                         appendHandler={this.appendStreamNode}
                         handelError={this.handelError}
                         catch={this.state.error}/>
-                
-                <div id="module-list" className="relative z-10 w-full h-[90%] overflow-auto">
+                <div id="module-list" className={`relative z-10 w-full h-[90%] overflow-auto ${this.state.loading ? " animate-pulse duration-300 bg-neutral-900 rounded-lg" : ""} `}>
                     <ul className="overflow-hidden">
+                    {this.state.loading &&<Loader active/>}
                     {this.state.menu.map((item, index) => {return this.subComponents(item, index)})}
                     </ul>
                 </div>

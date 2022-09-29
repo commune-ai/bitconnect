@@ -57,8 +57,6 @@ class GradioModule(BaseModule):
     def gradio_modules(self):
         return self._modules
 
-
-
     @property
     def module2port(self):
         module2port = {}
@@ -73,8 +71,6 @@ class GradioModule(BaseModule):
             port2module[k] = v['module']
 
         return port2module
-
-
 
     @property
     def port2module(self):
