@@ -36,14 +36,14 @@ class BitModule(BaseModule):
     sample_descending = True
     default_network = 'nakamoto'
     
-    default_config_path=f"bittensor.module"
+    default_config_path=f"bittensor.base"
     force_sync = False
     default_wallet_config = {'name': 'default', 'hotkey': 'default'}
-    def __init__(self,
-                 config=None, sync=False, **kwargs):
+
+    def __init__(self, config=None, **kwargs):
         
         
-        BaseModule.__init__(self, config=config) 
+        BaseModule.__init__(self, config=config, **kwargs) 
         # self.sync_network(network=network, block=block)
         self.plot = StreamlitPlotModule()
         self.cli = bittensor.cli()
@@ -55,12 +55,10 @@ class BitModule(BaseModule):
                 load = {}
             self.load(**load)
 
-
-    def load(self, path=None, **kwargs):
-        
+    def load(self, path=None, sync=True, **kwargs):
         self.get_config(path=path)
-        self.sync(**kwargs)
-        st.write(self.metagraph)
+        if sync:
+            self.sync(**kwargs)
         
     def save(self, path=None ,**kwargs):
         self.put_config(path=path, **kwargs)

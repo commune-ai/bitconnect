@@ -21,9 +21,9 @@ from torch import nn
 
 from commune.ray.actor_pool import ActorPool
 
-class BenchmarkModule(BitModule):
+class DatasetModule(BitModule):
     __file__ = __file__
-    default_config_path = 'bittensor.benchmark.module'
+    default_config_path = 'bittensor.cortex.dataset'
     def __init__(self, config=None, load=True, **kwargs):
 
         BitModule.__init__(self, config=config, **kwargs)
@@ -63,9 +63,11 @@ class BenchmarkModule(BitModule):
 
 
     def load_dataset(self, **kwargs):
-        dataset_kwargs = dict(path='bittensor.dataset', params=dict(block_size=128))
-        dataset_kwargs.update(kwargs)
+        
+        dataset_kwargs = dict(path='bittensor.dataset', 
+                              params=dict(block_size=128))
         dataset_kwargs.update(self.config.get('dataset'))
+        dataset_kwargs.update(kwargs)
         dataset_class = self.import_object(dataset_kwargs['path'])
         self.dataset = dataset_class(**dataset_kwargs['params'])
 
@@ -292,14 +294,14 @@ class BenchmarkModule(BitModule):
 
 
     def run_experiment(self,  trials=1,
-                     timeout_list = [1,2, 5], 
-                     token_length_list=[ 32],
-                     num_endpoints_list=[500, 1000, 1500, 2000 ],
-                     max_worker_threads_list=[100,200,400],
-                     replicas_list = [4, 8, 2],
-                     max_active_receptors=[2000],
+                     timeout_list = [1,2,5], 
+                     token_length_list=[ 16, 32, 64],
+                     num_endpoints_list=[10,20,50,100,500],
+                     max_worker_threads_list=[50, 100, 200],
+                     replicas_list = [4, 2, 1],
+                     max_active_receptors=[128,512],
                      synapse_list = None,
-                     path='experiments_2') :
+                     path='experiments') :
 
         # self.rm_config()
         total_trials = len(timeout_list) *\
@@ -341,7 +343,6 @@ class BenchmarkModule(BitModule):
         if self.client.local.exists(path):
             for p in self.client.local.ls(path):
                 df.append(self.client.local.get_json(p))
-            
         else:
             for p in self.ls_json(path):
                 df.append(self.get_json(p))
@@ -592,9 +593,13 @@ if __name__ == '__main__':
 
     # module = BenchmarkModule.deploy(actor={'refresh': False})
 
-    module = BenchmarkModule.deploy(actor={'refresh': True }, load=True)
+    module = BenchmarkModule.deploy(actor=False, load=False)
+    df = []
+    for p in module.client.local.ls('/tmp/commune/BenchmarkModule/experiments'):
+        df.append(module.client.local.get_json(p))
 
-
+    df = pd.DataFrame(df)
+    st.write(df)
 
     # st.write([i for i in actor_pool.map(lambda a,v: a.getattr.remote('actor_name'),  [1,2,3])])
     # st.write(ray.get(module.load.remote(keys=['env', 'tokenizer', 'receptor_pool'])))
@@ -627,11 +632,11 @@ if __name__ == '__main__':
     # st.write(module.predict(text=['hello']*32, num_endpoints=300, return_type = 'metric', timeout=1 ))
 
     # module.run_experiment()
-    df = ray.get(module.run_experiment.remote(path='experiment_3'))
+    # df = ray.get(module.run_experiment.remote())
 
     # st.write(df)
     # st.write(module)
-    # df = module.load_experiment(path='experiment_2')
+    # st.write(module.load_experiment())
 
 
 
