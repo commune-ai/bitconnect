@@ -1,9 +1,12 @@
 
 from .ranking_loss import *
+import torch
+import torch.nn.functional as F
+
 def causal_lm_loss(labels, logits):
 
     batch_size = logits.shape[0]
-    loss_fct = CrossEntropyLoss()
+    loss_fct = torch.nn.CrossEntropyLoss()
 
     losses = []
     for batch in range(batch_size):

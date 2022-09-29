@@ -1,1 +1,1 @@
-from .ranking import RankingModels
+from .ranking import RankingModel

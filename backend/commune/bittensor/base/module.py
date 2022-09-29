@@ -35,7 +35,6 @@ class BitModule(BaseModule):
     sample_metric = 'ranks'
     sample_descending = True
     default_network = 'nakamoto'
-    
     default_config_path=f"bittensor.base"
     force_sync = False
     default_wallet_config = {'name': 'default', 'hotkey': 'default'}
@@ -293,12 +292,12 @@ class BitModule(BaseModule):
         self.block = self.metagraph.block.item()
         if not self.should_sync_graph:
             self.set_metagraph_state()
-        
-
-
+    
     def set_metagraph_state(self, sample_n=None, sample_mode='rank', **kwargs):
         metagraph_state = self.metagraph.state_dict()
-        # self.metagraph_state =  self.sample_metagraph_state(metagraph_state=metagraph_state, sample_n=sample_n, sample_mode=sample_mode, **kwargs)
+        if sample_n != None:
+            self.metagraph_state =  self.sample_metagraph_state(metagraph_state=metagraph_state, sample_n=sample_n, sample_mode=sample_mode, **kwargs)
+       
         self.metagraph_state = metagraph_state
     def sample_metagraph_state(self, metagraph_state , sample_n=None,  sample_mode='rank', **kwargs ):
         '''

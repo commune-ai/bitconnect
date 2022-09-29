@@ -146,6 +146,15 @@ class ActorModule:
         setattr(actor, 'name', actor_name)
         return actor
 
+    @classmethod 
+    def deploy_actor(cls,name=None, refresh=False,**kwargs):
+        
+        actor_kwargs = dict(
+            refresh=refresh,
+            name=name,
+            **kwargs
+        )
+        return cls.deploy( actor=actor,**kwargs)
 
     @classmethod 
     def deploy(cls, actor=False , skip_ray=False, **kwargs):
@@ -174,7 +183,7 @@ class ActorModule:
             kwargs['config'] = config
             # import streamlit as st
             # st.write(actor_config, kwargs)
-            actor = cls.deploy_actor(**actor_config, cls_kwargs=kwargs)
+            actor = cls.deploy_actor(**actor_config, **kwargs)
 
             actor_id = cls.get_actor_id(actor)   
             return cls.add_actor_metadata(actor)
@@ -215,7 +224,6 @@ class ActorModule:
 
     @classmethod
     def deploy_actor(cls,
-                        cls_kwargs=None,
                         name='actor',
                         detached=True,
                         resources={'num_cpus': 1, 'num_gpus': 0.1},
@@ -225,13 +233,11 @@ class ActorModule:
                         redundant=False, 
                         return_actor_handle=True,
                         **kwargs):
-    
-        if cls_kwargs == None:
-            cls_kwargs = kwargs
+ 
 
         return create_actor(cls=cls,
                         name=name,
-                        cls_kwargs=cls_kwargs,
+                        cls_kwargs=kwargs,
                         detached=detached,
                         resources=resources,
                         max_concurrency=max_concurrency,

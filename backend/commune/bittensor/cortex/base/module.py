@@ -1,4 +1,3 @@
-
 import streamlit as st
 from random import shuffle, seed
 from collections import defaultdict
@@ -9,11 +8,14 @@ from torch import nn
 from tqdm.auto import tqdm
 from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
-
+import torchsort
 from commune.bittensor import BitModule
 from commune import BaseModule
 
+from commune.bittensor.cortex.metric import causal_lm_loss, ranknet_loss
 from commune.utils import *
+from sklearn import metrics
+from scipy.stats import kendalltau
 
 
 import torch
@@ -21,14 +23,16 @@ from torch import nn
 
 from commune.ray.actor_pool import ActorPool
 
-class BenchmarkModule(BitModule):
+
+class CortexModule(BitModule):
     __file__ = __file__
-    default_config_path = 'bittensor.benchmark.module'
-    def __init__(self, config=None, load=True, **kwargs):
+    default_config_path = 'bittensor.cortex.base'
+    def __init__(self, config=None, **kwargs):
 
         BitModule.__init__(self, config=config, **kwargs)
 
         
+        load = kwargs.get('load')
         if type(load) in [dict]:
             self.load(**load)
         else:
@@ -44,11 +48,12 @@ class BenchmarkModule(BitModule):
 
     def load(self, keys=True, load_kwargs={}, load_args={}, **kwargs):
         
-        if keys == True:
-            keys = ['env', 'tokenizer', 'receptor_pool']
         
         if keys in [False, None]:
             return
+
+        if keys == True:
+            keys = ['env', 'dataset', 'tokenizer', 'model', 'receptor_pool']
         
         load_keys = keys
 
@@ -82,18 +87,21 @@ class BenchmarkModule(BitModule):
         tokenizer_class = self.import_object(tokenizer_kwargs['path'])
         self.tokenizer = tokenizer_class(**tokenizer_kwargs['params'])
 
+    @property
+    def device(self):
+        if torch.cuda.is_available():
+            return 'cuda'
+        else:
+            return 'cpu'
+
+
     def load_model(self):
         model_config = self.config['model']
         model_class = self.import_object(model_config.get('path'))
         self.model = model_class(**model_config['params'])
         self.num_endpoints = self.model.num_endpoints
+        self.model  = self.model.to(self.device)
     
-    def load_optimizer(self,**kwargs):
-        optimizer_kwargs = dict(path='torch.optim.Adam', params=dict(lr=0.00032))
-        optimizer_kwargs.update(kwargs)
-        optimizer_kwargs.update(self.config.get('optimizer', {}))
-        optim_class = self.import_object(optimizer_kwargs['path'])
-        self.optimizer = optim_class(self.model.parameters(),**optimizer_kwargs['params'])
 
 
     def load_metric(self, **kwargs):
@@ -104,7 +112,7 @@ class BenchmarkModule(BitModule):
 
 
 
-    def load_receptor_pool(self, replicas=3, refresh=True, **kwargs):
+    def load_receptor_pool(self, replicas=1, refresh=False, **kwargs):
 
         receptor_kwargs = dict(max_worker_threads=150, max_active_receptors=512)
         config_receptor = self.config.get('receptor_pool', {})
@@ -128,34 +136,34 @@ class BenchmarkModule(BitModule):
 
 
         return self.receptor_pool
-    @staticmethod
-    def causal_lm_loss(labels, logits):
-        batch_size = logits.shape[0]
-        loss_fct = CrossEntropyLoss()
-
-        losses = []
-        for batch in range(batch_size):
-            shift_logits = logits[batch, :-1, :].contiguous()
-            shift_labels = labels[batch, 1:].contiguous()
-            loss = loss_fct(shift_logits.view(-1, 50258), shift_labels.view(-1))
-            losses.append(loss)
-        return torch.tensor(losses)
 
     @property
     def num_receptors(self):
         return self.num_endpoints
 
-    def get_endpoints(self, num_endpoints=None, random_sample=True):
+    def get_endpoints(self, endpoint_ids=None , num_endpoints=None, random_sample=True):
+        endpoints =self.metagraph.endpoint_objs
+        selected_endpoints = []
+        if isinstance(endpoint_ids, list ):
+            for i in endpoint_ids:
+                assert isinstance(i, int), i
+                assert i > 0 and i < len(endpoints), endpoint_ids
+
+                selected_endpoints.append(endpoints[i])
+
+            return selected_endpoints
+        
+        
         if num_endpoints == None:
             num_endpoints =self.num_endpoints
-        endpoints =self.metagraph.endpoint_objs
+
 
         if random_sample == True:
             endpoint_index_list = list(np.random.randint(0, self.n, (num_endpoints)))
-            endpoints = [endpoints[idx] for idx in endpoint_index_list]
+            selected_endpoints = [endpoints[idx] for idx in endpoint_index_list]
         else:
-            endpoints = endpoints[:num_endpoints]
-        return endpoints
+            selected_endpoints = endpoints[:num_endpoints]
+        return selected_endpoints
 
     # def get_loss_fn(self):
     #     return nn.CrossEntropyLoss()
@@ -165,10 +173,6 @@ class BenchmarkModule(BitModule):
         return getattr(bittensor.synapse, synapse)()
     @property
     def synapses(self):
-        # default_synapses = ['bittensor.synapse.TextCausalLM']
-        # synapse_class_strings = self.config.get('synapses', default_synapses)
-        # return [self.import_module(s)() for s in synapse_class_strings]
-        # return [bittensor.synapse.TextCausalLM()] 
         synsapses = list(map(self.str2synapse, self.config.get('synapses',['TextCausalLM'])) )
         return synsapses
 
@@ -210,7 +214,7 @@ class BenchmarkModule(BitModule):
 
 
     def predict(self,text, num_endpoints=100, timeout=1, synapses = None, return_type='result', splits=10,  **kwargs):
-        
+        synapses = self.resolve_synapses(synapses=synapses)
         receptor_kwargs = kwargs.get('receptor')
 
         if  kwargs.get('receptor') not in [None, False]:
@@ -218,10 +222,10 @@ class BenchmarkModule(BitModule):
             if type(receptor_kwargs) not in [dict]:
                 receptor_kwargs = {}
             self.load_receptor_pool(**receptor_kwargs)
-        synapses = self.resolve_synapses(synapses=synapses)
+
 
         if text == None:
-            text = self.raw_sample()
+            text = self.sample()
 
         endpoints = kwargs.get('endpoints')
         if endpoints == None:
@@ -371,85 +375,6 @@ class BenchmarkModule(BitModule):
             st.write(codes_count_df)
             st.write(fig)
 
-    def run(self):
-
-        loss_fn = nn.CrossEntropyLoss()
-
-        # https://github.com/huggingface/transformers/blob/v4.21.3/src/transformers/models/gptj/modeling_gptj.py#L847
-
-        num_batches = 1
- 
-        for idx in range(num_batches):
-            print("getting next batch of data")
-            with Timer(text='Get Batch: {t}', streamlit=True) as t:
-                inputs = next(self.dataset)
-
-
-            with Timer(text='Tokenize: {t}', streamlit=True) as t:
-                str_inputs = [self.tokenizer.decode(s) for s in inputs]
-
-            print(f"Querying endpoints")
-            # endpoints = self.get_endpoints()
-            endpoints = self.get_endpoints()
-    
-
-            with Timer(text='Querying Endpoints: {t}', streamlit=True) as t:
-                results = ray.get(self.receptor_poolforward.remote(endpoints, synapses=self.synapses, inputs=[inputs] * len(endpoints), timeout=10))
-
-            df = []
-            for i,e in enumerate(endpoints): 
-                row_dict = e.__dict__
-                row_dict['code'] = results[1][i][0]
-                row_dict['latency'] = results[2][i][0]
-                df.append(row_dict)
-            
-            df = pd.DataFrame(df)
-            st.write(df)
-
-            break
-
-            
-            tensors = []
-            for tensor in results[0]:
-                tensors.append(tensor[0])
-            
-
-
-            codes = []
-            codes_count = defaultdict(int)
-            for code in results[1]:
-                code = code[0]
-                codes.append(code)
-                codes_count[code] += 1
-            for code in sorted(set(codes)):
-                print(f"{code}: {codes_count[code]}")
-        
-
-            print("Calculating losses for each endpoint")
-            all_losses = []
-            for _, logits in tqdm(enumerate(tensors)):
-                all_losses.append(self.causal_lm_loss(inputs, logits))
-
-            all_losses_tensor = torch.vstack(all_losses).T  # (batch_size, num_endpoints)
-            inv_loss_tensor = 1/all_losses_tensor
-
-
-            print("Model forward")
-            sims = self.model(str_inputs)
-
-            print("model backwards")
-
-            ideal_rankings = torch.argsort(all_losses_tensor, axis=1)
-            model_rankings = torch.argsort(sims, axis=1)
-
-            loss = loss_fn(sims, inv_loss_tensor)
-            #ndcg = metrics.ndcg_score(ideal_rankings, model_rankings)
-            print(f"step: {idx} | loss={loss.item():.3f}")
-
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-
     @property
     def coldkey_address(self):
         return self.wallet.coldkeypub.ss58_address
@@ -486,6 +411,13 @@ class BenchmarkModule(BitModule):
         text_field = self.config['dataset']['text_field']
         return self.dataset[random.randint(1,len(self.dataset))][text_field]
 
+    def sample(self):
+        text_field = self.config['dataset']['text_field']
+        return self.dataset[random.randint(1,len(self.dataset))][text_field]
+
+    def sample_batch(self, batch_size=8):
+        text_field = self.config['dataset']['text_field']
+        return [self.sample() for i in range(8)]
 
     def st_sidebar(self):
 
@@ -551,6 +483,8 @@ class BenchmarkModule(BitModule):
     @property
     def available_synapses(self):
         return [f for f in dir(bittensor.synapse) if f.startswith('Text')]
+
+    ls_synapses = all_synapses = available_synapses
     
     @property
     def synapse_map(self):
@@ -580,64 +514,133 @@ class BenchmarkModule(BitModule):
     
         st.write(output)
 
+    
+
+    def run(self, 
+            steps=1000, 
+            num_endpoints=10, 
+            timeout=1, 
+            synapses = ['TextCausalLM'], 
+            splits=10, 
+            experiment='exp1',
+             **kwargs):
+
+        synapses = self.resolve_synapses(synapses=synapses)
+
+        perf_df = pd.DataFrame()
+        for step in range(steps):
+            print("getting next batch of data")
+            str_inputs = [self.sample()]
+            inputs = torch.tensor(self.tokenizer(text=str_inputs, padding=True)['input_ids']).to(self.device)
+            st.write(str_inputs, inputs, synapses)
+            endpoints = self.get_endpoints(num_endpoints=num_endpoints)
+
+            with Timer(text='Querying Endpoints: {t}', streamlit=True) as t:
+
+                results = self.receptor_pool_forward(endpoints=endpoints,
+                                                    synapses=synapses, 
+                                                    inputs=inputs, 
+                                                    timeout=timeout, 
+                                                    splits=splits )
+
+            tensors = []
+            for tensor in results[0]:
+                tensors.append(tensor[0].to(self.device))
+
+            print("Calculating losses for each endpoint")
+            all_losses = []
+            for _, logits in tqdm(enumerate(tensors)):
+                all_losses.append(causal_lm_loss(inputs, logits))
+
+            all_losses_tensor = torch.vstack(all_losses).T  # (batch_size, num_endpoints)
+            ideal_rankings = torch.argsort(torch.argsort(all_losses_tensor, axis=1, descending=False), axis=1)
+
+            all_sims = self.model.get_all_sims(str_inputs)
+            model_rankings = torch.argsort(torch.argsort(all_sims, axis=1, descending=True), axis=1)
+
+            x1 = [[] for _ in range(all_losses_tensor.shape[0])]
+            x2 = [[] for _ in range(all_losses_tensor.shape[0])]
+            ys = [[] for _ in range(all_losses_tensor.shape[0])]
+            for batch in range(all_losses_tensor.shape[0]):
+                for idx in range(all_losses_tensor.shape[1]):
+                    for idx2 in range(all_losses_tensor.shape[1]):
+                        # TODO: Contrastive sampling improvements
+                        # while len(x1[batch]) != 10:
+                        # idx2 = randint(0, all_losses_tensor.shape[1] - 1)
+                        if idx == idx2:
+                            continue
+                        d = all_losses_tensor[batch][idx] - all_losses_tensor[batch][idx2]
+                        t = (
+                            1.0
+                            if all_losses_tensor[batch][idx] < all_losses_tensor[batch][idx2]
+                            else 0.0
+                            if all_losses_tensor[batch][idx] > all_losses_tensor[batch][idx2]
+                            else 0.5
+                        )
+                        x1[batch].append(idx)
+                        x2[batch].append(idx2)
+                        ys[batch].append(t)
+
+            x1, x2, ys = torch.tensor(x1).to(self.device), torch.tensor(x2).to(self.device), torch.tensor(ys).to(self.device)
+            print(f"Batch size: {x1.shape}")
+            print("Model forward")
+            s1 = self.model(str_inputs, x1)
+            s2 = self.model(str_inputs, x2)
+            print("model backwards")
+
+            sorted_losses_tensor = all_losses_tensor.clone()
+            sorted_by_model_rank = all_losses_tensor.clone()
+
+            ideal_idx = torch.argsort(all_losses_tensor, axis=1, descending=False)
+            model_idx = torch.argsort(all_sims, axis=1, descending=True)
+
+            for i in range(sorted_by_model_rank.shape[0]):
+                sorted_losses_tensor[i, :] = sorted_losses_tensor[i, ideal_idx[i]]
+                sorted_by_model_rank[i, :] = sorted_by_model_rank[i, model_idx[i]]
+
+            topk = 10
+            ideal_softrank = torchsort.soft_rank(all_losses_tensor, regularization_strength=1e-6)
+            model_softrank = torchsort.soft_rank(-all_sims, regularization_strength=1e-6)
+
+            tau_softrank, _p = kendalltau(model_softrank.cpu().detach().numpy(), ideal_softrank.cpu().detach().numpy())
+            tau_losses, _p = kendalltau(sorted_losses_tensor.cpu().detach().numpy(), sorted_by_model_rank.cpu().detach().numpy())
+
+            tau_rank_topk, _p = kendalltau(model_softrank[:, :topk].cpu().detach().numpy(), ideal_softrank[:, :topk].cpu().detach().numpy())
+            tau_loss_topk, _p = kendalltau(sorted_losses_tensor[:, :topk].cpu().detach().numpy(), sorted_by_model_rank[:, :topk].cpu().detach().numpy())
+
+            loss = ranknet_loss(s1, s2, ys)
+            ndcg = metrics.ndcg_score(1 / (ideal_rankings.cpu() + 1), 1 / (model_rankings.cpu() + 1))
+            
+            
+            metrics_dict = {
+                "step": step, 
+                "loss": loss.item(),
+                "ndcg": ndcg,
+                "tau_softrank": tau_softrank,
+                "tau_losses": tau_losses,
+                "tau_softrank_topk": tau_rank_topk,
+                "tau_loss_topk": tau_loss_topk
+            }
+                                    
+            self.put_json(f'{experiment}/perf_json_{step}', metrics_dict)
+
+            self.model.train()
+            self.model.optimizer.zero_grad()
+            loss.backward()
+            self.model.optimizer.step()
+
 
 
 if __name__ == '__main__':
 
 
     import ray
-    st.set_page_config(layout="wide")
 
     # st.write(BenchmarkModule.metagraph)
     # module = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark'})
+    module = CortexModule.deploy(actor=False, load=True)
+    module.run()
+    st.write()
 
     # module = BenchmarkModule.deploy(actor={'refresh': False})
 
-    module = BenchmarkModule.deploy(actor=False, load=False)
-    df = []
-    for p in module.client.local.ls('/tmp/commune/BenchmarkModule/experiments'):
-        df.append(module.client.local.get_json(p))
-
-    df = pd.DataFrame(df)
-    st.write(df)
-
-    # st.write([i for i in actor_pool.map(lambda a,v: a.getattr.remote('actor_name'),  [1,2,3])])
-    # st.write(ray.get(module.load.remote(keys=['env', 'tokenizer', 'receptor_pool'])))
-    
-    # BenchmarkModule.st_terminal()
-
-    # module1 = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark_0'})
-
-    # module1 = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark_2'})
-
-    # del module1
-    # st.write(module)
-
-    # st.write(module._ray_method_signatures)
-    # actor_name = 'BenchmarkModule'
-    # st.write(module.__dict__)
-
-
-    # for output in module.receptor_pool.map_unordered(lambda a,v: a.getattr.remote(v), ['actor_name']*2):
-    #     st.write(output)
-
-
-    # st.write(type(ray.get(module.get_synapse.remote('TextCausalLM'))))
-
-    # ray.get(module.receptor_pool._idle_actors[0].getattr.remote('actor_name'))
-
-    
-
-    # st.write(ray.get(module.predict.remote(text=['hello']*32, num_endpoints=500, return_type = 'metric', timeout=1 )))
-    # st.write(module.predict(text=['hello']*32, num_endpoints=300, return_type = 'metric', timeout=1 ))
-
-    # module.run_experiment()
-    # df = ray.get(module.run_experiment.remote())
-
-    # st.write(df)
-    # st.write(module)
-    # st.write(module.load_experiment())
-
-
-
-    module.plot.run(df)

@@ -1,12 +1,6 @@
 module: 'DatasetModule'
-# clients
-# client: get_config(client.manager)
 
 client: {}
-# dataset:
-#   path: bittensor.dataset
-#   params:
-#     block_size: 10
 
 dataset:
   path: datasets.load_dataset
@@ -16,18 +10,12 @@ dataset:
     split: test
   text_field: 'sentence'
   
-
 tokenizer:
   path: bittensor.tokenizer
   params:
     version: null
 
 num_endpoints: 100
-
-model:
-  path: commune.bittensor.cotex.model.RankingModel
-  params:
-    num_endpoints: local_copy(num_endpoints)
 
 synapses: ['TextLastHiddenState']
 
@@ -41,14 +29,10 @@ block: null
 blocks_behind_sync_threshold: 1000
 
 
-
 wallet: 
   name: const
   hotkey: Tiberius
 
-# wallet: 
-#   name: default
-#   hotkey: default
 
 actor:
   name: local_copy(module)

@@ -592,7 +592,7 @@ if __name__ == '__main__':
 
     # module = BenchmarkModule.deploy(actor={'refresh': False})
 
-    module = BenchmarkModule.deploy(actor={'refresh': True }, load=True)
+    module = BenchmarkModule.deploy(actor=False, load=False)
 
 
 
@@ -627,11 +627,11 @@ if __name__ == '__main__':
     # st.write(module.predict(text=['hello']*32, num_endpoints=300, return_type = 'metric', timeout=1 ))
 
     # module.run_experiment()
-    df = ray.get(module.run_experiment.remote(path='experiment_3'))
+    # df = ray.get(module.run_experiment.remote(path='experiment_3'))
 
     # st.write(df)
     # st.write(module)
-    # df = module.load_experiment(path='experiment_2')
+    df = module.load_experiment(path='experiment_3')
 
 
 
