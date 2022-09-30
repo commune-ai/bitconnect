@@ -53,7 +53,7 @@ class CortexModule(BitModule):
             return
 
         if keys == True:
-            keys = ['env', 'dataset', 'tokenizer', 'model', 'receptor_pool']
+            keys = ['env', 'model', 'dataset' ]
         
         load_keys = keys
 
@@ -68,24 +68,8 @@ class CortexModule(BitModule):
 
 
     def load_dataset(self, **kwargs):
-        
-        dataset_kwargs = dict(path='bittensor.dataset', 
-                              params=dict(block_size=128))
-        dataset_kwargs.update(self.config.get('dataset'))
-        dataset_kwargs.update(kwargs)
-        dataset_class = self.import_object(dataset_kwargs['path'])
-        self.dataset = dataset_class(**dataset_kwargs['params'])
-
-    def load_tokenizer(self, **kwargs): 
-        if isinstance(getattr(self, 'dataset', None), bittensor.dataset):
-            self.tokenizer = self.dataset.tokenizer
-
-        tokenizer_kwargs = dict(path='bittensor.tokenizer',
-                            params=dict(version=bittensor.__version__))
-        tokenizer_kwargs.update(kwargs)
-        tokenizer_kwargs.update(self.config.get('tokenizer'))
-        tokenizer_class = self.import_object(tokenizer_kwargs['path'])
-        self.tokenizer = tokenizer_class(**tokenizer_kwargs['params'])
+        dataset_kwargs = {**self.config.get('dataset'), **kwargs}
+        self.dataset = self.get_module(**dataset_kwargs)
 
     @property
     def device(self):
@@ -223,12 +207,7 @@ class CortexModule(BitModule):
             self.load_receptor_pool(**receptor_kwargs)
 
 
-        if text == None:
-            text = self.sample()
-
         endpoints = kwargs.get('endpoints')
-        if endpoints == None:
-            endpoints = self.get_endpoints(num_endpoints=num_endpoints)
 
         num_endpoints = len(endpoints)
 
@@ -406,40 +385,6 @@ class CortexModule(BitModule):
 
         return endpoints
 
-    def raw_sample(self):
-        text_field = self.config['dataset']['text_field']
-        return self.dataset[random.randint(1,len(self.dataset))][text_field]
-
-    def sample(self, idx=None):
-        text_field = self.config['dataset']['text_field']
-
-        dataset_length = len(self.dataset)
- 
-        if idx == None:
-            idx = random.randint(1,dataset_length)
-
-        assert idx <= dataset_length, f'{idx}<={dataset_length} '
-        
-        return self.dataset[idx][text_field]
-
-    def sample_batch(self, batch_size=1):
-        return [self.sample(idx=i) for i in range(batch_size)]
-
-    @property
-    def available_synapses(self):
-        return [f for f in dir(bittensor.synapse) if f.startswith('Text')]
-
-    ls_synapses = all_synapses = available_synapses
-    
-    @property
-    def synapse_map(self):
-        return {f:getattr(bittensor.synapse,f) for f in self.available_synapses}
-
-    def get_synapse(self, synapse, *args, **kwargs):
-        return self.synapse_map[synapse](*args, **kwargs)
-
-    resolve_synapse = get_synapse
-
     def run(self, 
             steps=1000, 
             num_endpoints=None, 
@@ -582,7 +527,8 @@ if __name__ == '__main__':
     # st.write(BenchmarkModule.metagraph)
     # module = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark'})
     module = CortexModule.deploy(actor=False, load=True)
-    module.run()
+    st.write(ray.get(module.dataset.sample_loop.remote('train')))
+    # module.run()
     st.write()
 
     # module = BenchmarkModule.deploy(actor={'refresh': False})

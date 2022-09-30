@@ -2,22 +2,12 @@ module: 'CortexModule'
 
 client: {}
 
+num_endpoints: 100
 
 dataset:
-  path: datasets.load_dataset
-  params:
-    path: glue
-    name: cola
-    split: test
-  text_field: 'sentence'
-  
+  module: bittensor.cortex.dataset.module.DatasetModule
+  actor: {'refresh': False}
 
-tokenizer:
-  path: bittensor.tokenizer
-  params:
-    version: null
-
-num_endpoints: 100
 
 model:
   path: commune.bittensor.cortex.model.RankingModel

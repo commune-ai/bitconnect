@@ -17,7 +17,8 @@ services:
       # - 7865-7870:7865-7870 # gradio ports
       - 8001:8000 # api
       - 8889:8888 # jupyterlab
-
+    
+    run_options: ["-v", "/home/ubuntu/efs:/efs", "--shm-size=16.89gb"]
 
     volumes:
       - ./bittensor/bittensor:/app/bittensor/bittensor

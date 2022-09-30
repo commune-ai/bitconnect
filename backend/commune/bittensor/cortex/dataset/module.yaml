@@ -2,6 +2,16 @@ module: 'DatasetModule'
 
 client: {}
 
+
+submodule:
+  queue: 
+    module: ray.server.queue.QueueServer
+    actor : {refresh: False}
+
+
+
+
+
 dataset:
   path: datasets.load_dataset
   params:
@@ -9,23 +19,18 @@ dataset:
     name: cola
     split: test
   text_field: 'sentence'
-  
-tokenizer:
-  path: bittensor.tokenizer
-  params:
-    version: null
 
-num_endpoints: 100
+num_endpoints: 50
 
 synapses: ['TextLastHiddenState']
 
 receptor_pool:
   path: bittensor.receptor.pool.module.ReceptorPoolModule
   params:
-    max_worker_threads: 64
+    max_worker_threads: 128
     max_active_receptors: 512
 
-  replicas: 3
+  replicas: 1
 
 # network: nobunaga
 network: nakamoto

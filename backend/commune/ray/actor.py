@@ -232,7 +232,7 @@ class ActorModule:
                         name='actor',
                         detached=True,
                         resources={'num_cpus': 1, 'num_gpus': 0.1},
-                        max_concurrency=1,
+                        max_concurrency=100,
                         refresh=False,
                         verbose = True, 
                         redundant=False, 

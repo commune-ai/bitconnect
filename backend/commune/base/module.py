@@ -65,6 +65,12 @@ class BaseModule(ActorModule):
             config = self.config_loader.load(path=self.default_config_path)
         return config
     
+    @classmethod
+    def get_module(cls, module:str, **kwargs):
+
+        module_class = cls.get_object(module)
+        return module_class.deploy(**kwargs)
+
 
     def get_submodules(self, submodule_configs=None, get_submodules_bool=True):
         
@@ -77,12 +83,17 @@ class BaseModule(ActorModule):
             submodule_configs = self.config.get('submodule',self.config.get('submodules',{}))
     
         assert isinstance(submodule_configs, dict)
-        for submodule_name, submodule_config in submodule_configs.items():
-            submodule_class = self.get_object(submodule_config['module'])
-            submodule_instance = submodule_class(config=submodule_config)
-            setattr(self, submodule_name, submodule_instance)
-
-
+        for submodule_name, submodule in submodule_configs.items():
+            submodule_kwargs, submodule_args = {},[]
+            if isinstance(submodule, str):
+                submodule_kwargs = {'module':submodule }
+            elif isinstance(submodule, list):
+                submodule_args = submodule
+            elif isinstance(submodule, dict):
+                submodule_kwargs = submodule
+                
+            submodule = self.get_module(*submodule_args,**submodule_kwargs)
+            dict_put(self.__dict__, submodule_name, submodule)
 
     ############ LOCAL CACHE LAND ##############
 
@@ -183,23 +194,22 @@ class BaseModule(ActorModule):
     def ls_json(self, path=None, tmp_dir=None):
         if tmp_dir == None:
             tmp_dir = self.tmp_dir
-        ls_path = tmp_dir 
-        if path != None:
-            ls_path = os.path.join(ls_path, path)
-        return self.client.local.ls(ls_path)
+        path = os.path.join(tmp_dir, path)
+        if not self.client.local.exists(path):
+            return []
+        return self.client.local.ls(path)
         
     def exists_json(self, path=None, tmp_dir=None):
-        if tmp_dir == None:
-            tmp_dir = self.tmp_dir
-        if exists_path != None:
-            exists_path = os.path.join(exists_path, path)
-        return self.client.local.exists(exists_path)
+        path = self.resolve_path(path=path, tmp_dir=tmp_dir)
+        return self.client.local.exists(path)
 
     def rm_json(self, path=None,tmp_dir=None, recursive=True, **kwargs):
-
-        path = self.resolve_path(path, tmp_dir=tmp_dir)
+        if tmp_dir == None:
+            tmp_dir = self.tmp_dir
+        path = os.path.join(tmp_dir, path)
         if not self.client.local.exists(path):
-            return
+            return 
+    
         return self.client.local.rm(path,recursive=recursive, **kwargs)
 
     def glob_json(self, pattern ='**',  tmp_dir=None):
@@ -328,6 +338,8 @@ class BaseModule(ActorModule):
     @property
     def module2simple(self):
         return {v:k for k,v in self.simple2module.items()}
+
+
 
     @property
     def full_module_list(self):

@@ -11,7 +11,7 @@ import torch.nn.functional as F
 import torchsort
 from commune.bittensor import BitModule
 from commune import BaseModule
-
+import ray
 from commune.bittensor.cortex.metric import causal_lm_loss, ranknet_loss
 from commune.utils import *
 from sklearn import metrics
@@ -64,10 +64,8 @@ class DatasetModule(BitModule):
 
 
     def load_dataset(self, **kwargs):
-        
-        dataset_kwargs = dict(path='bittensor.dataset', 
-                              params=dict(block_size=128))
-        dataset_kwargs.update(self.config.get('dataset'))
+
+        dataset_kwargs = self.config.get('dataset', {})
         dataset_kwargs.update(kwargs)
         dataset_class = self.import_object(dataset_kwargs['path'])
         self.dataset = dataset_class(**dataset_kwargs['params'])
@@ -78,8 +76,9 @@ class DatasetModule(BitModule):
 
         tokenizer_kwargs = dict(path='bittensor.tokenizer',
                             params=dict(version=bittensor.__version__))
+        
+        tokenizer_kwargs.update(self.config.get('tokenizer',{}))
         tokenizer_kwargs.update(kwargs)
-        tokenizer_kwargs.update(self.config.get('tokenizer'))
         tokenizer_class = self.import_object(tokenizer_kwargs['path'])
         self.tokenizer = tokenizer_class(**tokenizer_kwargs['params'])
 
@@ -269,6 +268,7 @@ class DatasetModule(BitModule):
 
 
     def get_synapse(self, synapse=None, *args, **kwargs):
+        synapse = deepcopy(synapse)
         if synapse == None:
             synapse = self.synapses[0]
         if isinstance(synapse, str):
@@ -291,12 +291,96 @@ class DatasetModule(BitModule):
         return num_endpoints
 
 
+
+    @property
+    def default_queue_map(self):
+        return {i: f'{self.module_path}{i}' for i in ['in','out']}
+    @property
+    def default_queues(self):
+        return list(self.default_queue_map.keys())
+        
+    def resolve_topic(self):
+
+        return self.module_path
+
+    def stop_sample_loop(self, topic):
+        return self.running_loop_dict.pop(topic, None)
+
+    running_loop_dict = {}
+    def start_sample_loop(self, topic, 
+                        cache_limit=100,cache_fraction=0.5, refresh_cache=False, 
+                        refresh_queue=True, condition_fn=None, 
+                        max_queue_size = 200,
+                        min_results = 10,
+                        *args, **kwargs): 
+        if topic == None:
+            topic  = self.default_queue_map['out']
+        assert topic not in self.running_loop_dict
+        self.running_loop_dict[topic] = True
+
+        if refresh_cache:
+             self.rm_json(f'samples/{topic}')
+        if refresh_queue:
+            try:
+                ray.get(self.queue.rm.remote(topic))
+            except KeyError:
+                pass
+        cnt = 0
+        while True:
+            if topic in self.running_loop_dict:
+                pass
+            else:
+                break
+            
+            sample_cache_count = self.sample_cache_count(topic)
+            get_cache = random.uniform(0,1)<cache_fraction and sample_cache_count > 0
+            if  get_cache:
+                cache_idx = random.randint(0, sample_cache_count-1)
+                results = self.get_json(f'samples/{topic}/{cache_idx}')
+                for i in range(len(results)):
+                    results[i]['tensor'] = [torch.tensor(r) for r in results[i]['tensor'] ]
+            else:
+                cache_idx = sample_cache_count
+                with Timer('Sample Time: {t}',streamlit=True):
+                    results = self.sample(*deepcopy(args), **deepcopy(kwargs))
+
+
+            st.write(len(results))
+
+            if len(results)>min_results:
+
+                self.queue.put.remote(topic, results )
+                # st.write(ray.get(self.queue.size.remote(topic)))
+                with Timer('Save Time 1: {t}',streamlit=True):
+                    for i in range(len(results)):
+                        results[i]['tensor'] = [r.tolist() for r in results[i]['tensor'] ]
+                # with Timer('Save Time 2: {t}',streamlit=True):
+                #     self.put_json(f'samples/{topic}/{cache_idx}', results)
+            
+    def sample_cache_count(self, topic):
+        return len(self.sample_cache_files(topic))
+
+    def sample_cache_files(self, topic):
+        return self.ls_json(f'samples/{topic}')
+
+    def sample_cache_exists(self, topic, idx):
+        return self.exists_json(f'samples/{topic}/{idx}')
+
+
+    def running_loops(self):
+        return list(self.running_loop_dict.keys())
+    def running_loops_queues(self):
+        return {t: ray.get(self.queue.get_queue.remote(t)) for t in running_loops}
+    def sample_loop(self, topic, batchsize=1, *args, **kwargs):
+        return ray.get(self.queue.get_batch.remote(topic=topic, num_items=batchsize))
+
+
+        
     def sample(self, 
             num_endpoints=None, 
             timeout=1, 
             synapse = 'TextCausalLM', 
             splits=1, 
-            experiment='exp1',
             batch_size = 1,
             device = None,
             success_only=True,
@@ -340,8 +424,10 @@ class DatasetModule(BitModule):
 
             row_dict['tensor'] = [synapse_tensor.to(self.device) for synapse_tensor in results[0][i]]
             row_dict['latency'] = results[2][i][0]
+            row_dict['str_inputs'] = str_inputs
+            row_dict['inputs'] = inputs.tolist()
             # row_dict['elapsed_time'] = elasped_time
-            row_dict['synapse'] = synapses
+            row_dict['synapse'] = list(map(str, synapses))
             row_dict['output_size'] = sys.getsizeof(results[0][i])
             row_dict['output_length'] = results[0][i][0].shape[0]
             row_dict['input_token_length'] = int(inputs.shape[0])
@@ -360,19 +446,38 @@ if __name__ == '__main__':
     # st.write(BenchmarkModule.metagraph)
     # module = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark'})
     # module = DatasetModule.deploy(actor={'refresh': False}, load=True, wrap=True)
-    
-    module = DatasetModule.deploy(actor={'refresh': True}, load=True, wrap=True)
-    st.write(module.actor)
-    all_synapses = module.getattr('available_synapses')
+    DatasetModule.ray_restart()
+    module = DatasetModule.deploy(actor={'refresh': False}, load=True, wrap=False)
+    # st.write(module.actor)
 
+
+
+    all_synapses = ray.get(module.getattr.remote('available_synapses'))
     selected_synapses = st.multiselect('Select Synapses',all_synapses,  all_synapses[:1])
-    results = module.sample(synapse=selected_synapses, timeout=1.5)
+    module.start_sample_loop.remote(topic='train', synapse=selected_synapses, timeout=1.0, success_only=True, refresh_cache=True, refresh_queue=True)
+    st.write(ray.get(module.sample_cache_count.remote('train')))
+
+
+
+
+    # all_synapses = ray.get(module.getattr.remote('available_synapses'))
+    # selected_synapses = st.multiselect('Select Synapses',all_synapses,  all_synapses[:1])
+    # ray.get(module.start_sample_loop.remote(topic='test', synapse=selected_synapses, timeout=1, success_only=True, refresh_cache=True, refresh_queue=True))
+    # st.write(ray.get(module.sample_cache_count.remote('train')))
+    # # st.write(ray.get(module.stop_sample_loop.remote('train')))
+    # # st.write(ray.get(module.running_loops.remote()))
+    # st.write(ray.get(module.sample_loop.remote('train')))
+
+
+    # st.write(ray.get(module.sample_loop.remote('test')))
+    # st.write()
+    
+    # st.write(random.uniform(0,1))
+    # random.randint()
 
     # with st.expander('tensors', False):
     #     st.write(results[0])
     # with st.expander('return type', False):
     #     st.write(results[1])
 
-
-    results
     

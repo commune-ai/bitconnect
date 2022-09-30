@@ -645,7 +645,20 @@ class BitModule(BaseModule):
     def coldkey_endpoints(self):
         return self.my_endpoints(mode='coldkey')
 
+    @property
+    def available_synapses(self):
+        return [f for f in dir(bittensor.synapse) if f.startswith('Text')]
 
+    ls_synapses = all_synapses = available_synapses
+    
+    @property
+    def synapse_map(self):
+        return {f:getattr(bittensor.synapse,f) for f in self.available_synapses}
+
+    def get_synapse(self, synapse, *args, **kwargs):
+        return self.synapse_map[synapse](*args, **kwargs)
+
+    resolve_synapse = get_synapse
 
     
 if __name__ == '__main__':
