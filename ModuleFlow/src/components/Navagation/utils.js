@@ -53,12 +53,5 @@ export const list_of_null = (idx) => {
     return list
 }
 
-/**
- * 
- * @returns 
- */
-export const useThemeDetector = () => {
-    const getCurrentTheme = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
-    return getCurrentTheme();
-}
+
 

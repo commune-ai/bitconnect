@@ -7,6 +7,7 @@ import ReactFlow, { Background,
                     Controls,
                     MarkerType
                     } from 'react-flow-renderer';
+
 import React ,{ useState, 
                 useCallback,
                 useRef,
@@ -17,27 +18,28 @@ import CustomEdge from '../Edges/Custom'
 import CustomLine from "../Edges/CustomLine.js";
 import CustomNodeIframe from "../Nodes/Custom.js";
 
+import { CgMoreVerticalAlt } from 'react-icons/cg'
+import { BsFillEraserFill } from 'react-icons/bs' 
+import { FaRegSave } from 'react-icons/fa'
 
-import { useThemeDetector } from '../../helper/visual'
-
-import {CgMoreVerticalAlt} from 'react-icons/cg'
-import {BsFillEraserFill} from 'react-icons/bs' 
-import {FaRegSave} from 'react-icons/fa'
+import { useThemeDetector } from './utils'
 
 import '../../css/dist/output.css'
 import '../../css/index.css'
 
 const NODE = {
-    custom : CustomNodeIframe,
-  }
-
-const EDGE = {
-    custom : CustomEdge
+  custom : CustomNodeIframe,
 }
 
+const EDGE = {
+  custom : CustomEdge
+}
 
 export default function Processor() {
 
+    // =======================
+    // Initialize State's
+    // ======================= 
     const [theme, setTheme] = useState(useThemeDetector)
     const [nodes, setNodes] = useState([]);
     const [edges, setEdges] = useState([]);
@@ -45,24 +47,9 @@ export default function Processor() {
     const reactFlowWrapper = useRef(null);
     const [tool, setTool] = useState(false)
 
-    useEffect(() => {
-      const restore = () => {
-      const flow = JSON.parse(localStorage.getItem('flowkey'));
-        
-        if(flow){
-          flow.nodes.map((nds) => nds.data.delete = deleteNode)
-          flow.edges.map((eds) => eds.data.delete = deleteEdge)
-          setNodes(flow.nodes || [])
-          setEdges(flow.edges || [])
-          console.log(flow)
-        }
-      }
-      restore()
-    },[])
-
-    const deleteEdge = (id) => setEdges((eds) => eds.filter(e => e.id !== id))
-
-
+    // =======================
+    // Changes
+    // =======================
     const onNodesChange = useCallback(
       (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
       [setNodes]
@@ -78,35 +65,23 @@ export default function Processor() {
       []
     );
 
-    const onConnect = useCallback(
-      (params) => {
-        console.log(params)
-        setEdges((els) => addEdge({...params, type: "custom", animated : true, style : {stroke : "#00FF4A", strokeWidth : "6"}, markerEnd: {type: MarkerType.ArrowClosed, color : "#00FF4A"}, data : { delete : deleteEdge}}, els))
-        // fetch("http://localhost:2000/api/append/connection", {method : "POST", mode : 'cors', headers : { 'Content-Type' : 'application/json' }, body: JSON.stringify({"source": params.source, "target" : params.target})}).then( res => {
-        //   console.log(res)
-        // }).catch(error => {
-        //   console.log(error)
-        // })
-      },
-      [setEdges]
-    );
-
-
-  
-    const onDragOver = useCallback((event) => {
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'move';
-    }, []);
-
-    const deleteNodeContains = (id) =>{setNodes((nds) => nds.filter(n => !n.id.includes(`${id}-`) ))}
-    const deleteNode = (_) =>{
-      const metadata = _[0].id.split("-")
-      fetch(`http://localhost:8000/rm?${new URLSearchParams({module: metadata[0], port: metadata[1]})}`, {method : "GET", mode: 'cors'}).then(res => res.json()).then(
-      () =>{
-        setNodes((nds) => nds.filter(n => n.id !== _[0].id ))
+    // =======================
+    // Save, Load & Erase
+    // =======================
+    useEffect(() => {
+      const restore = () => {
+      const flow = JSON.parse(localStorage.getItem('flowkey'));
+        
+        if(flow){
+          flow.nodes.map((nds) => nds.data.delete = deleteNode)
+          flow.edges.map((eds) => eds.data.delete = deleteEdge)
+          setNodes(flow.nodes || [])
+          setEdges(flow.edges || [])
+          console.log(flow)
+        }
       }
-      )
-    }
+      restore()
+    },[])
 
     const onSave = useCallback(() => {
       if (reactFlowInstance) {
@@ -137,7 +112,44 @@ export default function Processor() {
       }
     },[reactFlowInstance])
 
+    // =======================
+    // Node's & Edge's Remove
+    // ======================= 
+    const deleteEdge = (id) => setEdges((eds) => eds.filter(e => e.id !== id))
 
+    const deleteNode = (_) =>{
+      const metadata = _[0].id.split("-")
+      fetch(`http://localhost:8000/rm?${new URLSearchParams({module: metadata[0], port: metadata[1]})}`, {method : "GET", mode: 'cors'}).then(res => res.json()).then(
+      () =>{
+        setNodes((nds) => nds.filter(n => n.id !== _[0].id ))
+      }
+      )
+    }
+
+    // =======================
+    // Edge's Connection
+    // ======================= 
+    const onConnect = useCallback(
+      (params) => {
+        console.log(params)
+        setEdges((els) => addEdge({...params, type: "custom", animated : true, style : {stroke : "#00FF4A", strokeWidth : "6"}, markerEnd: {type: MarkerType.ArrowClosed, color : "#00FF4A"}, data : { delete : deleteEdge}}, els))
+        // fetch("http://localhost:2000/api/append/connection", {method : "POST", mode : 'cors', headers : { 'Content-Type' : 'application/json' }, body: JSON.stringify({"source": params.source, "target" : params.target})}).then( res => {
+        //   console.log(res)
+        // }).catch(error => {
+        //   console.log(error)
+        // })
+      },
+      [setEdges]
+    );
+
+    // =======================
+    // Drag & Drop
+    // ======================= 
+    const onDragOver = useCallback((event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+    }, []);
+    
     const onDrop = useCallback(
       (event) => {
         event.preventDefault();
@@ -147,47 +159,65 @@ export default function Processor() {
           const type = event.dataTransfer.getData('application/reactflow');
           const item  = event.dataTransfer.getData('application/item');
           const style = JSON.parse(event.dataTransfer.getData('application/style'));
-          // check if the dropped element is valid
+
           if (typeof type === 'undefined' || !type) {
             return;
           }
 
           fetch(`http://localhost:8000/add?${new URLSearchParams({module: item})}`, {method : "GET", mode: 'cors'}).then(
-            (res) => res.json()).then( (data) =>{
+            (res) => res.json()).then( (data) =>{ 
               const position = reactFlowInstance.project({
                 x: event.clientX - reactFlowBounds.left,
-                y: event.clientY - reactFlowBounds.top,
-              });
-  
-              const newNode = {
-                id: `${item}-${data.port}-${nodes.length+1}`,
-                type,
-                position,
-                dragHandle : `#draggable`,
-                data: { label: `${item}`, host : `http://localhost:${data.port}`, colour : `${style.colour}`, emoji : `${style.emoji}`, delete : deleteNode },
-              };
-  
-              setNodes((nds) => nds.concat(newNode));
-            })
-
-    
-      }
+                y: event.clientY - reactFlowBounds.top,});
+                                      
+                const newNode = {
+                  id: `${item}-${data.port}-${nodes.length+1}`,
+                  type,
+                  position,
+                  dragHandle : `#draggable`,
+                  data: { 
+                          label: `${item}`,
+                          host : `http://localhost:${data.port}`,
+                          colour : `${style.colour}`,
+                          emoji : `${style.emoji}`,
+                          delete : deleteNode },};
+                  setNodes((nds) => nds.concat(newNode));
+                })    
+        }
       },
       [reactFlowInstance, nodes]);
 
+
     return (
       <div className={`${theme ? "dark" : ""}`}>          
+        
         <div className={` absolute text-center ${tool ? "h-[203.3333px]" : "h-[41px]"} overflow-hidden w-[41px] text-4xl top-4 right-5 z-50 cursor-default select-none bg-white dark:bg-stone-900 rounded-full border border-black dark:border-white duration-500`}  >
           <CgMoreVerticalAlt className={` text-black dark:text-white ${tool ? "-rotate-0 mr-auto ml-auto mt-1" : " rotate-180 mr-auto ml-auto mt-1"} duration-300`} onClick={() => setTool(!tool)}/>
           <h1 title={theme ? 'Dark Mode' : 'Light Mode'} className={`p-4 px-1 pb-0 ${tool ? "visible" : "invisible"} text-3xl`} onClick={() => setTheme(!theme)} >{theme  ? '🌙' : '☀️'}</h1> 
           <FaRegSave title="Save" className={`mt-6 text-black dark:text-white ${tool ? "visible" : " invisible"} ml-auto mr-auto `} onClick={() => onSave()}/> 
           <BsFillEraserFill title="Erase" className={`mt-6 text-black dark:text-white ml-auto mr-auto ${tool ? "visible" : " invisible"} `} onClick={() => onErase()}/>
         </div>
+
         <div className={`flex h-screen w-screen ${theme ? "dark" : ""} transition-all`}>    
           <ReactFlowProvider>
-          <Navbar onDelete={deleteNodeContains} colour={JSON.parse(localStorage.getItem('colour'))} emoji={JSON.parse(localStorage.getItem('emoji'))}/>
+          <Navbar colour={JSON.parse(localStorage.getItem('colour'))}
+                  emoji={JSON.parse(localStorage.getItem('emoji'))}/>
+
             <div className="h-screen w-screen" ref={reactFlowWrapper}>
-              <ReactFlow nodes={nodes} edges={edges} nodeTypes={NODE} edgeTypes={EDGE} onNodesChange={onNodesChange} onNodesDelete={deleteNode} onEdgesChange={onEdgesChange} onEdgeUpdate={onEdgeUpdate} onConnect={onConnect} onDragOver={onDragOver} onDrop={onDrop} onInit={setReactFlowInstance} connectionLineComponent={CustomLine} fitView>
+              <ReactFlow nodes={nodes}
+                         edges={edges}
+                         nodeTypes={NODE}
+                         edgeTypes={EDGE}
+                         onNodesChange={onNodesChange}
+                         onNodesDelete={deleteNode}
+                         onEdgesChange={onEdgesChange}
+                         onEdgeUpdate={onEdgeUpdate}
+                         onConnect={onConnect}
+                         onDragOver={onDragOver}
+                         onDrop={onDrop}
+                         onInit={setReactFlowInstance}
+                         connectionLineComponent={CustomLine}
+                         fitView>
                 <Background variant='dots' size={1} className=" bg-white dark:bg-neutral-800"/>
                 <Controls/>
               </ReactFlow>

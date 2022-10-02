@@ -4,7 +4,6 @@ import {TbResize} from 'react-icons/tb'
 import {BiCube, BiRefresh} from 'react-icons/bi'
 import {BsTrash, BsArrowDownRightSquare} from 'react-icons/bs'
 import {CgLayoutGridSmall} from 'react-icons/cg'
-import { Dimmer, Loader, Segment } from 'semantic-ui-react'
 
 import '../../css/counter.css'
 

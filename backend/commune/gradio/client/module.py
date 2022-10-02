@@ -1,9 +1,3 @@
-
-
-
-
-
-
 import os, sys
 sys.path.append(os.environ['PWD'])
 import gradio
@@ -84,7 +78,7 @@ class ClientModule(BaseModule):
 
     @property
     def module_simple_paths(self):
-        return self.get_modules('simple')
+        return self.s('simple')
 
     @property
     def module_list(self):
@@ -224,7 +218,9 @@ class ClientModule(BaseModule):
             with st.form(mode):
                 simple2full_path = self.get_modules(mode='dir2full', active=False)
                 simple_module_paths  = list(simple2full_path.keys())
-                simple_module_selected = st.multiselect('Select a Module',simple_module_paths , ['gradio.client'])
+                print(simple_module_paths)
+
+                simple_module_selected = st.multiselect('Select a Module', simple_module_paths , [''])
                 modules_selected = [simple2full_path[m] for m in simple_module_selected]
                 submitted = st.form_submit_button(mode)
                 if submitted:

@@ -1,7 +1,7 @@
 import React, { Component } from "react";
 import { Icon, Loader } from 'semantic-ui-react'
 import Import from '../Modal/importer'
-import { random_colour, random_emoji } from "../../helper/visual";
+import { random_colour, random_emoji } from "./utils";
 
 import "../../css/dist/output.css"
 import '../../css/index.css'
@@ -11,8 +11,6 @@ import {BsArrowLeftShort} from 'react-icons/bs';
 export default class Navbar extends Component{
     constructor(props){
         super(props) 
-        this.temp_host = 0
-        this.deleteNode = props.onDelete
         this.state = {
             open : true,
             menu : [],
@@ -30,7 +28,6 @@ export default class Navbar extends Component{
 
     componentDidMount(){
         this.fetch_classes()   
-
     }
 
     /**
@@ -39,52 +36,25 @@ export default class Navbar extends Component{
      */
     fetch_classes = async () => {
         this.setState({loading : true})
-        try {
-            await fetch(`http://localhost:8000/list?${new URLSearchParams({ mode : "gradio" })}`, { method: 'GET', mode : 'cors',})
-                .then(response => response.json())
-                .then(data => {
+        await fetch(`http://localhost:8000/list?${new URLSearchParams({ mode : "gradio" })}`, { method: 'GET', mode : 'cors',})
+            .then(response => response.json())
+            .then(data => {
                     this.handelTabs(this.state.menu, data)
                     this.setState({loading : false})
                     this.setState({menu : data.sort(function(x, y) {return (x.read === y.read)? 0 : x.read? -1 : 1;})})
-                })
-                .catch(error => {console.log(error)}) 
-        }catch(e){
-            console.log(e)
-        }
-
+                }).catch(error => {console.log(error)}) 
     }
 
     /**
      * Append new node from the user 
      */
     appendStreamNode = async (type) => {
-        const pattern = {
-            local : /^https?:\/\/(localhost)*(:[0-9]+)?(\/)?$/,
-            share : /^https?:\/\/*([0-9]{5})*(-gradio)*(.app)?(\/)?$/,
-            hugginFace : /^https?:\/\/*(hf.space)\/*(embed)\/*([a-zA-Z0-9+_-]+)\/*([a-zA-Z0-9+_-]+)\/*([+])?(\/)?$/
-        } 
-
-        if (this.state.name.length > 20 ||
-            this.state.text === ""||
-            this.state.menu.findIndex(element => {return element.name.toLowerCase() === this.state.name.toLowerCase() || element.host.includes(this.state.text) }) !== -1 ||
-            this.state.text.includes(" ") || 
-            (!pattern.local.test(this.state.text) &&
-            !pattern.share.test(this.state.text) &&
-            !pattern.hugginFace.test(this.state.text))){
-            
-                this.setState({
-                    'text': '',
-                    'name': '',
-                    'error': true})
-                return 
-            } 
-
-        fetch(this.state.text, {method : "GET", mode: 'no-cors'}).then((re) => {
-            fetch("http://localhost:2000/api/append/port", {method: 'POST', mode : 'cors', headers : { 'Content-Type' : 'application/json' }, body: JSON.stringify({file : "", kwargs : { type : type }, name : this.state.name === "" ?`temp_class_${this.temp_host++}` : `${this.state.name}`, port: 0 , host : this.state.text}) }).then(resp => {
-                this.setState({'text': "",'name' : "",'error' : false,'modal' : false  })
-
-            }).catch(() => this.setState({'text': '', 'name' : '',  'error' : true, }))
-          }).catch((err)=> this.setState({'text': '','name' : '', 'error' : true,}))
+        // const pattern = {
+        //     local : /^https?:\/\/(localhost)*(:[0-9]+)?(\/)?$/,
+        //     share : /^https?:\/\/*([0-9]{5})*(-gradio)*(.app)?(\/)?$/,
+        //     hugginFace : /^https?:\/\/*(hf.space)\/*(embed)\/*([a-zA-Z0-9+_-]+)\/*([a-zA-Z0-9+_-]+)\/*([+])?(\/)?$/
+        // } 
+        return
     }
 
     /**
@@ -110,20 +80,6 @@ export default class Navbar extends Component{
         event.dataTransfer.effectAllowed = 'move';
       };
 
-    /**
-     * droped event that occurs when the user drops the Tab within the tash div.
-     * The function just deletes all nodes within React-Flow enviorment related, 
-     * and remove it from the api.
-     * @param {*} e drop event  
-     */
-    onDragDrop = (e) => {
-        e.preventDefault();
-        var item  = JSON.parse(e.dataTransfer.getData('application/item'));
-        fetch("http://localhost:2000/remove", {method : "POST", mode: 'cors', headers : { 'Content-Type' : 'application/json' }, body: JSON.stringify(item) }).then((re)=>{
-            this.deleteNode(item.name)
-        })
-       
-    }
 
     /**
      * update the tabs within the navbar

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import '../../css/dist/output.css'
 import ReactFlow, { Background,
     ReactFlowProvider,
@@ -15,6 +15,8 @@ export default function Module(){
 
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [reactFlowInstance, setReactFlowInstance] = useState(null);
+
     useEffect(() => {
       fetch(`http://localhost:8000/list?${new URLSearchParams({mode: "full", path_map: true})}`)
       .then(re => re.json())
@@ -25,12 +27,14 @@ export default function Module(){
         setEdges([...layoutedEdges]);
       })
     }, []) 
-    return (<div className="">
-          <ReactFlowProvider>
-            <div className="h-screen w-screen">
-              <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} fitView>
-                <Background variant='dots' size={1} className=" bg-white dark:bg-neutral-800"/>
-              </ReactFlow>
-            </div>
-          </ReactFlowProvider></div>)
+    
+    return (<div >
+              <ReactFlowProvider>
+                <div className="h-screen w-screen" onClick={()=>{console.log(reactFlowInstance.toObject())}}>
+                  <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onInit={setReactFlowInstance} fitView>
+                    <Background variant='dots' size={1} className=" bg-white dark:bg-neutral-800"/>
+                  </ReactFlow>
+                </div>
+              </ReactFlowProvider>
+            </div>)
 }

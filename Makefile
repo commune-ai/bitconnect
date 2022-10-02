@@ -1,9 +1,9 @@
 down:
-	./start.sh --backend --down
+	./start.sh --backend --frontend --down
 stop:
 	make down
 up:
-	./start.sh --backend
+	./start.sh --backend --frontend
 start:
 	make up
 
@@ -41,7 +41,7 @@ logs:
 	docker logs ${arg} --tail=100 --follow
 
 streamlit:
-	docker exec -it bittensor-backend bash -c "streamlit run commune/${arg}/module.py "
+	docker exec -it luca-bittensor-backend bash -c "streamlit run commune/${arg}/module.py "
 enter_backend:
 	docker exec -it bittensor-backend bash
 pull:

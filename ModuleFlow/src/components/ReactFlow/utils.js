@@ -45,10 +45,10 @@ export const root = {
   position: { x: 0, y: 0 },
 }
 
-const createNode = (label, index, depth) => {
+const createNode = (label, index) => {
   return {
     id : `${label}-${index}`,
-    data: { label: label, depth : depth },
+    data: { label: label, },
     sourcePosition: 'right',
     targetPosition: 'left',
     position : { x : index, y : index},
@@ -85,7 +85,7 @@ export const bfs = (roots, nodes=[],edges=[] ) => {
       nodes.push(createNode(v.module, nodes.length));
       continue;
     } else {
-      nodes.push(createNode(Object.keys(v)[0], nodes.length))
+      nodes.push(createNode(Object.keys(v)[0], nodes.length ))
     }
     for (const value of Object.values(v)) { // value is always length of 1 so this loop runs O(1)
       children = Object.keys(value).map((key) => { return {[`${key}`] : value[key]} })
@@ -98,4 +98,13 @@ export const bfs = (roots, nodes=[],edges=[] ) => {
     }
   }
   return {nodes, edges}
+}
+
+/**
+ * 
+ * @returns 
+ */
+ export const useThemeDetector = () => {
+  const getCurrentTheme = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
+  return getCurrentTheme();
 }

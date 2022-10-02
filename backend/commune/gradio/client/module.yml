@@ -11,3 +11,4 @@ sub_module:
   config_manager:
     module: config.manager.ConfigManager
     actor: False
+

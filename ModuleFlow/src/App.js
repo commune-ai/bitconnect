@@ -3,7 +3,7 @@ import Module from './components/ReactFlow/Module'
 export default function App() {
   return(
       <>
-        <Processor/>
+        <Module/>
       </>
       
   )
