@@ -1,9 +1,10 @@
 import os, sys
-import cohere
+from re import L
+import cohere 
+from cohere.classify import Example
 sys.path.append(os.environ['PWD'])
 from commune import BaseModule
 from commune.utils import *
-import streamlit as st
 import pandas as pd
 import numpy as np
 
@@ -12,21 +13,19 @@ class ClientModule(BaseModule):
 
     def __init__(self, config=None):
         BaseModule.__init__(self, config=config)
-        
+        try :
+            self.get_json("cohere")
+        except Exception as e: 
+            print(e)
+            self.put_json('cohere', [])
         self.api = self.config.get('api')
-        self.credit = self.config.get('credit')
         self.models = self.config.get('baseline')
-        self.title =  self.config.get('title') if self.config.get('title') != "" else ""
-        self.Examples = []
-        self.example_table = None
+        self.co = cohere.Client(self.api)
+        self.title = ""
+        self.Examples = [item["title"] for item in self.get_json("cohere")]
         self.prompt = ""
         self.input_table = None
-        st.session_state["model"]    = ""
-        st.session_state["prompts"]  = []
-        st.session_state["examples"] = []
-        st.session_state["output"]   = []
-
-
+        
 
     def api_key(self):
         try:
@@ -40,9 +39,6 @@ class ClientModule(BaseModule):
     def _test_(self):
         for state in st.session_state.items():
             st.write(state)
-
-
-
     
     def __pricing(self, inputs=[]):
         """
@@ -54,9 +50,13 @@ class ClientModule(BaseModule):
         # given our current call count determine with the amount of inputs
         col1, col2 = st.columns([1,2])
         with col1: 
+            if not "model" in st.session_state:
+                st.session_state["model"] = ""
+            if not "credit" in st.session_state:
+                st.session_state["credit"] = self.config.get('credit')
             st.metric(label=f"{st.session_state['model']}($5/1000 queue) ", value=f"{len(inputs)}", delta=f"$ {(0.005*len(inputs))}")
         with col2: 
-            st.metric(label=f"balance ", value=f"${self.credit}", delta=f"-{(0.005*len(inputs))}")
+            st.metric(label=f"balance ", value=f"${st.session_state['credit']}", delta=f"-{(0.005*len(inputs))}")
         
        
 
@@ -71,10 +71,14 @@ class ClientModule(BaseModule):
         model = st.selectbox("", self.models, label_visibility="collapsed")
         if not "model" in st.session_state:
             st.session_state["model"] = ""
-        
         st.session_state["model"] = model
 
 
+    def remove_json(self, title):
+        cache = self.get_json("cohere")
+        new_state = [item for item in cache if item["title"] != title]
+        self.put_json("cohere", new_state)
+        
 
     def __navagation(self):
         """
@@ -89,54 +93,110 @@ class ClientModule(BaseModule):
         with st.sidebar:
             
             st.markdown("<h1 style='text-align: center;'>co:here SDK</h1>", unsafe_allow_html=True)
-            with st.expander("Models"):
+            with st.expander("✨ Models"):
                 self.__models()
-            with st.expander("Presets"):
+            with st.expander("📝 Presets"):
                 with st.container():
                     st.header("Example Presets")
-                    st.selectbox("", self.Examples, label_visibility="collapsed")
+                    v = st.selectbox("", self.Examples, label_visibility="collapsed")
+                    st.button("remove state", on_click=self.remove_json(v))
 
-            with st.expander("State Of The API Call"):
+
+            with st.expander("💽 State"):
                 st.json(st.session_state)
-        
+
+            with st.expander("⚙️ Setting"):
+                if not "credit" in st.session_state:
+                    st.session_state["credit"] = self.config.get('credit')  
+                value = st.number_input(label="Credit", value=st.session_state["credit"])
+                st.session_state["credit"] = value
+                
     
 
     def __upload__(self):
         """
         Upload Button to import cvs to examples
         """
-        uploaded_file = st.file_uploader("Choose a csv file", type="csv", accept_multiple_files=False)
-        if uploaded_file:
-            uploaded_data_read = pd.read_csv(uploaded_file)
-            data = [(item[0], item[1]) for item in uploaded_data_read.values]
-            st.dataframe(data, width=700, height=178)
-            if st.button('Save') and len(uploaded_data_read.values):
+        if "examples" in st.session_state:
+            st.session_state["examples"] = []
+
+        upload = st.file_uploader("Choose a csv file", type="csv", accept_multiple_files=False)
+        if upload:
+            uploaded_data_read = pd.read_csv(upload)
+            if len(uploaded_data_read.values) > 5:
+                data = [(item[0], item[1]) for item in uploaded_data_read.values]
+                st.dataframe(data, width=700, height=178)
                 st.session_state["examples"] = data
+            else:
+                st.info("There needs to be 5 or more examples", icon="🤔")
+                st.session_state["examples"] = []
+
 
                 
-    def __example__(self):
+
+    def __execute__(self):
+        response = {}
+        if not "title" in st.session_state:
+            st.session_state["title"] = ""
+        if not "prompts" in st.session_state:
+            st.session_state["prompts"] = [] 
+        if not "examples" in st.session_state:
+            st.session_state["examples"] = [] 
+        if not "model" in st.session_state:
+            st.session_state["model"] = ""
+
+        if st.session_state["title"] == "":
+            st.info("If you want to execute you need to add a title name", icon="🛑")
+            return 
+        if not "credit" in st.session_state:
+            st.session_state["credit"] = self.config.get('credit')  
         
-        col1, col2 = st.column
-        st.checkbox(value=False)
+        if len(st.session_state["prompts"]) == 0: 
+            st.warning("You didn't enter a prompt")
+            return 
+        try:
+            response = self.co.classify(inputs=[item for item in st.session_state["prompts"]],
+                               model=st.session_state["model"],
+                               examples=[Example(*ex) for ex in st.session_state["examples"]])
+        except Exception as e:
+            return st.error(f"Somthing went wrong {e}")
+        if not "output" in st.session_state:
+            st.session_state["output"] = {}
+        st.session_state["credit"] =  st.session_state["credit"] - (0.005 * len(st.session_state["prompts"]))
+        self._save()
+        st.session_state["output"] = f"{response.classifications}"
+        
 
 
     def _save(self):
-        st.write("")
+        # st.success("Saved...", icon="✅")
+        state = { key : value for key, value in st.session_state.items() if key!=""}
+        cache = self.get_json("cohere")
+        for item in cache:
+            if "title" in item and item["title"] == state["title"]:
+                st.warning("State exist")
+                return
+        cache.append(state)
+        st.write(self.put_json("cohere", cache))
+        
 
 
     def _clear(self):
-        st.write("cleared")
+        self.input_table = None
+        self.Examples = []
+        st.session_state["title"] = ""
+        st.session_state["examples"] = []
+        st.session_state["prompts"] = []
+
 
     def __streamlit__(self):
         """
         launcher for streamlit application
-        """
-
-            
+        """         
         
-        st.markdown("<h1 style='text-align: center;'>Playground</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center;'>🚀 Playground</h1>", unsafe_allow_html=True)
 
-        st.session_state["title"] = st.text_input(label="Title", placeholder="Name", value=f"{self.title}")        
+        st.session_state["title"] = st.text_input(label="✨Title✨", placeholder="Title Name", value=f"{self.title}")        
     
         with st.expander("Examples"):
             self.__upload__()
@@ -145,36 +205,41 @@ class ClientModule(BaseModule):
                 
                 self.prompt = st.text_input(label="", placeholder="Enter Prompt", label_visibility="collapsed")
                 col1, col2 = st.columns([1,8])
-                
+   
                 with col1:
-                    added = st.button("append")
-                    if added:
-                        if not self.prompt in st.session_state["prompts"]:
+                    if st.button("append"):
+                        if not "prompts" in st.session_state:
+                            st.session_state["prompts"] = []
+                        if not self.prompt in st.session_state["prompts"] and len(st.session_state["prompts"]) < 32:
                             st.session_state["prompts"].append(self.prompt)
-                
-                with col2:
-                    removed = st.button("remove")
-                    if removed:
-                        if not "prompt" in st.session_state:
-                            st.session_state["prompt"] = []
-                        if self.prompt in st.session_state["prompts"]:
-                            st.session_state["prompts"].remove(self.prompt)            
-                if "prompts" in st.session_state: 
-                    self.input_table = st.dataframe(pd.DataFrame(np.array(st.session_state["prompts"]),columns=['Inputs']), width=1000,height=175)
-                    self.__pricing(st.session_state["prompts"])                    
 
-        self.__navagation()
+
+                    
+                with col2:
+                    if st.button("remove"):
+                        if not "prompts" in st.session_state:
+                            st.session_state["prompts"] = []
+                        if "prompts" in st.session_state and self.prompt in st.session_state["prompts"]:
+                            st.session_state["prompts"].remove(self.prompt)            
+                
+                if not "prompts" in st.session_state:
+                    st.session_state["prompts"] = []   
+                self.input_table = st.dataframe(pd.DataFrame(np.array(st.session_state["prompts"]),columns=['Inputs']), width=1000,height=175)
+                self.__pricing(st.session_state["prompts"])                    
+
+                if "prompts" in st.session_state and  len(st.session_state["prompts"]) == 32:
+                    st.info("co:here api can not handel more then 32 inputs.")
+
 
         with st.expander("output"):
-                st.json({})
-
-        
-
+                if not "output" in st.session_state:
+                    st.session_state["output"] = {}  
+                st.write(st.session_state["output"])
 
         
         btn1, btn2, btn3 = st.columns([1.5,1.1,9])
         with btn1:
-            st.button("Execute", on_click=self._save)
+            st.button("Execute", on_click=self.__execute__)
             
         with btn2:
             st.button("save", on_click=self._save)
@@ -182,10 +247,8 @@ class ClientModule(BaseModule):
         with btn3:
             st.button("clear all", on_click=self._clear)
 
-        self._test_()
-
-         
-    
+        self.__navagation()
+        # self._test_()
 
 if __name__ == "__main__":
     import streamlit as st
