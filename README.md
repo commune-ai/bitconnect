@@ -22,6 +22,7 @@ The main feature of this repo is the dashboard that can be used to better unders
 git clone https://github.com/commune-ai/wholetensor.git
 cd wholetensor
 git submodule update --init --recursive
+pip install cohere
 ```
 
 2. Spinnup Docker Compose
@@ -31,7 +32,7 @@ make up
 
 3. Run the Streamlit app
 ```
-make app
+make app args=cohere/client
 ```
 
 
