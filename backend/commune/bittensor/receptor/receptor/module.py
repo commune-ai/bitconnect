@@ -44,13 +44,14 @@ class ReceptorModule(nn.Module, BaseModule):
     default_config_path = 'bittensor.receptor.receptor'
     def __init__(
             self, 
-            wallet: 'bittensor.wallet',
-            endpoint: 'bittensor.Endpoint', 
-            channel: 'grpc._Channel',
-            stub: 'bittensor.grpc.BittensorStub',
-            max_processes: int,
+            wallet: 'bittensor.Wallet',
+            endpoint: 'bittensor.Endpoint',
+            max_processes: 'int' = 1,
+            external_ip: 'str' = None,
+            compression: str = None,
+            channel: 'grpc._Channel'=None,
             config = None,
-            override= None
+            override= {}, **kwargs
         ):
         r""" Initializes a receptor grpc connection.
 
@@ -66,10 +67,38 @@ class ReceptorModule(nn.Module, BaseModule):
         """
         nn.Module.__init__(self)
         BaseModule.__init__(self, config=config, override=override)
+
+
+
+
+        # Get endpoint string.
+        if endpoint.ip == external_ip:
+            ip = "localhost:"
+            endpoint_str = ip + str(endpoint.port)
+        else:
+            endpoint_str = endpoint.ip + ':' + str(endpoint.port)
+
+        # Determine the grpc compression algorithm
+        if compression == 'gzip':
+            compress_alg = grpc.Compression.Gzip
+        elif compression == 'deflate':
+            compress_alg = grpc.Compression.Deflate
+        else:
+            compress_alg = grpc.Compression.NoCompression
+
+        if channel != None:
+            self.channel = channel
+        else:
+            self.channel = grpc.insecure_channel(
+                endpoint_str,
+                options=[('grpc.max_send_message_length', -1),
+                        ('grpc.max_receive_message_length', -1),
+                        ('grpc.keepalive_time_ms', 100000)])
+
+        self.stub = bittensor.grpc.BittensorStub( self.channel )
         self.wallet = wallet # Keypair information
         self.endpoint = endpoint # Endpoint information.
         self.channel = channel
-        self.stub = stub
         self.receptor_uid = str(uuid.uuid1())
         self.semaphore = threading.Semaphore(max_processes)
         self.state_dict = _common.CYGRPC_CONNECTIVITY_STATE_TO_CHANNEL_CONNECTIVITY
@@ -402,6 +431,8 @@ class ReceptorModule(nn.Module, BaseModule):
         synapse_call_times = [ 0 for _ in synapses ]
         start_time = clock.time()
 
+        st.write(start_time)
+
         # ==================================================================
         # ==== Function which returns true if all codes are non success ====
         # ==================================================================
@@ -630,52 +661,20 @@ class ReceptorModule(nn.Module, BaseModule):
         return synapse_responses, synapse_codes, synapse_call_times       
             
 
-    def __new__( 
-             cls,
-             endpoint: 'bittensor.Endpoint',
-             max_processes: 'int' = 1,
-             wallet: 'bittensor.Wallet' = None,
-             external_ip: 'str' = None,
-             compression: str = None,
-             **kwargs
-        ) -> 'bittensor.Receptor':
-        r""" Initializes a receptor grpc connection.
-            Args:
-                endpoint (:obj:`bittensor.Endpoint`, `required`):
-                    neuron endpoint descriptor.
-        """        
+if __name__ == '__main__':
+    import streamlit as st
+    # BaseModule.ray_restart()
+    dataset_class =  BaseModule.get_object('bittensor.cortex.dataset.module.DatasetModule')
+    dataset = dataset_class.deploy(actor={'refresh': False}, load=['env', 'tokenizer'], wrap = True)
+    inputs = dataset.tokenize(['100 whadup fam'])
+    endpoint = dataset.get_endpoints(num_endpoints=1)[0]
+    st.write(endpoint)
+    receptor = ReceptorModule(endpoint=endpoint, wallet=dataset.getattr('wallet'))
+    all_synapses = dataset.getattr('synapses')
+    st.write(receptor.forward(inputs= inputs ,synapses=all_synapses, timeout=1))
 
-        if wallet == None:
-            wallet = bittensor.wallet()
+    
 
-        # Get endpoint string.
-        if endpoint.ip == external_ip:
-            ip = "localhost:"
-            endpoint_str = ip + str(endpoint.port)
-        else:
-            endpoint_str = endpoint.ip + ':' + str(endpoint.port)
-
-        # Determine the grpc compression algorithm
-        if compression == 'gzip':
-            compress_alg = grpc.Compression.Gzip
-        elif compression == 'deflate':
-            compress_alg = grpc.Compression.Deflate
-        else:
-            compress_alg = grpc.Compression.NoCompression
-
-        channel = grpc.insecure_channel(
-            endpoint_str,
-            options=[('grpc.max_send_message_length', -1),
-                     ('grpc.max_receive_message_length', -1),
-                     ('grpc.keepalive_time_ms', 100000)])
-        stub = bittensor.grpc.BittensorStub( channel )
-        return cls( 
-            endpoint = endpoint,
-            channel = channel, 
-            wallet = wallet,
-            stub = stub,
-            max_processes=max_processes, **kwargs
-        )
 
 
 

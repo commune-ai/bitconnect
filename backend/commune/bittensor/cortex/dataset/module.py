@@ -28,11 +28,9 @@ class DatasetModule(BitModule):
     __file__ = __file__
     default_config_path = 'bittensor.cortex.dataset'
     def __init__(self, config=None, **kwargs):
-
+        load = kwargs.pop('load', True)
         BitModule.__init__(self, config=config, **kwargs)
 
-        
-        load = kwargs.get('load', True)
         if type(load) in [dict]:
             self.load(**load)
         else:
@@ -44,7 +42,7 @@ class DatasetModule(BitModule):
 
     def load(self, keys=True, load_kwargs={}, load_args={}, **kwargs):
         
-        
+
         if keys in [False, None]:
             return
 
@@ -54,7 +52,7 @@ class DatasetModule(BitModule):
         load_keys = keys
 
         for load_key in load_keys:
-
+            st.write(load_key, 'load')
             load_kwargs.get(load_key, {}) 
             load_fn = getattr(self, f'load_{load_key}', None)
             assert load_fn != None, f'{load_key} is suppose to be a function'
@@ -102,7 +100,13 @@ class DatasetModule(BitModule):
 
     default_receptor_path = 'bittensor.receptor.pool.module.ReceptorPoolModule'
 
-    def load_receptor_pool(self, **kwargs):
+
+    def tokenize(self, text, padding=True, *args, **kwargs):
+        device = kwargs.pop('device', self.device)
+        return torch.tensor(self.tokenizer(text=text, padding=padding)['input_ids']).to(device)
+
+        
+    def load_receptor_pool(self, replicas = 1, refresh=True, **kwargs):
         config_receptor = self.config.get('receptor_pool', {})
 
         receptor_module_path = config_receptor.get('path',self.default_receptor_path )
@@ -113,7 +117,7 @@ class DatasetModule(BitModule):
         receptor_kwargs = config_receptor.get('params', dict(max_worker_threads=64, max_active_receptors=512))
         receptor_kwargs.update(kwargs)
         replicas = config_receptor.get('replicas', 1)
-        refresh = config_receptor.get('refresh', True)
+        refresh = config_receptor.pop('refresh', True)
         actor_base_name = receptor_pool_module.get_module_path()
 
         actor_replicas = []
@@ -241,7 +245,7 @@ class DatasetModule(BitModule):
 
         return endpoints
 
-    def sample_raw(self, idx=None):
+    def sample_raw(self, idx=None, tokenize=False):
         text_field = self.config['dataset']['text_field']
 
         dataset_length = len(self.dataset)
@@ -251,10 +255,15 @@ class DatasetModule(BitModule):
 
         assert idx <= dataset_length, f'{idx}<={dataset_length} '
         
-        return self.dataset[idx][text_field]
+        
+        sample = self.dataset[idx][text_field]
+        if tokenize == True:
+            sample = self.tokenize(text=sample, padding=True)
+        
+        return sample
 
-    def sample_raw_batch(self, batch_size=1):
-        return [self.sample_raw(idx=i) for i in range(batch_size)]
+    def sample_raw_batch(self, batch_size=1, **kwargs):
+        return [self.sample_raw(idx=i, **kwargs) for i in range(batch_size)]
 
     @property
     def available_synapses(self):
@@ -451,6 +460,9 @@ if __name__ == '__main__':
     # st.write(module.actor)
 
     all_synapses = ray.get(module.getattr.remote('available_synapses'))
+
+
+
     selected_synapses = st.multiselect('Select Synapses',all_synapses,  all_synapses[:1])
     # module.start_sample_loop.remote(topic='train', synapse=selected_synapses, timeout=1.0, success_only=True, refresh_cache=True, refresh_queue=True)
     # st.write(ray.get(module.sample_cache_count.remote('train')))

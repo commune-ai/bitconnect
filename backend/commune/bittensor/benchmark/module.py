@@ -597,8 +597,10 @@ if __name__ == '__main__':
 
     module = BenchmarkModule.deploy(actor={'refresh': False}, load=['env', 'tokenizer'])
 
-    # df = ray.get(module.run_experiment.remote(path='experiment'))
-    df = ray.get(module.load_experiment.remote(path='experiment'))
-    plot = ray.get(module.getattr.remote('plot'))
-    plot.run(df)
+    df = ray.get(module.load_receptor_pool.remote(refresh=True))
+
+    st.write(ray.get(module.predict.remote(text=['bro'])))
+    # df = ray.get(module.load_experiment.remote(path='experiment'))
+    # plot = ray.get(module.getattr.remote('plot'))
+    # plot.run(df)
     
