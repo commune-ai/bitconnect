@@ -62,9 +62,10 @@ class BittensorStub(object):
                 )
 
 
+
 class ReceptorModule(nn.Module, BaseModule):
 
-    default_config_path = 'bittensor.receptor.receptor.asyncio'
+    default_config_path = 'bittensor.receptor.receptor'
     def __init__(
             self, 
             wallet: 'bittensor.Wallet',
@@ -150,7 +151,7 @@ class ReceptorModule(nn.Module, BaseModule):
             }
         )
 
-    def get_channel(self, endpoint, external_ip=None):
+    async def get_channel(self, endpoint, external_ip=None):
         if external_ip == None:
             external_ip = self.external_ip
         # Get endpoint string.
@@ -160,7 +161,7 @@ class ReceptorModule(nn.Module, BaseModule):
         else:
             endpoint_str = endpoint.ip + ':' + str(endpoint.port)
 
-        return grpc.insecure_channel(
+        return grpc.aio.insecure_channel(
             endpoint_str,
             options=[('grpc.max_send_message_length', -1),
                     ('grpc.max_receive_message_length', -1),
@@ -175,7 +176,7 @@ class ReceptorModule(nn.Module, BaseModule):
     def has_connection(self):
         return hasattr(self, 'stub') and hasattr(self, 'channel')
 
-    def set_connection(self,endpoint=None):
+    async def set_connection(self,endpoint=None):
         self.endpoint = endpoint
         if self.endpoint.ip == endpoint.ip and self.has_connection:
             return endpoint
@@ -439,7 +440,7 @@ class ReceptorModule(nn.Module, BaseModule):
         finalize_stats_and_logs()
         return synapse_responses, synapse_codes, synapse_call_times       
 
-    def forward (
+    async def forward (
         self, 
         synapses: List[ 'bittensor.Synapse' ],
         inputs: torch.Tensor, 
@@ -730,7 +731,7 @@ if __name__ == '__main__':
     receptor = ReceptorModule(endpoint=endpoint, wallet=dataset.getattr('wallet'))
     all_synapses = dataset.getattr('synapses')
     # st.write(asyncio.run(receptor.get_stub(endpoint=endpoint)).__dict__)
-    st.write(receptor.forward(inputs= inputs ,synapses=all_synapses, timeout=1))
+    st.write(asyncio.run(receptor.forward(inputs= inputs ,synapses=all_synapses, timeout=1)))
     st.write(receptor.endpoint.ip)
 
 

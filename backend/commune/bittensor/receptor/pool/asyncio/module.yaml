@@ -1,0 +1,9 @@
+module: 'ReceptorPoolModule'
+# clients
+# client: get_config(client.manager)
+
+actor:
+  name: local_copy(module)
+  refresh: False
+
+
