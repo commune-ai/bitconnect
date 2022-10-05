@@ -74,7 +74,7 @@ class CortexModule(BitModule):
     @property
     def device(self):
         if torch.cuda.is_available():
-            return 'cuda'
+            return 'cpu'
         else:
             return 'cpu'
 
@@ -526,10 +526,21 @@ if __name__ == '__main__':
 
     # st.write(BenchmarkModule.metagraph)
     # module = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark'})
-    module = CortexModule.deploy(actor=False, load=True)
-    st.write(ray.get(module.dataset.sample_loop.remote('train')))
-    # module.run()
-    st.write()
+    module = CortexModule.deploy(actor={'refresh': False}, load=['dataset'])
+    dataset = ray.get(module.getattr.remote('dataset'))
+    st.write(ray.get(dataset.load_receptor_pool.remote()))
+
+    receptors  = ray.get(dataset.getattr.remote('receptor_pool'))._idle_actors
+
+
+    st.write(ray.get(receptors[0].__exit__.remote()))
+
+
+    # with Timer('bro: {t}', streamlit=True):
+    #     st.write(len(ray.get(dataset.sample.remote(num_endpoints=1000, timeout=1, splits=4))))
+    
+    # # module.run()
+    # st.write()
 
     # module = BenchmarkModule.deploy(actor={'refresh': False})
 

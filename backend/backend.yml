@@ -18,7 +18,7 @@ services:
       - 8001:8000 # api
       - 8889:8888 # jupyterlab
     
-    run_options: ["-v", "/home/ubuntu/efs:/efs", "--shm-size=16.89gb"]
+    # run_options: ["-v", "/home/ubuntu/efs:/efs", "--shm-size=16.89gb"]
 
     volumes:
       - ./bittensor/bittensor:/app/bittensor/bittensor
@@ -28,13 +28,13 @@ services:
       - /tmp/wholetensor:/tmp
 
 
-    deploy:
-      resources:
-         reservations:
-           devices:
-           - driver: nvidia
-             count: 'all'
-             capabilities: [gpu]
+    # deploy:
+    #   resources:
+    #      reservations:
+    #        devices:
+    #        - driver: nvidia
+    #          count: 'all'
+    #          capabilities: [gpu]
 
     command: bash -c "cd /app; chmod +x /app/scripts/*;/app/scripts/startup.sh;"
 

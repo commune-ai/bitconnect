@@ -32,7 +32,7 @@ class DatasetModule(BitModule):
         BitModule.__init__(self, config=config, **kwargs)
 
         
-        load = kwargs.get('load')
+        load = kwargs.get('load', True)
         if type(load) in [dict]:
             self.load(**load)
         else:
@@ -113,7 +113,7 @@ class DatasetModule(BitModule):
         receptor_kwargs = config_receptor.get('params', dict(max_worker_threads=64, max_active_receptors=512))
         receptor_kwargs.update(kwargs)
         replicas = config_receptor.get('replicas', 1)
-        refresh = config_receptor.get('refresh', False)
+        refresh = config_receptor.get('refresh', True)
         actor_base_name = receptor_pool_module.get_module_path()
 
         actor_replicas = []
@@ -450,15 +450,10 @@ if __name__ == '__main__':
     module = DatasetModule.deploy(actor={'refresh': False}, load=True, wrap=False)
     # st.write(module.actor)
 
-
-
     all_synapses = ray.get(module.getattr.remote('available_synapses'))
     selected_synapses = st.multiselect('Select Synapses',all_synapses,  all_synapses[:1])
-    module.start_sample_loop.remote(topic='train', synapse=selected_synapses, timeout=1.0, success_only=True, refresh_cache=True, refresh_queue=True)
-    st.write(ray.get(module.sample_cache_count.remote('train')))
-
-
-
+    # module.start_sample_loop.remote(topic='train', synapse=selected_synapses, timeout=1.0, success_only=True, refresh_cache=True, refresh_queue=True)
+    # st.write(ray.get(module.sample_cache_count.remote('train')))
 
     # all_synapses = ray.get(module.getattr.remote('available_synapses'))
     # selected_synapses = st.multiselect('Select Synapses',all_synapses,  all_synapses[:1])

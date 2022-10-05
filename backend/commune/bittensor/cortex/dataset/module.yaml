@@ -27,10 +27,11 @@ synapses: ['TextLastHiddenState']
 receptor_pool:
   path: bittensor.receptor.pool.module.ReceptorPoolModule
   params:
-    max_worker_threads: 128
-    max_active_receptors: 512
+    max_worker_threads: 64
+    max_active_receptors: 128
 
-  replicas: 1
+  replicas: 2
+  refresh: True
 
 # network: nobunaga
 network: nakamoto

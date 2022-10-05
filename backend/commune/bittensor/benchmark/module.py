@@ -231,6 +231,7 @@ class BenchmarkModule(BitModule):
             text = [text]
         inputs = torch.tensor(self.tokenizer(text=text, padding=True)['input_ids'])
 
+        st.write(inputs.shape, 'SHAPE')
         elasped_time = 0
         with Timer(text='Querying Endpoints: {t}', streamlit=True) as t:
             results = self.receptor_pool_forward(endpoints=endpoints, synapses=self.synapses, inputs=inputs, timeout=timeout, splits=splits )
@@ -253,6 +254,7 @@ class BenchmarkModule(BitModule):
                     row_dict['output_size'] = sys.getsizeof(results[0][i])
                     row_dict['output_length'] = results[0][i][0].shape[0]
                     row_dict['input_length'] = int(inputs.shape[0])
+                    row_dict['splits'] = splits
     
 
 
@@ -275,6 +277,7 @@ class BenchmarkModule(BitModule):
                 metric_dict['input_length'] = df['input_length'].iloc[0]
                 metric_dict['elapsed_time'] = elasped_time.total_seconds()
                 metric_dict['samples_per_second'] = metric_dict['success_count'] / metric_dict['elapsed_time']
+                metric_dict['splits'] = splits
                 for k in ['trust', 'consensus','stake', 'incentive', 'dividends', 'emission', 'latency']:
                     # for mode in ['mean', 'std', 'max', 'min']:
                     metric_dict[k] =  getattr(df[k], 'mean')()
@@ -292,24 +295,24 @@ class BenchmarkModule(BitModule):
 
 
     def run_experiment(self,  trials=1,
-                     timeout_list = [1,2, 5], 
+                     timeout_list = [1,2, 4], 
                      token_length_list=[ 32],
-                     num_endpoints_list=[500, 1000, 1500, 2000 ],
+                     num_endpoints_list=[100 , 500, 1000 ],
                      max_worker_threads_list=[100,200,400],
-                     replicas_list = [4, 8, 2],
+                     replicas_list = [1,2,4],
                      max_active_receptors=[2000],
                      synapse_list = None,
                      path='experiments_2') :
 
+        if synapse_list  == None:
+            synapse_list = list(self.synapse_map.values())
         # self.rm_config()
         total_trials = len(timeout_list) *\
                      len(num_endpoints_list)* \
                      len(token_length_list) * \
                      len(max_active_receptors) * \
-                     len(replicas_list)
+                     len(replicas_list) * len(max_worker_threads_list) * len(synapse_list)
 
-        if synapse_list  == None:
-            synapse_list = list(self.synapse_map.values())
         cnt = 0
 
         text_base = 'hello'
@@ -330,9 +333,16 @@ class BenchmarkModule(BitModule):
                                 for i in range(trials):
                                     cnt += 1 
                                     
-                                    metrics_dict = self.predict(text = text, num_endpoints=num_endpoints, timeout=timeout, splits=replicas, synapses=[synapse], return_type='metric')
+                                    metrics_dict = self.predict(text = text,
+                                                    num_endpoints=num_endpoints,
+                                                    timeout=timeout, 
+                                                    splits=replicas, 
+                                                    synapses=[synapse], 
+                                                    return_type='metric')
+                                                    
                                     metrics_dict['synapse'] = synapse.__name__
-                                    print(f'PROGRESS: {cnt}/{total_trials}')
+                                    metrics_dict['replicas'] = replicas
+                                    print(f'PROGRESS ({path}): {cnt}/{total_trials}')
                                     self.put_json(f'{path}/metrics_dict_{cnt}', metrics_dict)
             
 
@@ -580,59 +590,15 @@ class BenchmarkModule(BitModule):
         st.write(output)
 
 
-
 if __name__ == '__main__':
 
 
     import ray
-    st.set_page_config(layout="wide")
 
-    # st.write(BenchmarkModule.metagraph)
-    # module = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark'})
+    module = BenchmarkModule.deploy(actor={'refresh': False}, load=['env', 'tokenizer'])
 
-    # module = BenchmarkModule.deploy(actor={'refresh': False})
-
-    module = BenchmarkModule.deploy(actor=False, load=False)
-
-
-
-    # st.write([i for i in actor_pool.map(lambda a,v: a.getattr.remote('actor_name'),  [1,2,3])])
-    # st.write(ray.get(module.load.remote(keys=['env', 'tokenizer', 'receptor_pool'])))
+    # df = ray.get(module.run_experiment.remote(path='experiment'))
+    df = ray.get(module.load_experiment.remote(path='experiment'))
+    plot = ray.get(module.getattr.remote('plot'))
+    plot.run(df)
     
-    # BenchmarkModule.st_terminal()
-
-    # module1 = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark_0'})
-
-    # module1 = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark_2'})
-
-    # del module1
-    # st.write(module)
-
-    # st.write(module._ray_method_signatures)
-    # actor_name = 'BenchmarkModule'
-    # st.write(module.__dict__)
-
-
-    # for output in module.receptor_pool.map_unordered(lambda a,v: a.getattr.remote(v), ['actor_name']*2):
-    #     st.write(output)
-
-
-    # st.write(type(ray.get(module.get_synapse.remote('TextCausalLM'))))
-
-    # ray.get(module.receptor_pool._idle_actors[0].getattr.remote('actor_name'))
-
-    
-
-    # st.write(ray.get(module.predict.remote(text=['hello']*32, num_endpoints=500, return_type = 'metric', timeout=1 )))
-    # st.write(module.predict(text=['hello']*32, num_endpoints=300, return_type = 'metric', timeout=1 ))
-
-    # module.run_experiment()
-    # df = ray.get(module.run_experiment.remote(path='experiment_3'))
-
-    # st.write(df)
-    # st.write(module)
-    df = module.load_experiment(path='experiment_3')
-
-
-
-    module.plot.run(df)

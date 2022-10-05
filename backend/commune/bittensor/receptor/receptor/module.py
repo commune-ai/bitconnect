@@ -39,8 +39,9 @@ from commune import BaseModule
 
 
 
-class Receptor(nn.Module, BaseModule):
+class ReceptorModule(nn.Module, BaseModule):
 
+    default_config_path = 'bittensor.receptor.receptor'
     def __init__(
             self, 
             wallet: 'bittensor.wallet',
@@ -629,7 +630,53 @@ class Receptor(nn.Module, BaseModule):
         return synapse_responses, synapse_codes, synapse_call_times       
             
 
-        
+    def __new__( 
+             cls,
+             endpoint: 'bittensor.Endpoint',
+             max_processes: 'int' = 1,
+             wallet: 'bittensor.Wallet' = None,
+             external_ip: 'str' = None,
+             compression: str = None,
+             **kwargs
+        ) -> 'bittensor.Receptor':
+        r""" Initializes a receptor grpc connection.
+            Args:
+                endpoint (:obj:`bittensor.Endpoint`, `required`):
+                    neuron endpoint descriptor.
+        """        
+
+        if wallet == None:
+            wallet = bittensor.wallet()
+
+        # Get endpoint string.
+        if endpoint.ip == external_ip:
+            ip = "localhost:"
+            endpoint_str = ip + str(endpoint.port)
+        else:
+            endpoint_str = endpoint.ip + ':' + str(endpoint.port)
+
+        # Determine the grpc compression algorithm
+        if compression == 'gzip':
+            compress_alg = grpc.Compression.Gzip
+        elif compression == 'deflate':
+            compress_alg = grpc.Compression.Deflate
+        else:
+            compress_alg = grpc.Compression.NoCompression
+
+        channel = grpc.insecure_channel(
+            endpoint_str,
+            options=[('grpc.max_send_message_length', -1),
+                     ('grpc.max_receive_message_length', -1),
+                     ('grpc.keepalive_time_ms', 100000)])
+        stub = bittensor.grpc.BittensorStub( channel )
+        return cls( 
+            endpoint = endpoint,
+            channel = channel, 
+            wallet = wallet,
+            stub = stub,
+            max_processes=max_processes, **kwargs
+        )
+
 
 
 

@@ -28,6 +28,7 @@ import bittensor
 import bittensor.utils.networking as net
 from concurrent.futures import ThreadPoolExecutor
 from commune import BaseModule
+from commune.bittensor.receptor import ReceptorModule
 import ray
 
 
@@ -307,6 +308,13 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
                 elif receptor_to_remove == None:
                     break
 
+
+    def rm_receptor(self, key , verbose=False):
+        self.receptors[ k ].close()
+        del self.receptors[ k ]
+        return key
+
+
     def _get_or_create_receptor_for_endpoint( self, endpoint: 'bittensor.Endpoint' ) -> 'bittensor.Receptor':
         r""" Finds or creates a receptor TCP connection associated with the passed Neuron Endpoint
             Returns
@@ -321,7 +329,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
             if receptor.endpoint.ip != endpoint.ip or receptor.endpoint.port != endpoint.port:
                 #receptor.close()
                 bittensor.logging.update_receptor_log( endpoint )
-                receptor = bittensor.receptor (
+                receptor = ReceptorModule (
                     endpoint = endpoint, 
                     wallet = self.wallet,
                     external_ip = self.external_ip,

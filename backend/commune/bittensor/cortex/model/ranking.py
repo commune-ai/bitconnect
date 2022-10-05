@@ -14,7 +14,7 @@ class RankingModel(nn.Module):
         self.transformer = SentenceTransformer("sentence-transformers/all-distilroberta-v1")
 
         sentence_dim = self.transformer.get_sentence_embedding_dimension()
-        self.ff1 = torch.nn.Linear(sentence_dim, sentence_dim).to('cuda')
+        self.ff1 = torch.nn.Linear(sentence_dim, sentence_dim).to('cpu')
         self.act1 = torch.nn.ReLU()
 
 
@@ -22,7 +22,7 @@ class RankingModel(nn.Module):
         self.embeddings = torch.nn.Embedding(
             num_embeddings=num_endpoints,
             embedding_dim=sentence_dim,
-        ).to('cuda')
+        ).to('cpu')
 
         if load_optimizer:
             self.load_optimizer()
