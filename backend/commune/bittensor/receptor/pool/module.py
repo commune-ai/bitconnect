@@ -17,6 +17,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
 # DEALINGS IN THE SOFTWARE.
 
+from copy import deepcopy
 import math
 from typing import Tuple, List, Union
 from threading import Lock
@@ -37,7 +38,7 @@ logger = logger.opt(colors=True)
 class ReceptorPoolModule (BaseModule, torch.nn.Module ):
     """ Manages a pool of grpc connections as receptors
     """
-    default_config_path = 'bittensor.receptor.pool.asyncio'
+    default_config_path = 'bittensor.receptor.pool'
 
     def __init__(
         self, 
@@ -87,113 +88,128 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
         """
         return {hotkey: v.state() for hotkey, v in self.receptors.items()}
 
+
+    def rm_receptor(self, key):
+        self.receptors[ key ].close()
+        del self.receptors[ key ]
+        return key
+
+    def rm_all(self):
+        for key in  deepcopy(list(self.receptors.keys())):
+            self.rm_receptor(key=key)
+
+    refresh = rm_all
+
     def forward (
             self, 
             endpoints: List [ 'bittensor.Endpoint' ],
             synapses: List[ 'bittensor.Synapse' ],
             inputs: List [ torch.Tensor ],
             timeout: int,
-            min_success_count: int = 10
+            min_success = 5,
+            return_success_only=False, 
+            refresh=True,
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
         r""" Forward tensor inputs to endpoints.
-
             Args:
                 endpoints (:obj:`List[ bittensor.Endpoint ]` of shape :obj:`(num_endpoints)`, `required`):
                     List of remote endpoints which match length of inputs. Tensors from x are sent forward to these endpoints.
-
                 synapses (:obj:`List[ 'bittensor.Synapse' ]` of shape :obj:`(num_synapses)`, `required`):
                     Bittensor synapse objects with arguments. Each corresponds to a synapse function on the axon.
                     Responses are packed in this ordering. 
-
                 inputs (:obj:`List[torch.Tensor]` of shape :obj:`(num_endpoints * [shape])`, `required`):
                     TODO(const): Allow multiple tensors.
                     List of tensors to send to corresponsing endpoints. Tensors are of arbitrary type and shape depending on the
                     modality.
-
                 timeout (int):
                     Request timeout.
-
             Returns:
                 forward_outputs (:obj:`List[ List[ torch.FloatTensor ]]` of shape :obj:`(num_endpoints * (num_synapses * (shape)))`, `required`):
                     Output encodings of tensors produced by remote endpoints. Non-responses are zeroes of common shape.
-
                 forward_codes (:obj:`List[ List[bittensor.proto.ReturnCodes] ]` of shape :obj:`(num_endpoints * ( num_synapses ))`, `required`):
                     dendrite backward call return ops.
-
                 forward_times (:obj:`List[ List [float] ]` of shape :obj:`(num_endpoints * ( num_synapses ))`, `required`):
                     dendrite backward call times
         """
         if not isinstance(inputs, list):
             inputs = [inputs]
-
         if len(endpoints) != len(inputs):
             if len(inputs) == 1:
-                inputs = inputs*len(endpoints)
+                inputs = len(endpoints)*inputs
             else:
                 raise ValueError('Endpoints must have the same length as passed inputs. Got {} and {}'.format(len(endpoints), len(inputs)))
 
-        # Init receptors.
+
+        receptors = [ self._get_or_create_receptor_for_endpoint( endpoint ) for endpoint in endpoints ]
 
         # Init argument iterables.
-        running_jobs = []
-        receptors = []
+        call_args = []
+        for idx, receptor in enumerate( receptors ):
+            call_args.append({ 
+                'receptor': receptor, 
+                'inputs': inputs [ idx ] ,
+                'synapses': synapses, 
+                'timeout': timeout
+            }) 
 
-
+        # Init function.
+        def call_forward( args ):
+            return args['receptor'].forward( args['synapses'], args['inputs'], args['timeout'] )
+        
+        responses=[]
         # Unpack responses
         forward_outputs = []
         forward_codes = []
         forward_times = []
 
-
+        assert min_success > 0
+        if min_success < 1:
+            min_success = int(min_success*len(endpoints))
 
         # Submit calls to receptors.
-        future_map  = {}
-        success_count = 0
         with concurrent.futures.ThreadPoolExecutor( max_workers = len(endpoints) ) as executor:
-            
-            for idx, endpoint in enumerate( endpoints ):
-                receptor = self._get_or_create_receptor_for_endpoint( endpoint )
-                receptors.append(receptor)
-                st.write(idx)
-                # receptor_kwargs = {
-                #                 'inputs': inputs[idx],
-                #                 'synapses': synapses, 
-                #                 'timeout': timeout
-                #                 }
-                
-        
-                # _future = executor.submit(receptor.forward, **receptor_kwargs )
-                # future_map[_future] = idx
+            future_map = {}
 
-            for future in concurrent.futures.as_completed(future_map):
+            for idx, call_arg in enumerate(call_args):
+                future = executor.submit( call_forward, call_arg)
+                future_map[future] = call_arg
 
+            success_response_cnt = 0
+            for i,future in enumerate(concurrent.futures.as_completed(future_map)):
                 response = future.result()
+                
+
+
+                            
                 if response[1][0] == 1:
-                    success_count += 1
+                    success_response_cnt += 1
+
                     forward_outputs.append( response[0] )
                     forward_codes.append( response[1] )
                     forward_times.append( response[2] )
-                    
-                    if success_count>=min_success_count:
-                        return forward_outputs, forward_codes, forward_times
-
-                future_map.pop(future)
-                
-
-        # _finished_jobs, running_jobs= await asyncio.wait(running_jobs)
-
-        
-        # # Release semephore.
-        # for receptor in receptors:
-        #     receptor.semaphore.release()
-
-
-        
+                else:
+                    if not return_success_only:
+                        forward_outputs.append( response[0] )
+                        forward_codes.append( response[1] )
+                        forward_times.append( response[2] )
+                                
+                if success_response_cnt >= min_success:
+                    for receptor in receptors:
+                        receptor.semaphore.release()
+                    self._destroy_receptors_over_max_allowed()
+                    # ---- Return ----
+                    return forward_outputs, forward_codes, forward_times
 
 
-        # ---- Kill receptors ----
+        # Release semephore.
+        for receptor in receptors:
+            receptor.semaphore.release()
         self._destroy_receptors_over_max_allowed()
         # ---- Return ----
+
+        if refresh:
+            self.refresh()
+            
         return forward_outputs, forward_codes, forward_times
 
     def backward(
@@ -205,32 +221,25 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
                 timeout: int
             ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
         r""" Backward tensor inputs to endpoints.
-
             Args:
                 endpoints (:obj:`List['bittensor.Endpoint']` of shape :obj:`(num_endpoints)`, `required`):
                     List of remote endpoints which match length of x. Tensors from x are sent backward to these endpoints.
-
                 synapses (:obj:`List[ 'bittensor.Synapse' ]` of shape :obj:`(num_synapses)`, `required`):
                     Bittensor synapse objects with arguments. Each corresponds to a synapse function on the axon.
                     Responses are packed in this ordering. 
-
                 inputs (:obj:`List[torch.Tensor]` of shape :obj:`(num_endpoints * [shape])`, `required`):
                     List of tensors to send to corresponsing endpoints. Tensors are of arbitrary type and shape depending on the
                     synapse.
-
                 grads (:obj:`List[torch.Tensor]` of shape :obj:`(num_endpoints * [shape])`, `required`):
                     List of list of grad tensors where each grad corresponds to a synapse call on an endpoint.
                 
                 timeout (int):
                     request timeout.
-
             Returns:
                 backward_outputs (:obj:`List[ List[ torch.FloatTensor] ]` of shape :obj:`num_endpoints * (batch_size, sequence_len, -1)]`, `required`):
                     Gradients returned from the backward call one per endpoint.
-
                 backward_codes (:obj:`List[ List[ bittensor.proto.ReturnCodes ] ]` of shape :obj:`(num_endpoints)`, `required`):
                     List of list of Backward call return ops, one per endpoint and synapse.
-
                 backward_times (:obj:`List[float]` of shape :obj:`(num_endpoints)`, `required`):
                     List of list of Backward call times one per endpoint and synapse.
         """
@@ -270,8 +279,6 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
             responses = executor.map ( call_backward, call_args, timeout=10*timeout )
 
         # Release semephore.
-
-        
         for receptor in receptors:
             receptor.semaphore.release()
             
@@ -314,13 +321,6 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
                 elif receptor_to_remove == None:
                     break
 
-
-    def rm_receptor(self, key , verbose=False):
-        self.receptors[ k ].close()
-        del self.receptors[ k ]
-        return key
-
-
     def _get_or_create_receptor_for_endpoint( self, endpoint: 'bittensor.Endpoint' ) -> 'bittensor.Receptor':
         r""" Finds or creates a receptor TCP connection associated with the passed Neuron Endpoint
             Returns
@@ -335,7 +335,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
             if receptor.endpoint.ip != endpoint.ip or receptor.endpoint.port != endpoint.port:
                 #receptor.close()
                 bittensor.logging.update_receptor_log( endpoint )
-                receptor = ReceptorModule (
+                receptor = bittensor.receptor (
                     endpoint = endpoint, 
                     wallet = self.wallet,
                     external_ip = self.external_ip,
@@ -346,31 +346,32 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
         # ---- Or: Create a new receptor ----
         else:
             bittensor.logging.create_receptor_log( endpoint )
-            receptor = ReceptorModule (
+            receptor = bittensor.receptor (
                     endpoint = endpoint, 
                     wallet = self.wallet,
                     external_ip = self.external_ip,
                     max_processes = self.max_processes,
                     compression = self.compression
             )
-            
             self.receptors[ receptor.endpoint.hotkey ] = receptor
             
-        # receptor.semaphore.acquire()
+        receptor.semaphore.acquire()
         return receptor
-
 
 if __name__ == '__main__':
     import streamlit as st
     # BaseModule.ray_restart()
     dataset_class =  BaseModule.get_object('bittensor.cortex.dataset.module.DatasetModule')
     dataset = dataset_class.deploy(actor={'refresh': False}, load=['env', 'tokenizer'], wrap = True)
+   
+   
     inputs = dataset.tokenize(['100 whadup fam'])
-    receptor = ReceptorPoolModule(wallet=dataset.getattr('wallet'))
+    st.write(inputs)
+    receptor_pool = ReceptorPoolModule(wallet=dataset.getattr('wallet'))
     all_synapses = dataset.getattr('synapses')
-    endpoints = dataset.get_endpoints(num_endpoints=100)
+    st.write('synapse',all_synapses)
+
+    endpoints = dataset.get_endpoints(num_endpoints=300)
 
     with BaseModule.timer('Time: {t}', streamlit=True) as t: 
-        receptor.forward(inputs= inputs ,synapses=all_synapses, timeout=2, endpoints=endpoints)
-
-    
+        st.write('Num successful returns: ',len(receptor_pool.forward(inputs= inputs ,synapses=all_synapses, timeout=0.9, endpoints=endpoints, min_success=150,return_success_only=True)[0]))

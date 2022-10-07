@@ -102,7 +102,7 @@ class BenchmarkModule(BitModule):
 
 
 
-    def load_receptor_pool(self, replicas=3, refresh=True, **kwargs):
+    def load_receptor_pool(self, replicas=3, refresh=False, **kwargs):
 
         receptor_kwargs = dict(max_worker_threads=150, max_active_receptors=512)
         config_receptor = self.config.get('receptor_pool', {})
@@ -181,7 +181,7 @@ class BenchmarkModule(BitModule):
 
 
 
-    def receptor_pool_forward(self, endpoints, inputs, synapses=None , timeout=1, splits=5):
+    def receptor_pool_forward(self, endpoints, inputs, synapses=None , timeout=1, splits=5, min_success=1.0):
         if synapses == None:
             synapses = self.synapses
 
@@ -191,7 +191,7 @@ class BenchmarkModule(BitModule):
 
         for endpoints_split in endpoints_split_list:
 
-            kwargs_list.append(dict(endpoints=endpoints_split, inputs=[inputs]*len(endpoints_split), synapses=synapses , timeout=timeout))
+            kwargs_list.append(dict(endpoints=endpoints_split, inputs=[inputs]*len(endpoints_split), synapses=synapses , timeout=timeout, min_success=min_success))
 
         agg_results = [[],[],[]]
         results_generator = self.receptor_pool.map_unordered(lambda a,v: a.forward.remote(**v), kwargs_list)
@@ -205,9 +205,7 @@ class BenchmarkModule(BitModule):
         # st.write([(len(result), type(result)) for result in results])
         return agg_results
             
-
-
-    def predict(self,text, num_endpoints=100, timeout=1, synapses = None, return_type='result', splits=10,  **kwargs):
+    def predict(self,text, num_endpoints=100, timeout=1, synapses = None, return_type='result', splits=1, return_success_only=True, min_success=1.0, **kwargs):
         
         receptor_kwargs = kwargs.get('receptor')
 
@@ -234,7 +232,7 @@ class BenchmarkModule(BitModule):
         st.write(inputs.shape, 'SHAPE')
         elasped_time = 0
         with Timer(text='Querying Endpoints: {t}', streamlit=True) as t:
-            results = self.receptor_pool_forward(endpoints=endpoints, synapses=self.synapses, inputs=inputs, timeout=timeout, splits=splits )
+            results = self.receptor_pool_forward(endpoints=endpoints, synapses=self.synapses, inputs=inputs, timeout=timeout, splits=splits , min_success=min_success)
             elasped_time = t.elapsed_time
         
         num_responses = len(results[1])
@@ -278,6 +276,9 @@ class BenchmarkModule(BitModule):
                 metric_dict['elapsed_time'] = elasped_time.total_seconds()
                 metric_dict['samples_per_second'] = metric_dict['success_count'] / metric_dict['elapsed_time']
                 metric_dict['splits'] = splits
+                metric_dict['min_success'] = min_success
+                metric_dict['num_responses'] = num_responses
+
                 for k in ['trust', 'consensus','stake', 'incentive', 'dividends', 'emission', 'latency']:
                     # for mode in ['mean', 'std', 'max', 'min']:
                     metric_dict[k] =  getattr(df[k], 'mean')()
@@ -299,6 +300,7 @@ class BenchmarkModule(BitModule):
                      token_length_list=[ 32],
                      num_endpoints_list=[100 , 500, 1000 ],
                      max_worker_threads_list=[100,200,400],
+                     min_success_list=[0.1,0.2,0.5, 0.8],
                      replicas_list = [1,2,4],
                      max_active_receptors=[2000],
                      synapse_list = None,
@@ -329,22 +331,23 @@ class BenchmarkModule(BitModule):
                     text = [text_base]*token_length
                     for timeout in timeout_list:
                         for num_endpoints in num_endpoints_list:
-                            for synapse in synapse_list:
-                                for i in range(trials):
-                                    cnt += 1 
-                                    
-                                    metrics_dict = self.predict(text = text,
-                                                    num_endpoints=num_endpoints,
-                                                    timeout=timeout, 
-                                                    splits=replicas, 
-                                                    synapses=[synapse], 
-                                                    return_type='metric')
-                                                    
-                                    metrics_dict['synapse'] = synapse.__name__
-                                    metrics_dict['replicas'] = replicas
-                                    print(f'PROGRESS ({path}): {cnt}/{total_trials}')
-                                    self.put_json(f'{path}/metrics_dict_{cnt}', metrics_dict)
-            
+                            for min_success in min_success_list:
+                                for synapse in synapse_list:
+                                    for i in range(trials):
+                                        cnt += 1 
+                                        metrics_dict = self.predict(text=text,
+                                                                    num_endpoints=num_endpoints,
+                                                                    timeout=timeout, 
+                                                                    splits=replicas, 
+                                                                    synapses=[synapse], 
+                                                                    return_type='metric',
+                                                                    min_success=min_success)
+                                                        
+                                        metrics_dict['synapse'] = synapse.__name__
+                                        metrics_dict['replicas'] = replicas
+                                        print(f'PROGRESS ({path}): {cnt}/{total_trials}')
+                                        self.put_json(f'{path}/metrics_dict_{cnt}', metrics_dict)
+                
 
     def load_experiment(self, path='experiments'):
         df = []
@@ -595,12 +598,12 @@ if __name__ == '__main__':
 
     import ray
 
-    module = BenchmarkModule.deploy(actor={'refresh': False}, load=['env', 'tokenizer'])
+    module = BenchmarkModule.deploy(actor={'refresh': False}, load=['env', 'tokenizer', 'receptor_pool'])
 
-    # df = ray.get(module.load_receptor_pool.remote(refresh=True))
-
-    # st.write(ray.get(module.predict.remote(text=['bro'])))
+    # st.write(ray.get(module.predict.remote(text=['bro'], timeout=0.5,  return_success_only=True , num_endpoints=20 , return_type='metrics',min_success=10, splits=1)))
     df = ray.get(module.load_experiment.remote(path='experiment'))
+    
+    st.write(df)
     plot = ray.get(module.getattr.remote('plot'))
     plot.run(df)
     

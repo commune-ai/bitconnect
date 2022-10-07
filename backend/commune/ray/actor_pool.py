@@ -32,7 +32,6 @@ class ActorPool:
         ...                     [1, 2, 3, 4]))) # doctest: +SKIP
         [2, 4, 6, 8]
     """
-
     def __init__(self, actors: list):
         # actors to be used
         self._idle_actors = list(actors)
@@ -128,6 +127,11 @@ class ActorPool:
         while self.has_next():
             yield self.get_next_unordered()
 
+
+
+    def kill_idle(self):
+        for a in self._idle_actors:
+            ray.kill(a)
 
 
     def submit(self, fn, value):

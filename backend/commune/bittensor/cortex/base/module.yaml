@@ -6,7 +6,7 @@ num_endpoints: 100
 
 dataset:
   module: bittensor.cortex.dataset.module.DatasetModule
-  actor: {'refresh': False}
+  actor: {'refresh': True}
 
 
 model:

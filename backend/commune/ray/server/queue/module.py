@@ -145,7 +145,8 @@ class QueueServer(BaseModule):
         # Whether the queue is full.
         return self.get_queue(topic).full()
 
-
+    def size_map(self):
+        return {t: self.size(t) for t in self.topics}
 
 
 class QueueClient(QueueServer):
@@ -170,7 +171,6 @@ class QueueClient(QueueServer):
     def delete_all(self):
         for topic in self.topics:
             self.delete_topic(topic, force=True)
-
 
     def size_map(self):
         return {t: self.size(t) for t in self.topics}

@@ -6,7 +6,7 @@ services:
     container_name: bittensor-backend
     build: ./
     # entrypoint: ["gunicorn", "--worker-class", "eventlet", "-w", "1", "-b", "0.0.0.0:5000", "--preload", "server.app:app"]
-    
+    shm_size: '20gb'
     environment:
       - LOCAL_SUBTENSOR_HOST=subtensor
     ports:
@@ -26,6 +26,7 @@ services:
       - ./.bittensor:/root/.bittensor
       - ./scripts:/app/scripts
       - /tmp/wholetensor:/tmp
+      - /home/ubuntu/efs:/efs
 
 
     # deploy:

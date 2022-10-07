@@ -28,11 +28,11 @@ class CortexModule(BitModule):
     __file__ = __file__
     default_config_path = 'bittensor.cortex.base'
     def __init__(self, config=None, **kwargs):
-
-        BitModule.__init__(self, config=config, **kwargs)
+        load = kwargs.get('load')
+        BitModule.__init__(self, config=config, load=False, **kwargs)
 
         
-        load = kwargs.get('load')
+
         if type(load) in [dict]:
             self.load(**load)
         else:
@@ -47,8 +47,6 @@ class CortexModule(BitModule):
         return BitModule.load(self=self, path=path, **kwargs)
 
     def load(self, keys=True, load_kwargs={}, load_args={}, **kwargs):
-        
-        
         if keys in [False, None]:
             return
 
@@ -95,7 +93,7 @@ class CortexModule(BitModule):
 
 
 
-    def load_receptor_pool(self, replicas=1, refresh=False, **kwargs):
+    def load_receptor_pool(self, replicas=1, refresh=True, **kwargs):
 
         receptor_kwargs = dict(max_worker_threads=150, max_active_receptors=512)
         config_receptor = self.config.get('receptor_pool', {})
@@ -526,18 +524,12 @@ if __name__ == '__main__':
 
     # st.write(BenchmarkModule.metagraph)
     # module = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark'})
-    module = CortexModule.deploy(actor={'refresh': False}, load=['dataset'])
+    # CortexModule.ray_restart()
+    module = CortexModule.deploy(actor={'refresh': True}, load=True)
     dataset = ray.get(module.getattr.remote('dataset'))
-    st.write(ray.get(dataset.load_receptor_pool.remote()))
 
-    receptors  = ray.get(dataset.getattr.remote('receptor_pool'))._idle_actors
-
-
-    st.write(ray.get(receptors[0].__exit__.remote()))
-
-
-    # with Timer('bro: {t}', streamlit=True):
-    #     st.write(len(ray.get(dataset.sample.remote(num_endpoints=1000, timeout=1, splits=4))))
+    with Timer('bro: {t}', streamlit=True):
+        st.write(len(ray.get(dataset.sample.remote(num_endpoints=100, timeout=1, splits=4))))
     
     # # module.run()
     # st.write()

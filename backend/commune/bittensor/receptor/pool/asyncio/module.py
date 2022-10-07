@@ -93,108 +93,100 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
             synapses: List[ 'bittensor.Synapse' ],
             inputs: List [ torch.Tensor ],
             timeout: int,
-            return_endpoints: int = None
+            min_success = 5,
+            return_success_only=False, 
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
         r""" Forward tensor inputs to endpoints.
-
             Args:
                 endpoints (:obj:`List[ bittensor.Endpoint ]` of shape :obj:`(num_endpoints)`, `required`):
                     List of remote endpoints which match length of inputs. Tensors from x are sent forward to these endpoints.
-
                 synapses (:obj:`List[ 'bittensor.Synapse' ]` of shape :obj:`(num_synapses)`, `required`):
                     Bittensor synapse objects with arguments. Each corresponds to a synapse function on the axon.
                     Responses are packed in this ordering. 
-
                 inputs (:obj:`List[torch.Tensor]` of shape :obj:`(num_endpoints * [shape])`, `required`):
                     TODO(const): Allow multiple tensors.
                     List of tensors to send to corresponsing endpoints. Tensors are of arbitrary type and shape depending on the
                     modality.
-
                 timeout (int):
                     Request timeout.
-
             Returns:
                 forward_outputs (:obj:`List[ List[ torch.FloatTensor ]]` of shape :obj:`(num_endpoints * (num_synapses * (shape)))`, `required`):
                     Output encodings of tensors produced by remote endpoints. Non-responses are zeroes of common shape.
-
                 forward_codes (:obj:`List[ List[bittensor.proto.ReturnCodes] ]` of shape :obj:`(num_endpoints * ( num_synapses ))`, `required`):
                     dendrite backward call return ops.
-
                 forward_times (:obj:`List[ List [float] ]` of shape :obj:`(num_endpoints * ( num_synapses ))`, `required`):
                     dendrite backward call times
         """
         if not isinstance(inputs, list):
             inputs = [inputs]
-
         if len(endpoints) != len(inputs):
             if len(inputs) == 1:
-                inputs = inputs*len(endpoints)
+                inputs = len(endpoints)*inputs
             else:
                 raise ValueError('Endpoints must have the same length as passed inputs. Got {} and {}'.format(len(endpoints), len(inputs)))
 
-        # Init receptors.
+
+        receptors = [ self._get_or_create_receptor_for_endpoint( endpoint ) for endpoint in endpoints ]
 
         # Init argument iterables.
-        running_jobs = []
-        receptors = []
-        for idx, endpoint in enumerate( endpoints ):
-            receptor = self._get_or_create_receptor_for_endpoint( endpoint )
-            receptors.append(receptor)
-            receptor_kwargs = {
-                            'inputs': inputs[idx],
-                            'synapses': synapses, 
-                            'timeout': timeout
-                            }
-    
-            job = receptor.forward( **receptor_kwargs )
-            running_jobs.append(job)
-            print(idx)
-        st.write('fam')
-        _finished_jobs, running_jobs= await asyncio.wait(running_jobs)
-        st.write(_finished_jobs)
-        responses = []
-        responses.extend(_finished_jobs)
-        
-        # # Release semephore.
-        # for receptor in receptors:
-        #     receptor.semaphore.release()
+        call_args = []
+        for idx, receptor in enumerate( receptors ):
+            call_args.append({ 
+                'receptor': receptor, 
+                'inputs': inputs [ idx ] ,
+                'synapses': synapses, 
+                'timeout': timeout
+            }) 
 
-        st.write(responses)
-            
+        # Init function.
+        async def call_forward( args ):
+            return await args['receptor'].forward( args['synapses'], args['inputs'], args['timeout'] )
         
+        responses=[]
         # Unpack responses
         forward_outputs = []
         forward_codes = []
         forward_times = []
+        assert min_success > 0
+        if min_success < 1:
+            min_success = int(min_success*len(endpoints))
 
-        # st.write('RESPONSES',  responses)
-        
-        # assert min_return_count >= 1 and min_return_count <= len(endpoints), \
-        #             f'min_return_count: {min_return_count} must be > 0 and < {len(endpoints)}'
+        # Submit calls to receptors.
+        future_map = {}
 
-        if return_endpoints == None:
-            return_endpoints = len(endpoints)
-            
-        if return_endpoints > len(endpoints): 
-            return_endpoints = len(endpoints)
-        elif return_endpoints < 1:
-            return_endpoints = 1
+        for idx, call_arg in enumerate(call_args):
+            future = call_forward(call_arg)
+            future_map[future] = call_arg
 
-        return_count = 0
-        for response in responses:
-            st.write(response)
+        running_futures = list(future_map.keys())
+        complete_futures, running_futures = await asyncio.wait(running_futures)
+        st.write(complete_futures, running_futures)
+        success_response_cnt = 0
+        for i, future in enumerate(complete_futures):
+            response = future.result()
+            if response[1][0] == 1:
+                success_response_cnt += 1
 
-            forward_outputs.append( response[0] )
-            forward_codes.append( response[1] )
-            forward_times.append( response[2] )
-            return_count+= 1 
+                forward_outputs.append( response[0] )
+                forward_codes.append( response[1] )
+                forward_times.append( response[2] )
+            else:
+                if not return_success_only:
+                    forward_outputs.append( response[0] )
+                    forward_codes.append( response[1] )
+                    forward_times.append( response[2] )
+                            
+            if success_response_cnt >= min_success:
+                for receptor in receptors:
+                    receptor.semaphore.release()
+                self._destroy_receptors_over_max_allowed()
+                # ---- Return ----
+                return forward_outputs, forward_codes, forward_times
 
-            if return_count >= return_endpoints:
-                break
-            
 
-
-        # ---- Kill receptors ----
+        # Release semephore.
+        for receptor in receptors:
+            receptor.semaphore.release()
         self._destroy_receptors_over_max_allowed()
         # ---- Return ----
         return forward_outputs, forward_codes, forward_times
@@ -359,7 +351,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
             
             self.receptors[ receptor.endpoint.hotkey ] = receptor
             
-        # receptor.semaphore.acquire()
+        receptor.semaphore.acquire()
         return receptor
 
 
@@ -373,6 +365,7 @@ if __name__ == '__main__':
     all_synapses = dataset.getattr('synapses')
     endpoints = dataset.get_endpoints(num_endpoints=100)
 
-    st.write(asyncio.run(receptor.forward(inputs= inputs ,synapses=all_synapses, timeout=2, endpoints=endpoints)))
+    with BaseModule.timer('time: {t}',streamlit=True):
+        st.write(asyncio.run(receptor.forward(inputs= inputs ,synapses=all_synapses, timeout=20, endpoints=endpoints)))
 
     

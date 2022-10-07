@@ -64,7 +64,7 @@ class BittensorStub(object):
 
 class ReceptorModule(nn.Module, BaseModule):
 
-    default_config_path = 'bittensor.receptor.receptor.asyncio'
+    default_config_path = 'bittensor.receptor.receptor'
     def __init__(
             self, 
             wallet: 'bittensor.Wallet',
@@ -149,6 +149,8 @@ class ReceptorModule(nn.Module, BaseModule):
                 bittensor.proto.ReturnCode.BadEndpoint: 0,
             }
         )
+
+        self.set_connection(endpoint=endpoint)
 
     def get_channel(self, endpoint, external_ip=None):
         if external_ip == None:

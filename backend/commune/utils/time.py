@@ -34,9 +34,10 @@ import time
 
 class Timer:
     
-    def __init__(self, text='time elapsed: {}', return_type='seconds', streamlit=False, ):   
+    def __init__(self, text='time elapsed: {t}', return_type='seconds', streamlit=False, verbose=True ):   
         
         self.__dict__.update(locals())
+        
 
 
     def __enter__(self):
@@ -68,9 +69,10 @@ class Timer:
     def __exit__(self, *args):
 
 
-        if self.streamlit and self.text:
-            st.write(self.text.format(t=self.elapsed_time))
-        else: 
-            print(self.text.format(t=self.elapsed_time))
+        if self.verbose:
+            if self.streamlit:
+                st.write(self.text.format(t=self.elapsed_time))
+            else: 
+                print(self.text.format(t=self.elapsed_time))
 
 

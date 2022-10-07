@@ -10,8 +10,6 @@ submodule:
 
 
 
-
-
 dataset:
   path: datasets.load_dataset
   params:
@@ -25,13 +23,13 @@ num_endpoints: 50
 synapses: ['TextLastHiddenState']
 
 receptor_pool:
-  path: bittensor.receptor.pool.module.ReceptorPoolModule
+  path: commune.bittensor.receptor.pool.module.ReceptorPoolModule
   params:
-    max_worker_threads: 64
-    max_active_receptors: 128
+    max_worker_threads: 0
+    max_active_receptors: 0
 
-  replicas: 2
-  refresh: True
+  replicas: null
+  actor: False
 
 # network: nobunaga
 network: nakamoto

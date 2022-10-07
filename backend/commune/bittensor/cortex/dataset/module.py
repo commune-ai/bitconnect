@@ -8,7 +8,7 @@ from torch import nn
 from tqdm.auto import tqdm
 from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
-import torchsort
+# import torchsort
 from commune.bittensor import BitModule
 from commune import BaseModule
 import ray
@@ -29,7 +29,7 @@ class DatasetModule(BitModule):
     default_config_path = 'bittensor.cortex.dataset'
     def __init__(self, config=None, **kwargs):
         load = kwargs.pop('load', True)
-        BitModule.__init__(self, config=config, **kwargs)
+        BitModule.__init__(self, config=config,  **kwargs)
 
         if type(load) in [dict]:
             self.load(**load)
@@ -56,29 +56,32 @@ class DatasetModule(BitModule):
             load_kwargs.get(load_key, {}) 
             load_fn = getattr(self, f'load_{load_key}', None)
             assert load_fn != None, f'{load_key} is suppose to be a function'
-            load_fn_kwargs = load_kwargs.get(load_key, {})
-            load_fn_args = load_args.get(load_key, [])
-            load_fn(*load_fn_args, **load_fn_kwargs)
+            load_fn_kwargs = load_kwargs.get(load_key, self.config.get(load_key, {}))
+            load_fn(**load_fn_kwargs)
 
 
-    def load_dataset(self, **kwargs):
+    def load_receptor_pool(self, path='commune.bittensor.receptor.pool.module.ReceptorPoolModule', 
+                        actor=False, 
+                        params={ 'max_worker_threads': 0 , 'max_active_receptors': 0}, 
+                        replicas=None, **kwargs):
 
-        dataset_kwargs = self.config.get('dataset', {})
-        dataset_kwargs.update(kwargs)
-        dataset_class = self.import_object(dataset_kwargs['path'])
-        self.dataset = dataset_class(**dataset_kwargs['params'])
+        receptor_pool_module = self.import_object(path)
+        if isinstance(replicas, int):
+            raise NotImplementedError
+        else:
+            self.receptor_pool = receptor_pool_module.deploy(actor=actor,
+                                                wallet=self.wallet,**kwargs) 
 
-    def load_tokenizer(self, **kwargs): 
-        if isinstance(getattr(self, 'dataset', None), bittensor.dataset):
-            self.tokenizer = self.dataset.tokenizer
 
-        tokenizer_kwargs = dict(path='bittensor.tokenizer',
-                            params=dict(version=bittensor.__version__))
-        
-        tokenizer_kwargs.update(self.config.get('tokenizer',{}))
-        tokenizer_kwargs.update(kwargs)
-        tokenizer_class = self.import_object(tokenizer_kwargs['path'])
-        self.tokenizer = tokenizer_class(**tokenizer_kwargs['params'])
+    def load_dataset(self, path, params, **kwargs):
+        dataset_class = self.import_object(path)
+        self.dataset = dataset_class(**params)
+
+    def load_tokenizer(self, 
+                        path='bittensor.tokenizer', 
+                        params=dict(version=bittensor.__version__), **kwargs): 
+        tokenizer_class = self.import_object(path)
+        self.tokenizer = tokenizer_class(**params)
 
     @property
     def device(self):
@@ -105,31 +108,6 @@ class DatasetModule(BitModule):
         device = kwargs.pop('device', self.device)
         return torch.tensor(self.tokenizer(text=text, padding=padding)['input_ids']).to(device)
 
-        
-    def load_receptor_pool(self, replicas = 1, refresh=True, **kwargs):
-        config_receptor = self.config.get('receptor_pool', {})
-
-        receptor_module_path = config_receptor.get('path',self.default_receptor_path )
-        receptor_pool_module = self.get_object(receptor_module_path)
-
-
-
-        receptor_kwargs = config_receptor.get('params', dict(max_worker_threads=64, max_active_receptors=512))
-        receptor_kwargs.update(kwargs)
-        replicas = config_receptor.get('replicas', 1)
-        refresh = config_receptor.pop('refresh', True)
-        actor_base_name = receptor_pool_module.get_module_path()
-
-        actor_replicas = []
-
-
-        for i in range(replicas):
-            actor = receptor_pool_module.deploy(actor={'refresh': refresh,
-                                                         'name': f'{actor_base_name}-{i}'},
-                                                wallet=self.wallet,**receptor_kwargs) 
-            actor_replicas.append(actor)
-
-        self.receptor_pool = ActorPool(actors=actor_replicas)
 
 
     @property
@@ -173,20 +151,16 @@ class DatasetModule(BitModule):
         synsapses = list(map(self.str2synapse, self.config.get('synapses',self.available_synapses[0])) )
         return synsapses
 
+    def receptor_pool_forward(self, endpoints, inputs, synapses=None , timeout=1, splits=5, min_success=1, split_type='endpoints'):
 
 
-
-    def receptor_pool_forward(self, endpoints, inputs, synapses=None , timeout=1, splits=5):
-        if synapses == None:
-            synapses = self.synapses
-
+  
         endpoints_split_list = chunk(endpoints, num_chunks=splits)
-
         kwargs_list = []
 
         for endpoints_split in endpoints_split_list:
 
-            kwargs_list.append(dict(endpoints=endpoints_split, inputs=[inputs]*len(endpoints_split), synapses=synapses , timeout=timeout))
+            kwargs_list.append(dict(endpoints=endpoints_split, inputs=[inputs]*len(endpoints_split), synapses=synapses , timeout=timeout, min_success=min_success))
 
         agg_results = [[],[],[]]
         results_generator = self.receptor_pool.map_unordered(lambda a,v: a.forward.remote(**v), kwargs_list)
@@ -365,7 +339,62 @@ class DatasetModule(BitModule):
                         results[i]['tensor'] = [r.tolist() for r in results[i]['tensor'] ]
                 # with Timer('Save Time 2: {t}',streamlit=True):
                 #     self.put_json(f'samples/{topic}/{cache_idx}', results)
+
+    
+    sample_dict = {}
+    running_generator_dict = {}
+    def start_generator(self,
+            num_endpoints=10, 
+            timeout=1, 
+            synapse = 'TextCausalLM', 
+            splits=1, 
+            batch_size = 6,
+            device = None,
+            success_only=True,
+            min_success=0.5,
+            num_batches=10,
+            topic='train',
+             **kwargs):
+
+        num_endpoints = self.resolve_num_endpoints(num_endpoints)
+        st.write('num_endpoints', num_endpoints)
+        device = self.resolve_device(device)
+        if self.running_generator_dict.get(topic) == True:
+            return
+        else:
+            self.running_generator_dict[topic] = True
+
+        if isinstance(synapse,list):
+            synapses = synapse
+        else:
+            synapses = [synapse]
+
+        synapses = [self.resolve_synapse(s) for s in synapses]
+
+        text_inputs = kwargs.get('text')
+
+        text_inputs = self.sample_raw_batch(batch_size=batch_size, tokenize=False)
+
+        call_kwargs_list = []
+
+        for i in range(num_batches):
+            endpoints = self.get_endpoints(num_endpoints=num_endpoints)
+            inputs = self.tokenize(text_inputs, padding=True)
+            call_kwargs = dict(endpoints=endpoints, 
+                                inputs=[inputs]*len(endpoints),
+                                synapses=synapses , 
+                                timeout=timeout,
+                                min_success=min_success)
+            call_kwargs_list.append(call_kwargs)
             
+
+        results_generator = self.receptor_pool.map_unordered(lambda a,v: a.forward.remote(**v), call_kwargs_list)
+        self.sample_dict[topic] = results_generator
+
+
+    def sample_generator(self, topic='train'):
+        return next(self.sample_dict[topic])
+
     def sample_cache_count(self, topic):
         return len(self.sample_cache_files(topic))
 
@@ -384,20 +413,42 @@ class DatasetModule(BitModule):
         return ray.get(self.queue.get_batch.remote(topic=topic, num_items=batchsize))
 
 
-        
+
+
+    def put(self, key, value):
+        return ray.get(self.queue.put.remote(key,value))
+
+    def put_batch(key, values, sync=True):
+        assert isinstance(values, list), f'{type(values)}'
+        jobs = [self.queue.put.remote(value) for value in values]
+        if sync:
+            return ray.get(jobs)
+        else:
+            return jobs
+
+    def get(self, key):
+        return ray.get(self.queue.get.remote(key))
+
+    def get_batch(self, keys):
+        assert isinstance(keys, list), f'{type(keys)}'
+        return ray.get([self.queue.get.remote(key) for key in keys])
+    
     def sample(self, 
             num_endpoints=None, 
             timeout=1, 
             synapse = 'TextCausalLM', 
             splits=1, 
-            batch_size = 1,
+            batch_size = 10,
             device = None,
             success_only=True,
+            min_success=0.9,
+            queue_topic = None,
              **kwargs):
 
 
 
         num_endpoints = self.resolve_num_endpoints(num_endpoints)
+        st.write('num_endpoints', num_endpoints)
         device = self.resolve_device(device)
 
         if isinstance(synapse,list):
@@ -405,21 +456,35 @@ class DatasetModule(BitModule):
         else:
             synapses = [synapse]
 
-        
-        for i in range(len(synapses)):
-            synapses[i] = self.resolve_synapse(synapses[i])
+        synapses = [self.resolve_synapse(s) for s in synapses]
 
 
-        str_inputs = self.sample_raw_batch(batch_size=batch_size)
-        inputs = torch.tensor(self.tokenizer(text=str_inputs, padding=True)['input_ids']).to(self.device)
+        text_inputs = kwargs.get('text')
+        if isinstance(text_inputs, list):
+            assert all([isintance(s) for s in text_inputs])
+        elif isinstance(text_inputs, str):
+            text_inputs = [text_inputs]
+        else: 
+            text_inputs = self.sample_raw_batch(batch_size=batch_size, tokenize=False)
+        inputs = self.tokenize(text_inputs, padding=True)
         endpoints = self.get_endpoints(num_endpoints=num_endpoints)
 
-        results = self.receptor_pool_forward(endpoints=endpoints,
-                                            synapses=synapses, 
-                                            inputs=inputs, 
-                                            timeout=timeout, 
-                                            splits=splits )
+        elapsed_time = -1
+        with self.timer() as t:
+            if isinstance(self.receptor_pool, ray.actor.ActorHandle):
+                results = ray.get(self.receptor_pool.forward.remote(endpoints=endpoints,
+                                                    synapses=synapses, 
+                                                    inputs=inputs, 
+                                                    timeout=timeout, 
+                                                    min_success=min_success))
 
+            else:
+                results = self.receptor_pool.forward(endpoints=endpoints,
+                                    synapses=synapses, 
+                                    inputs=inputs, 
+                                    timeout=timeout, 
+                                    min_success=min_success)
+            elapsed_time = t.elapsed_time.microseconds/1e6
 
         results_dict = []
         num_responses = len(results[0])
@@ -429,13 +494,11 @@ class DatasetModule(BitModule):
             row_dict['code'] = [DatasetModule.response_id2code_map[c] for c in results[1][i]]
             if row_dict['code'][0] != 'Success' and success_only:
                 continue
-
-
             row_dict['tensor'] = [synapse_tensor.to(self.device) for synapse_tensor in results[0][i]]
             row_dict['latency'] = results[2][i][0]
-            row_dict['str_inputs'] = str_inputs
+            row_dict['text_inputs'] = text_inputs
             row_dict['inputs'] = inputs.tolist()
-            # row_dict['elapsed_time'] = elasped_time
+            row_dict['elapsed_time'] = elapsed_time
             row_dict['synapse'] = list(map(str, synapses))
             row_dict['output_size'] = sys.getsizeof(results[0][i])
             row_dict['output_length'] = results[0][i][0].shape[0]
@@ -443,8 +506,11 @@ class DatasetModule(BitModule):
             results_dict.append(row_dict)
 
 
-
+        if isinstance(queue_topic, str):
+            self.queue.put.remote(queue_topic, results_dict)
         return results_dict
+
+    
 
 
 if __name__ == '__main__':
@@ -455,15 +521,34 @@ if __name__ == '__main__':
     # st.write(BenchmarkModule.metagraph)
     # module = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark'})
     # module = DatasetModule.deploy(actor={'refresh': False}, load=True, wrap=True)
-    DatasetModule.ray_restart()
-    module = DatasetModule.deploy(actor={'refresh': False}, load=True, wrap=False)
-    # st.write(module.actor)
+    module = DatasetModule.deploy(actor={'refresh': True}, load=True, wrap=False)
 
-    all_synapses = ray.get(module.getattr.remote('available_synapses'))
+    ray.get(module.put.remote('fam', 100*[{'whadup'}], batch=True))
+    st.write(ray.get(module.get.remote('fam', )))
+    # ray.get(module.load_receptor_pool.remote(actor=False))
+    # # st.write(module.actor)
+    # # topic='train'
+    
+    # for i in range(10):
 
+    #     resp = ray.get(module.sample.remote(num_endpoints=100, timeout=1, batch_size=1, min_success=10))
+    #     st.write(len(resp), i)
+    
+    # finished_results = []
+    # while running_jobs:
+    #     finished_jobs, running_jobs = ray.wait(running_jobs)
+    #     if len(finished_jobs)>0:
+    #         for job in  finished_jobs:
+    #             finished_results += [ray.get(job)]
+    #             st.write(len(finished_results))
 
+    # st.write(ray.get(module.sample_generator.remote('train')))
 
-    selected_synapses = st.multiselect('Select Synapses',all_synapses,  all_synapses[:1])
+    # st.write(ray.get(queue_server.delete_all.remote()))
+
+    # all_synapses = ray.get(module.getattr.remote('available_synapses'))
+
+    # selected_synapses = st.multiselect('Select Synapses',all_synapses,  all_synapses[:1])
     # module.start_sample_loop.remote(topic='train', synapse=selected_synapses, timeout=1.0, success_only=True, refresh_cache=True, refresh_queue=True)
     # st.write(ray.get(module.sample_cache_count.remote('train')))
 
