@@ -725,8 +725,9 @@ if __name__ == '__main__':
     import streamlit as st
     # BaseModule.ray_restart()
     dataset_class =  BaseModule.get_object('bittensor.cortex.dataset.module.DatasetModule')
-    dataset = dataset_class.deploy(actor={'refresh': False}, load=['env', 'tokenizer'], wrap = True)
-    inputs = dataset.tokenize(['100 whadup fam'])
+    dataset = dataset_class.deploy(actor={'refresh': True}, load=['env', 'tokenizer', 'dataset'], wrap = True)
+    inputs = dataset.sample_raw_batch(batch_size=1)
+    inputs = dataset.tokenize(inputs)
     endpoint = dataset.get_endpoints(num_endpoints=1)[0]
     st.write(endpoint)
     receptor = ReceptorModule(endpoint=endpoint, wallet=dataset.getattr('wallet'))

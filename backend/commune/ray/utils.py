@@ -83,9 +83,6 @@ def create_actor(cls,
             if actor_exists(name):
                 kill_actor(actor=name,verbose=verbose)
 
-        import streamlit as st
-        st.write(actor_exists(name))
-
         if redundant:
             # if the actor already exists and you want to create another copy but with an automatic tag
             actor_index = 0

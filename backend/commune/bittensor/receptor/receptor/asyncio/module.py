@@ -64,7 +64,7 @@ class BittensorStub(object):
 
 class ReceptorModule(nn.Module, BaseModule):
 
-    default_config_path = 'bittensor.receptor.receptor.asyncio'
+    default_config_path = 'bittensor.receptor.receptor'
     def __init__(
             self, 
             wallet: 'bittensor.Wallet',
@@ -150,7 +150,9 @@ class ReceptorModule(nn.Module, BaseModule):
             }
         )
 
-    async def get_channel(self, endpoint, external_ip=None):
+        # self.set_connection(endpoint=endpoint)
+
+    def get_channel(self, endpoint, external_ip=None):
         if external_ip == None:
             external_ip = self.external_ip
         # Get endpoint string.
@@ -159,7 +161,6 @@ class ReceptorModule(nn.Module, BaseModule):
             endpoint_str = ip + str(endpoint.port)
         else:
             endpoint_str = endpoint.ip + ':' + str(endpoint.port)
-
         return grpc.aio.insecure_channel(
             endpoint_str,
             options=[('grpc.max_send_message_length', -1),
@@ -175,14 +176,14 @@ class ReceptorModule(nn.Module, BaseModule):
     def has_connection(self):
         return hasattr(self, 'stub') and hasattr(self, 'channel')
 
-    async def set_connection(self,endpoint=None):
+    def set_connection(self,endpoint=None):
         self.endpoint = endpoint
         if self.endpoint.ip == endpoint.ip and self.has_connection:
             return endpoint
         elif  self.endpoint.ip != endpoint.ip and self.has_connection:
             self.close_connection()
 
-        self.channel = self.get_channel(endpoint=endpoint)
+        self.channel =  self.get_channel(endpoint=endpoint)
         self.stub =  BittensorStub(self.channel)
         
         return endpoint
@@ -718,13 +719,16 @@ class ReceptorModule(nn.Module, BaseModule):
         finalize_stats_and_logs()
         return synapse_responses, synapse_codes, synapse_call_times       
      
-
 if __name__ == '__main__':
     import streamlit as st
+    import ray 
     # BaseModule.ray_restart()
     dataset_class =  BaseModule.get_object('bittensor.cortex.dataset.module.DatasetModule')
-    dataset = dataset_class.deploy(actor={'refresh': False}, load=['env', 'tokenizer'], wrap = True)
-    inputs = dataset.tokenize(['100 whadup fam'])
+    dataset = dataset_class.deploy(actor={'refresh': True}, load=['env', 'tokenizer', 'dataset'], wrap = True)
+
+    with BaseModule.timer('Fetch data {t}',  streamlit=True):
+        inputs = dataset.sample_raw_batch(batch_size=1)
+        inputs = dataset.tokenize(inputs)
     endpoint = dataset.get_endpoints(num_endpoints=1)[0]
     st.write(endpoint)
     receptor = ReceptorModule(endpoint=endpoint, wallet=dataset.getattr('wallet'))

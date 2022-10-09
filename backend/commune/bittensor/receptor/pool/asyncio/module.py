@@ -366,6 +366,6 @@ if __name__ == '__main__':
     endpoints = dataset.get_endpoints(num_endpoints=100)
 
     with BaseModule.timer('time: {t}',streamlit=True):
-        st.write(asyncio.run(receptor.forward(inputs= inputs ,synapses=all_synapses, timeout=20, endpoints=endpoints)))
+        st.write(asyncio.run(receptor.forward(inputs= inputs ,synapses=all_synapses, timeout=1, endpoints=endpoints)))
 
     

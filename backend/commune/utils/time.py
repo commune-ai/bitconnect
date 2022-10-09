@@ -66,6 +66,11 @@ class Timer:
         
     elapsed_time = interval
 
+    @property
+    def elapsed_seconds(self):
+        return self.elapsed_time.total_seconds()
+    
+
     def __exit__(self, *args):
 
 

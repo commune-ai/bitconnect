@@ -65,6 +65,8 @@ class DatasetModule(BitModule):
                         params={ 'max_worker_threads': 0 , 'max_active_receptors': 0}, 
                         replicas=None, **kwargs):
 
+        if hasattr(self, 'receptor_pool'):
+            del self.receptor_pool
         receptor_pool_module = self.import_object(path)
         if isinstance(replicas, int):
             raise NotImplementedError
@@ -418,9 +420,9 @@ class DatasetModule(BitModule):
     def put(self, key, value):
         return ray.get(self.queue.put.remote(key,value))
 
-    def put_batch(key, values, sync=True):
+    def put_batch(self, key, values, sync=True):
         assert isinstance(values, list), f'{type(values)}'
-        jobs = [self.queue.put.remote(value) for value in values]
+        jobs = [self.queue.put.remote(key, value) for value in values]
         if sync:
             return ray.get(jobs)
         else:
@@ -429,9 +431,12 @@ class DatasetModule(BitModule):
     def get(self, key):
         return ray.get(self.queue.get.remote(key))
 
-    def get_batch(self, keys):
-        assert isinstance(keys, list), f'{type(keys)}'
-        return ray.get([self.queue.get.remote(key) for key in keys])
+    def get_batch(self, key, batch_size=1, sync=True):
+        jobs = [self.queue.get.remote(key) for i in range(batch_size)]
+        if sync:
+            return ray.get(jobs)
+        else :
+            return jobs
     
     def sample(self, 
             num_endpoints=None, 
@@ -521,18 +526,21 @@ if __name__ == '__main__':
     # st.write(BenchmarkModule.metagraph)
     # module = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark'})
     # module = DatasetModule.deploy(actor={'refresh': False}, load=True, wrap=True)
-    module = DatasetModule.deploy(actor={'refresh': True}, load=True, wrap=False)
+    # DatasetModule.ray_restart()
+    module = DatasetModule.deploy(actor=False, load=True, wrap=False)
 
-    ray.get(module.put.remote('fam', 100*[{'whadup'}], batch=True))
-    st.write(ray.get(module.get.remote('fam', )))
+    # ray.get(module.put_batch.remote('fam', [1]*100 ))
+    # st.write(ray.get(module.get_batch.remote('fam', 10)))
     # ray.get(module.load_receptor_pool.remote(actor=False))
     # # st.write(module.actor)
     # # topic='train'
-    
-    # for i in range(10):
 
-    #     resp = ray.get(module.sample.remote(num_endpoints=100, timeout=1, batch_size=1, min_success=10))
-    #     st.write(len(resp), i)
+    # ray.get(module.delete.remote('receptor_pool'))
+    
+    for i in range(10):
+        resp = module.sample(num_endpoints=100, timeout=1, batch_size=1, min_success=10, queue_topic=None)
+        # del module.receptor_pool
+        st.write(len(resp), i)
     
     # finished_results = []
     # while running_jobs:

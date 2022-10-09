@@ -263,6 +263,12 @@ class ActorModule:
     def setattr(self, key, value):
         return self.__setattr__(key,value)
 
+    def deleteattr(self, key):
+        del self.__dict__[key]
+        return key
+    
+    rmattr = rm = delete = deleteattr
+
     def down(self):
         self.kill_actor(self.config['actor']['name'])
 
