@@ -111,6 +111,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
             min_success = 5,
             return_success_only=False, 
             refresh=False,
+            return_type = 'tuple'
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
         r""" Forward tensor inputs to endpoints.
             Args:
@@ -200,7 +201,16 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
                         receptor.semaphore.release()
                     self._destroy_receptors_over_max_allowed()
                     # ---- Return ----
-                    return forward_outputs, forward_codes, forward_times
+
+                    if return_type in ['tuple',  tuple]:
+                        return forward_outputs, forward_codes, forward_times
+                    elif return_typpe in ['dict', dict]:
+                        return dict(
+                            outputs=forward_outputs,
+                            codes =forward_codes,
+                            times = forward_times
+    
+                        )
 
 
         # Release semephore.
@@ -211,6 +221,8 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
 
         if refresh:
             self.refresh()
+        
+
             
         return forward_outputs, forward_codes, forward_times
 
@@ -360,8 +372,12 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
         receptor.semaphore.acquire()
         return receptor
 
+    # Here is a useful solution that works for various operating systems, including Linux, Windows, etc.:
+
+
 if __name__ == '__main__':
     import streamlit as st
+    import time
     st.set_page_config(layout="wide")
     # BaseModule.ray_restart()
     dataset_class =  BaseModule.get_object('bittensor.cortex.dataset.module.DatasetModule')
@@ -375,22 +391,28 @@ if __name__ == '__main__':
     elapsed_time = 0
 
 
-    receptor_pool = ReceptorPoolModule.deploy(actor={'refresh': False}, wallet=dataset.getattr('wallet'), wrap=True)
-
+    use_ray = False
 
     with st.sidebar.expander('Receptor Pool', True):
-        refresh = st.button('Refresh')
-        if refresh:
-            receptor_pool = ReceptorPoolModule.deploy(actor={'refresh': True}, wallet=dataset.getattr('wallet'), wrap=True)
+
+
+        use_ray = st.checkbox('ray', True)
+        if use_ray:
+            refresh = st.button('Refresh')
+            receptor_pool = ReceptorPoolModule.deploy(actor={'refresh': refresh}, wallet=dataset.getattr('wallet'), wrap=True)
+        else:
+            receptor_pool = ReceptorPoolModule.deploy(actor=False, wallet=dataset.getattr('wallet'), wrap=True)
+
 
 
         st.write('Actor_name',receptor_pool.actor_name)
 
 
 
-    import time
 
-        # st.write(t.elapsed_time)
+    with st.expander('Text', False):
+        input_text = st.text_area('Input Text')
+
     with st.sidebar.expander('Query', True):
 
         with st.form('Fire'):
@@ -409,7 +431,7 @@ if __name__ == '__main__':
             submit_button = st.form_submit_button('Fire')
 
             results = None
-            running_jobs = []
+            job2inputs_dict = {}
             metrics_dict=dict(
                 samples = 0, 
                 tokens = 0,
@@ -421,29 +443,52 @@ if __name__ == '__main__':
 
             if submit_button:
                 with BaseModule.timer('Time: {t}', streamlit=False) as t: 
+                    inputs_batch = []
+                    forward_kwargs_list = []
                     for i in range(batch_count):
                         endpoints = dataset.get_endpoints(num_endpoints=num_endpoints)
 
 
                         inputs = dataset.sample_raw_batch(batch_size=batch_size, tokenize=False)
-                        
+                                      
                         # inputs [Batch, Seq Length]
                         inputs = dataset.tokenize(inputs, padding=True)
-                        job = receptor_pool.forward(inputs= inputs ,synapses=synapses, timeout=timeout, endpoints=endpoints, min_success=min_success,return_success_only=True, ray_get=False)
-                        running_jobs.append(job)
-
+                        inputs_batch.append(inputs)
                         metrics_dict['queries'] += len(endpoints)
-                        metrics_dict['samples'] += inputs.shape[0] *  len(endpoints)
-                        metrics_dict['tokens'] += inputs.numel() *  len(endpoints)
-                        
-     
-   
-                    results_batch = ray.get(running_jobs)
-                    del running_jobs
-                    del job
-                    metrics_dict['elapsed_seconds'] = t.elapsed_seconds
-                for results in results_batch:
-                    metrics_dict['successes'] += len(results[0])
+                        forward_kwargs_list.append(dict(inputs= inputs ,synapses=synapses, timeout=timeout, endpoints=endpoints,
+                                     min_success=min_success,return_success_only=True))
+
+
+                    if use_ray:
+                        for forward_kwargs in forward_kwargs_list:
+                            job = receptor_pool.forward(**forward_kwargs, ray_get=False)
+                            job2inputs_dict[job] = inputs
+
+                    
+                        running_jobs = list(job2inputs_dict.keys())
+                        while len(running_jobs)>0:
+                            finished_jobs, running_jobs = ray.wait(running_jobs)
+                            if len(finished_jobs) > 0:
+                                for job in finished_jobs:
+                                    results = ray.get(job)
+                                    successes = len(results[0])
+                                    metrics_dict['successes'] += successes
+                                    inputs = job2inputs_dict.pop(job)
+                                    metrics_dict['samples'] += inputs.shape[0] *  len(endpoints)
+                                    metrics_dict['tokens'] += inputs.numel() *  len(endpoints)
+                                
+                                del finished_jobs
+                        metrics_dict['elapsed_seconds'] = t.elapsed_seconds
+    
+                    else:
+                        for forward_kwargs in forward_kwargs_list:
+                            results = receptor_pool.forward(**forward_kwargs)
+                            successes = len(results[0])
+                            metrics_dict['successes'] += successes
+                            metrics_dict['samples'] += inputs.shape[0] *  len(endpoints)
+                            metrics_dict['tokens'] += inputs.numel() *  len(endpoints)
+                        metrics_dict['elapsed_seconds'] = t.elapsed_seconds
+
 
             for k in ['tokens', 'samples', 'queries', 'successes']: 
                 metrics_dict[f"{k}_per_second"] = round_sig(metrics_dict[k] / (metrics_dict['elapsed_seconds']), 3)
@@ -464,3 +509,24 @@ if __name__ == '__main__':
         rows[-1][(i % num_cols)].metric(f'{k}', metrics_dict[k])
 
     st.write(f'Num successful returns: {success_count} (Time: {elapsed_time})')
+
+    import gc
+    gc.collect()
+    import psutil
+    st.write('MEMORY',receptor_pool.memory_usage(mode='percent'))
+    st.write('AVAILABLE MEMORY', receptor_pool.memory_available(mode='percent'))
+
+
+
+
+    with st.sidebar.expander('Ray', True):
+        restart_ray_cluster = st.button('Restart Ray Cluster')
+        if restart_ray_cluster:
+            BaseModule.ray_restart()
+        stop_ray_cluster = st.button('Stop Ray Cluster')
+        if stop_ray_cluster:
+            BaseModule.ray_stop()
+
+        start_ray_cluster = st.button('Start Ray Cluster')
+        if start_ray_cluster:
+            BaseModule.ray_start()

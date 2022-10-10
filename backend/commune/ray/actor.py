@@ -8,10 +8,12 @@ import os
 import numpy as np
 import datetime
 import inspect
+import  psutil
 from types import ModuleType
 from importlib import import_module
 from .actor_pool import ActorPool
 from munch import Munch
+import json
 class ActorModule: 
     default_ray_env = {'address': 'auto', 'namespace': 'default'}
     ray_context = None
@@ -168,7 +170,11 @@ class ActorModule:
 
         if skip_ray == False:
             ray_config = config.get('ray', {})
-            ray_context =  cls.get_ray_context(init_kwargs=ray_config)
+            try:
+                ray_context =  cls.get_ray_context(init_kwargs=ray_config)
+            except ConnectionError:
+                cls.ray_start()
+                ray_context =  cls.get_ray_context(init_kwargs=ray_config)
         import streamlit as st
         # st.write(ray_context, ray_config)
         if actor:
@@ -179,15 +185,22 @@ class ActorModule:
                 pass
             else:
                 raise Exception('Only pass in dict (actor args), or bool (uses config["actor"] as kwargs)')  
-            config['actor'] = actor_config
-            kwargs['config'] = config
             # import streamlit as st
             # st.write(actor_config, kwargs)
-            actor = cls.deploy_actor(**actor_config, **kwargs)
+            try:
+                config['actor'] = actor_config
+                kwargs['config'] = config
+                actor = cls.deploy_actor(**actor_config, **kwargs)
+                actor_id = cls.get_actor_id(actor)  
+                actor =  cls.add_actor_metadata(actor)
+            except ray.exeptions.RayActorError:
+                actor_config['refresh'] = True
+                config['actor'] = actor_config
+                kwargs['config'] = config
+                actor = cls.deploy_actor(**actor_config, **kwargs)
+                actor_id = cls.get_actor_id(actor)  
+                actor =  cls.add_actor_metadata(actor)
 
-            actor_id = cls.get_actor_id(actor)  
-
-            actor =  cls.add_actor_metadata(actor)
             if wrap:
                 actor = cls.wrap_actor(actor)
 
@@ -197,13 +210,12 @@ class ActorModule:
             kwargs['config'] = config
             return cls(**kwargs)
 
-    default_ray_env = {'address': 'auto', 'namespace': 'default'}
+    default_ray_env = {'address':'auto', 'namespace': 'default'}
     @classmethod
     def get_ray_context(cls,init_kwargs=None, reinit=True):
         
         if cls.ray_initialized():
             return
-
 
         if init_kwargs == None:
             init_kwargs = cls.default_ray_env
@@ -212,16 +224,23 @@ class ActorModule:
         if isinstance(init_kwargs, dict):
 
             
-            for k in ['address', 'namespace']:
+            for k in cls.default_ray_env.keys():
                 default_value= cls.default_ray_env.get(k)
                 init_kwargs[k] = init_kwargs.get(k,default_value)
                 assert isinstance(init_kwargs[k], str), f'{k} is not in args'
             
             if ActorModule.ray_initialized() and reinit == True:
                 ray.shutdown()
+
             init_kwargs['include_dashboard'] = True
-            init_kwargs['dashboard_host'] = '172.28.0.2'
-            return ray.init(ignore_reinit_error=True, **init_kwargs)
+            init_kwargs['dashboard_host'] = '0.0.0.0'
+            # init_kwargs['_system_config']={
+            #     "object_spilling_config": json.dumps(
+            #         {"type": "filesystem", "params": {"directory_path": "/tmp/spill"}},
+            #     )
+            # }
+            init_kwargs['ignore_reinit_error'] = True
+            return ray.init(**init_kwargs)
         else:
             raise NotImplementedError(f'{init_kwargs} is not supported')
     
@@ -562,3 +581,62 @@ class ActorModule:
     def wrap_actor(cls, actor):
         wrapper_module_path = 'ray.client.module.ClientModule'
         return cls.get_module(module=wrapper_module_path, server=actor)
+
+    @property
+    def pid(self):
+        return os.getpid()
+
+    def memory_usage(self, mode='gb'):
+        '''
+        get memory usage of current process in bytes
+        '''
+        import os, psutil
+        process = psutil.Process(self.pid)
+        usage_bytes = process.memory_info().rss
+        usage_percent = process.memory_percent()
+        mode_factor = 1
+
+        if mode  in ['gb']:
+            mode_factor = 1e9
+        elif mode in ['mb']:
+            mode_factor = 1e6
+        elif mode in ['b']:
+            mode_factor = 1
+        elif mode in ['percent','%']:
+            return usage_percent
+        elif mode in ['ratio', 'fraction', 'frac']: 
+            return usage_percent / 100
+        else:
+            raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
+
+        return usage_bytes / mode_factor
+
+
+    @staticmethod
+    def memory_available(mode ='percent'):
+
+        virtual_memory = ActorModule.virtual_memory()
+        available_memory_bytes = virtual_memory['available']
+        available_memory_percent = virtual_memory['percent']
+        
+
+        mode_factor = 1
+        if mode  in ['gb']:
+            mode_factor = 1e9
+        elif mode in ['mb']:
+            mode_factor = 1e6
+        elif mode in ['b']:
+            mode_factor = 1
+        elif mode in ['percent','%']:
+            return  virtual_memory['percent']
+        elif mode in ['fraction','ratio']:
+            return virtual_memory['percent'] / 1000
+        else:
+            raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
+
+        return usage_bytes / mode_factor
+
+    @staticmethod
+    def virtual_memory():
+        virtual_memory = psutil.virtual_memory()
+        return {k:getattr(virtual_memory,k) for k in ['available', 'percent', 'used', 'shared', 'free', 'total', 'cached']}
