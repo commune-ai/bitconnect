@@ -44,7 +44,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
 
     def __init__(
         self, 
-        wallet: 'bittensor.Wallet',
+        wallet: 'bittensor.Wallet'=None,
         max_worker_threads: int = 150,
         max_active_receptors: int= 150,
         compression: str= None,
@@ -54,7 +54,12 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
         torch.nn.Module.__init__(self)
         BaseModule.__init__(self, config=config, override=override)
 
+
+
         self.wallet = wallet
+        # if self.wallet == None:
+        #     self.wallet = bittensor.wallet(self.config.get('wallet', {'name'}))
+
         self.max_worker_threads = max_worker_threads
         self.max_active_receptors = max_active_receptors
         self.receptors = {}
@@ -382,20 +387,12 @@ if __name__ == '__main__':
     # BaseModule.ray_restart()
     dataset_class =  BaseModule.get_object('bittensor.cortex.dataset.module.DatasetModule')
     dataset = dataset_class.deploy(actor={'refresh': False}, load=['env', 'tokenizer', 'dataset'], wrap = True)
-   
-    
-
-
 
     success_count = 0
     elapsed_time = 0
-
-
     use_ray = False
 
     with st.sidebar.expander('Receptor Pool', True):
-
-
         use_ray = st.checkbox('ray', True)
         if use_ray:
             refresh = st.button('Refresh')
@@ -403,12 +400,7 @@ if __name__ == '__main__':
         else:
             receptor_pool = ReceptorPoolModule.deploy(actor=False, wallet=dataset.getattr('wallet'), wrap=True)
 
-
-
         st.write('Actor_name',receptor_pool.actor_name)
-
-
-
 
     with st.expander('Text', False):
         input_text = st.text_area('Input Text')
@@ -416,8 +408,8 @@ if __name__ == '__main__':
     with st.sidebar.expander('Query', True):
 
         with st.form('Fire'):
-            batch_size = st.slider('batch size', 1, 32, 5)
-            num_endpoints = st.slider('num endpoints', 1, 200, 50)
+            batch_size = st.slider('batch size', 1, 128, 5)
+            num_endpoints = st.slider('num endpoints', 1, 1000, 50)
             timeout = st.select_slider('timeout', list(np.arange(0.0, 5.0, 0.1)), 1.0)
             batch_count = st.select_slider('batch count', list(range(1,10)), 1)
             min_success = st.select_slider('min_success',list(np.arange(0.0, 1.0, 0.1)) , 0.5)
@@ -474,8 +466,9 @@ if __name__ == '__main__':
                                     successes = len(results[0])
                                     metrics_dict['successes'] += successes
                                     inputs = job2inputs_dict.pop(job)
-                                    metrics_dict['samples'] += inputs.shape[0] *  len(endpoints)
-                                    metrics_dict['tokens'] += inputs.numel() *  len(endpoints)
+                                    metrics_dict['samples'] += inputs.shape[0] *  successes
+                                    st.write(inputs.shape)
+                                    metrics_dict['tokens'] += inputs.shape[0] * inputs.shape[1] *  successes
                                 
                                 del finished_jobs
                         metrics_dict['elapsed_seconds'] = t.elapsed_seconds
@@ -485,8 +478,8 @@ if __name__ == '__main__':
                             results = receptor_pool.forward(**forward_kwargs)
                             successes = len(results[0])
                             metrics_dict['successes'] += successes
-                            metrics_dict['samples'] += inputs.shape[0] *  len(endpoints)
-                            metrics_dict['tokens'] += inputs.numel() *  len(endpoints)
+                            metrics_dict['samples'] += inputs.shape[0] *  successes
+                            metrics_dict['tokens'] += inputs.shape[0] * inputs.shape[1] *  successes
                         metrics_dict['elapsed_seconds'] = t.elapsed_seconds
 
 
@@ -513,10 +506,6 @@ if __name__ == '__main__':
     import gc
     gc.collect()
     import psutil
-    st.write('MEMORY',receptor_pool.memory_usage(mode='percent'))
-    st.write('AVAILABLE MEMORY', receptor_pool.memory_available(mode='percent'))
-
-
 
 
     with st.sidebar.expander('Ray', True):
@@ -530,3 +519,21 @@ if __name__ == '__main__':
         start_ray_cluster = st.button('Start Ray Cluster')
         if start_ray_cluster:
             BaseModule.ray_start()
+
+
+
+
+    with st.expander('Resource Usage'):
+        actor_name =receptor_pool.getattr('actor_name')
+        memory_dict = {
+            actor_name: receptor_pool.memory_usage(mode='percent'),
+            'other': receptor_pool.memory_used(mode='percent') - receptor_pool.memory_usage(mode='percent'),
+            'free': receptor_pool.memory_available(mode='percent'),
+        }
+
+
+        import plotly.express as px
+        df = px.data.gapminder().query("year == 2007").query("continent == 'Europe'")
+        df.loc[df['pop'] < 2.e6, 'country'] = 'Other countries' # Represent only large countries
+        fig = px.pie(df, values=list(memory_dict.values()), names=list(memory_dict.keys()), title='Memory Usage')
+        st.write(fig)

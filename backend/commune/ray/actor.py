@@ -148,15 +148,6 @@ class ActorModule:
         setattr(actor, 'name', actor_name)
         return actor
 
-    @classmethod 
-    def deploy_actor(cls,name=None, refresh=False,**kwargs):
-        
-        actor_kwargs = dict(
-            refresh=refresh,
-            name=name,
-            **kwargs
-        )
-        return cls.deploy( actor=actor,**kwargs)
 
     @classmethod 
     def deploy(cls, actor=False , skip_ray=False, wrap=False,  **kwargs):
@@ -193,7 +184,7 @@ class ActorModule:
                 actor = cls.deploy_actor(**actor_config, **kwargs)
                 actor_id = cls.get_actor_id(actor)  
                 actor =  cls.add_actor_metadata(actor)
-            except ray.exeptions.RayActorError:
+            except ray.exceptions.RayActorError:
                 actor_config['refresh'] = True
                 config['actor'] = actor_config
                 kwargs['config'] = config
@@ -615,10 +606,10 @@ class ActorModule:
     @staticmethod
     def memory_available(mode ='percent'):
 
-        virtual_memory = ActorModule.virtual_memory()
-        available_memory_bytes = virtual_memory['available']
-        available_memory_percent = virtual_memory['percent']
-        
+        memory_info = ActorModule.memory_info()
+        available_memory_bytes = memory_info['available']
+        available_memory_ratio = (memory_info['available'] / memory_info['total'])
+    
 
         mode_factor = 1
         if mode  in ['gb']:
@@ -628,15 +619,42 @@ class ActorModule:
         elif mode in ['b']:
             mode_factor = 1
         elif mode in ['percent','%']:
-            return  virtual_memory['percent']
+            return  available_memory_ratio*100
         elif mode in ['fraction','ratio']:
-            return virtual_memory['percent'] / 1000
+            return available_memory_ratio
         else:
             raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
 
         return usage_bytes / mode_factor
 
+
     @staticmethod
-    def virtual_memory():
+    def memory_used(mode ='percent'):
+
+        memory_info = ActorModule.memory_info()
+        available_memory_bytes = memory_info['used']
+        available_memory_ratio = (memory_info['used'] / memory_info['total'])
+    
+
+        mode_factor = 1
+        if mode  in ['gb']:
+            mode_factor = 1e9
+        elif mode in ['mb']:
+            mode_factor = 1e6
+        elif mode in ['b']:
+            mode_factor = 1
+        elif mode in ['percent','%']:
+            return  available_memory_ratio*100
+        elif mode in ['fraction','ratio']:
+            return available_memory_ratio
+        else:
+            raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
+
+        return usage_bytes / mode_factor
+
+
+
+    @staticmethod
+    def memory_info():
         virtual_memory = psutil.virtual_memory()
         return {k:getattr(virtual_memory,k) for k in ['available', 'percent', 'used', 'shared', 'free', 'total', 'cached']}
