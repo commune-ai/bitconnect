@@ -33,9 +33,10 @@ from concurrent.futures import ThreadPoolExecutor
 from commune import BaseModule
 from commune.bittensor.receptor.receptor.module import ReceptorModule
 import ray
+import psutil
 
 import asyncio
-logger = logger.opt(colors=True)
+
 
 class ReceptorPoolModule (BaseModule, torch.nn.Module ):
     """ Manages a pool of grpc connections as receptors
@@ -44,7 +45,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
 
     def __init__(
         self, 
-        wallet: 'bittensor.Wallet'=None,
+        wallet: 'bittensor.Wallet',
         max_worker_threads: int = 150,
         max_active_receptors: int= 150,
         compression: str= None,
@@ -56,17 +57,23 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
 
 
 
-        self.wallet = wallet
-        # if self.wallet == None:
-        #     self.wallet = bittensor.wallet(self.config.get('wallet', {'name'}))
 
+        self.wallet = wallet
+        self.receptors = {}
         self.max_worker_threads = max_worker_threads
         self.max_active_receptors = max_active_receptors
-        self.receptors = {}
+
         self.cull_mutex = Lock()
         self.max_processes = 10
         self.compression = compression
         self.total_requests = 0
+
+
+        if self.wallet == None:
+            default_wallet = {'name': 'const', 'hotkey': 'Tiberius'}
+            self.wallet = bittensor.wallet(**self.config.get('wallet', default_wallet))
+
+
 
 
         
@@ -107,7 +114,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
 
 
     refresh = rm_all
-    def forward (
+    def forward(
             self, 
             endpoints: List [ 'bittensor.Endpoint' ],
             synapses: List[ 'bittensor.Synapse' ],
@@ -116,7 +123,8 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
             min_success = 5,
             return_success_only=False, 
             refresh=False,
-            return_type = 'tuple'
+            return_type = 'tuple',
+            max_workers=10
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
         r""" Forward tensor inputs to endpoints.
             Args:
@@ -171,11 +179,11 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
         forward_times = []
 
         assert min_success > 0
-        if min_success < 1:
+        if min_success <= 1:
             min_success = int(min_success*len(endpoints))
 
         # Submit calls to receptors.
-        with concurrent.futures.ThreadPoolExecutor( max_workers = len(endpoints) ) as executor:
+        with concurrent.futures.ThreadPoolExecutor( max_workers = max_workers ) as executor:
             future_map = {}
 
             for idx, call_arg in enumerate(call_args):
@@ -379,84 +387,105 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
 
     # Here is a useful solution that works for various operating systems, including Linux, Windows, etc.:
 
+    def set_wallet(self, name:str=None, hotkey:str=None,**kwargs):
 
-if __name__ == '__main__':
-    import streamlit as st
-    import time
-    st.set_page_config(layout="wide")
-    # BaseModule.ray_restart()
-    dataset_class =  BaseModule.get_object('bittensor.cortex.dataset.module.DatasetModule')
-    dataset = dataset_class.deploy(actor={'refresh': False}, load=['env', 'tokenizer', 'dataset'], wrap = True)
+        wallet_config = self.config.get('wallet', self.default_wallet_config)
+        wallet_config['name'] = wallet_config['name'] if name == None else name
+        wallet_config['hotkey'] = wallet_config['hotkey'] if hotkey == None else hotkey
 
-    success_count = 0
-    elapsed_time = 0
-    use_ray = False
+        self.wallet = bittensor.wallet(**wallet_config)
+        
+        self.config['wallet'] = wallet_config
 
-    with st.sidebar.expander('Receptor Pool', True):
-        use_ray = st.checkbox('ray', True)
-        if use_ray:
+        return self.wallet
+    @staticmethod
+    def st_test_1():
+
+        dataset_class =  BaseModule.get_object('bittensor.cortex.dataset2.module.DatasetModule')
+        st.write(dataset_class)
+        dataset = dataset_class.deploy(actor={'refresh': False}, load=True, wrap = True)
+        success_count = 0
+        elapsed_time = 0
+        use_ray = False
+
+        with st.sidebar.expander('Receptor Pool', True):
             refresh = st.button('Refresh')
-            receptor_pool = ReceptorPoolModule.deploy(actor={'refresh': refresh}, wallet=dataset.getattr('wallet'), wrap=True)
-        else:
-            receptor_pool = ReceptorPoolModule.deploy(actor=False, wallet=dataset.getattr('wallet'), wrap=True)
+            receptor_pool = ReceptorPoolModule.deploy(actor={'refresh': refresh}, wallet=None, wrap=True)
 
-        st.write('Actor_name',receptor_pool.actor_name)
+        with st.expander('Text', False):
+            input_text = st.text_area('Input Text')
 
-    with st.expander('Text', False):
-        input_text = st.text_area('Input Text')
+        with st.sidebar.expander('Query', True):
 
-    with st.sidebar.expander('Query', True):
-
-        with st.form('Fire'):
-            batch_size = st.slider('batch size', 1, 128, 5)
-            num_endpoints = st.slider('num endpoints', 1, 1000, 50)
-            timeout = st.select_slider('timeout', list(np.arange(0.0, 5.0, 0.1)), 1.0)
-            batch_count = st.select_slider('batch count', list(range(1,10)), 1)
-            min_success = st.select_slider('min_success',list(np.arange(0.0, 1.0, 0.1)) , 0.5)
-
-            all_synapses = dataset.getattr('available_synapses')
-            synapse2idx = {s:s_i for s_i, s in enumerate(all_synapses)}
-            synapses = st.multiselect('synapspe', all_synapses, ['TextLastHiddenState'])
-            synapses = list(map(dataset.str2synapse, synapses))
-
-            return_success_only = True
-            submit_button = st.form_submit_button('Fire')
-
-            results = None
-            job2inputs_dict = {}
-            metrics_dict=dict(
-                samples = 0, 
-                tokens = 0,
-                queries = 0, 
-                successes= 0,
-                elapsed_seconds =  -1,
-
-            )
-
-            if submit_button:
-                with BaseModule.timer('Time: {t}', streamlit=False) as t: 
-                    inputs_batch = []
-                    forward_kwargs_list = []
-                    for i in range(batch_count):
-                        endpoints = dataset.get_endpoints(num_endpoints=num_endpoints)
+            with st.form('Fire'):
+                batch_size = st.slider('batch size', 1, 128, 5)
+                bundle_batch_factor = st.slider('batch multiplier', 1, 10, 1)
+                sequence_length = st.slider('sequence length', 1, 256, 10)
+                sequence_multiplier = st.slider('sequence multiplier', 1, 10, 1)
+                num_endpoints = st.slider('num endpoints', 1, 100, 50)
+                timeout = st.select_slider('timeout', list(np.arange(0.0, 5.0, 0.1)), 1.0)
+                batch_count = st.slider('num samples',1, 100, 1)
+                min_success = st.slider('min_success',2, 100 , 30)
 
 
-                        inputs = dataset.sample_raw_batch(batch_size=batch_size, tokenize=False)
-                                      
-                        # inputs [Batch, Seq Length]
-                        inputs = dataset.tokenize(inputs, padding=True)
-                        inputs_batch.append(inputs)
-                        metrics_dict['queries'] += len(endpoints)
-                        forward_kwargs_list.append(dict(inputs= inputs ,synapses=synapses, timeout=timeout, endpoints=endpoints,
-                                     min_success=min_success,return_success_only=True))
+                all_synapses = dataset.getattr('available_synapses')
+                synapse2idx = {s:s_i for s_i, s in enumerate(all_synapses)}
+
+                synapse_str = st.selectbox('synapspe', all_synapses, synapse2idx['TextLastHiddenState'])
+                synapse =getattr(bittensor.synapse, synapse_str)
+                # st.write(synapse)
+                if synapse_str in ['TextCausalLMNext','TextCausalLM']:
+                    synapse =synapse(decode_topk=False)
+                else:
+                    synapse = synapse()
+                # synapses = [synapse]
 
 
-                    if use_ray:
-                        for forward_kwargs in forward_kwargs_list:
-                            job = receptor_pool.forward(**forward_kwargs, ray_get=False)
-                            job2inputs_dict[job] = inputs
 
-                    
+
+                return_success_only = True
+                submit_button = st.form_submit_button('Fire')
+
+                results = None
+                job2inputs_dict = {}
+                metrics_dict=dict(
+                    samples = 0, 
+                    tokens = 0,
+                    queries = 0, 
+                    steps=0,
+                    successes= 0,
+                    elapsed_seconds =  -1,
+                    upload_mb=0,
+                    download_mb=0, 
+
+                )
+
+                if submit_button:
+                    io_1 = psutil.net_io_counters()
+                    start_bytes_sent, start_bytes_recv = io_1.bytes_sent, io_1.bytes_recv
+
+                    with BaseModule.timer('Time: {t}', streamlit=False) as t: 
+                        inputs_batch = []
+                        forward_kwargs_list = []
+     
+                        for i in range(batch_count):
+                            endpoints = dataset.get_endpoints(num_endpoints=num_endpoints)
+                            inputs = torch.ones([batch_size*bundle_batch_factor, sequence_length], dtype=torch.int64)
+                            # inputs = dataset.sample_raw_batch(batch_size=batch_size, tokenize=False)  
+                            # inputs [Batch, Seq Length]
+
+                            # inputs = dataset.tokenize(inputs, padding=True)
+                            inputs_batch.append(inputs)
+                            metrics_dict['queries'] += len(endpoints)
+                            forward_kwargs_list.append(dict(inputs= inputs ,synapses=[synapse], timeout=timeout, endpoints=endpoints,
+                                        min_success=min_success,return_success_only=True))
+
+
+                            for forward_kwargs in forward_kwargs_list:
+                                job = receptor_pool.forward(**forward_kwargs, ray_get=False)
+                                job2inputs_dict[job] = inputs
+
+                        
                         running_jobs = list(job2inputs_dict.keys())
                         while len(running_jobs)>0:
                             finished_jobs, running_jobs = ray.wait(running_jobs)
@@ -464,76 +493,94 @@ if __name__ == '__main__':
                                 for job in finished_jobs:
                                     results = ray.get(job)
                                     successes = len(results[0])
+                                    st.write(results[0][0][0].shape)
                                     metrics_dict['successes'] += successes
                                     inputs = job2inputs_dict.pop(job)
                                     metrics_dict['samples'] += inputs.shape[0] *  successes
-                                    st.write(inputs.shape)
+
+                                    if successes > 0:
+                                        metrics_dict['steps'] += 1*bundle_batch_factor
                                     metrics_dict['tokens'] += inputs.shape[0] * inputs.shape[1] *  successes
                                 
                                 del finished_jobs
                         metrics_dict['elapsed_seconds'] = t.elapsed_seconds
-    
-                    else:
-                        for forward_kwargs in forward_kwargs_list:
-                            results = receptor_pool.forward(**forward_kwargs)
-                            successes = len(results[0])
-                            metrics_dict['successes'] += successes
-                            metrics_dict['samples'] += inputs.shape[0] *  successes
-                            metrics_dict['tokens'] += inputs.shape[0] * inputs.shape[1] *  successes
-                        metrics_dict['elapsed_seconds'] = t.elapsed_seconds
-
-
-            for k in ['tokens', 'samples', 'queries', 'successes']: 
-                metrics_dict[f"{k}_per_second"] = round_sig(metrics_dict[k] / (metrics_dict['elapsed_seconds']), 3)
-
-    
-    total_metrics =  len(metrics_dict)
-    num_cols = 3
-    num_rows = total_metrics// num_cols
-    last_row_cols = total_metrics % num_cols
-
-    rows = []
-
-    for i, k in enumerate(metrics_dict.keys()):
-        if i % num_cols == 0:
-            row_column_count = num_cols
-            rows.append(st.columns([1]*row_column_count))
         
-        rows[-1][(i % num_cols)].metric(f'{k}', metrics_dict[k])
 
-    st.write(f'Num successful returns: {success_count} (Time: {elapsed_time})')
+                        # Measure state after.
+                    io_2 = psutil.net_io_counters()
+                    total_bytes_sent = round_sig(io_2.bytes_sent - start_bytes_sent, 3)
+                    total_bytes_recved = round_sig(io_2.bytes_recv - start_bytes_recv,3) 
 
-    import gc
-    gc.collect()
-    import psutil
+                    metrics_dict['upload_mb'] = total_bytes_sent * 10e-6
+                    metrics_dict['download_mb'] = total_bytes_recved *  10e-6
+
+    
+                for k in ['tokens', 'samples', 'queries', 'successes', 'upload_mb', 'download_mb', 'steps']: 
+                    metrics_dict[f"{k}_per_second"] = round_sig(metrics_dict[k] / (metrics_dict['elapsed_seconds']), 3)
+
+        
+
+        total_metrics =  len(metrics_dict)
+        num_cols = 3
+        num_rows = total_metrics// num_cols
+        last_row_cols = total_metrics % num_cols
+
+        rows = []
+
+        for i, k in enumerate(metrics_dict.keys()):
+            if i % num_cols == 0:
+                row_column_count = num_cols
+                rows.append(st.columns([1]*row_column_count))
+            
+            rows[-1][(i % num_cols)].metric(f'{k}', metrics_dict[k])
+
+        st.write(f'Num successful returns: {success_count} (Time: {elapsed_time})')
+
+        import gc
+        gc.collect()
 
 
-    with st.sidebar.expander('Ray', True):
-        restart_ray_cluster = st.button('Restart Ray Cluster')
-        if restart_ray_cluster:
-            BaseModule.ray_restart()
-        stop_ray_cluster = st.button('Stop Ray Cluster')
-        if stop_ray_cluster:
-            BaseModule.ray_stop()
+        with st.sidebar.expander('Ray', True):
+            restart_ray_cluster = st.button('Restart Ray Cluster')
+            if restart_ray_cluster:
+                BaseModule.ray_restart()
+            stop_ray_cluster = st.button('Stop Ray Cluster')
+            if stop_ray_cluster:
+                BaseModule.ray_stop()
 
-        start_ray_cluster = st.button('Start Ray Cluster')
-        if start_ray_cluster:
-            BaseModule.ray_start()
-
-
+            start_ray_cluster = st.button('Start Ray Cluster')
+            if start_ray_cluster:
+                BaseModule.ray_start()
 
 
-    with st.expander('Resource Usage'):
-        actor_name =receptor_pool.getattr('actor_name')
-        memory_dict = {
-            actor_name: receptor_pool.memory_usage(mode='percent'),
-            'other': receptor_pool.memory_used(mode='percent') - receptor_pool.memory_usage(mode='percent'),
-            'free': receptor_pool.memory_available(mode='percent'),
-        }
 
 
-        import plotly.express as px
-        df = px.data.gapminder().query("year == 2007").query("continent == 'Europe'")
-        df.loc[df['pop'] < 2.e6, 'country'] = 'Other countries' # Represent only large countries
-        fig = px.pie(df, values=list(memory_dict.values()), names=list(memory_dict.keys()), title='Memory Usage')
-        st.write(fig)
+        with st.expander('Resource Usage'):
+            actor_name =receptor_pool.getattr('actor_name')
+            memory_dict = {
+                actor_name: receptor_pool.memory_usage(mode='percent'),
+                'other': receptor_pool.memory_used(mode='percent') - receptor_pool.memory_usage(mode='percent'),
+                'free': receptor_pool.memory_available(mode='percent'),
+            }
+
+            import plotly.express as px
+        
+            fig = px.pie( values=list(memory_dict.values()), names=list(memory_dict.keys()), title='Memory Usage')
+            st.write(fig)
+    
+    ############################
+    ##### Forward Function #####
+    ############################
+    # Forward function queries (n_queried) random endpoints with the inputs
+    # then waits timeout before checking for success from each query.
+    # The function returns a list of booleans True or false depending on the query result.
+
+if __name__ == '__main__':
+    import streamlit as st
+    import time
+    st.set_page_config(layout="wide")
+    ReceptorPoolModule.st_test_1()
+    st.write('fam')
+    # BaseModule.ray_restart()
+   
+   

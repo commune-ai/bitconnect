@@ -1,0 +1,24 @@
+module: 'DatasetModule'
+
+client: {}
+
+
+submodule:
+  queue: 
+    module: ray.server.queue.QueueServer
+    actor : {refresh: False}
+
+
+dataset:
+  path: datasets.load_dataset
+  params:
+    path: glue
+    name: cola
+    split: test
+  text_field: sentence
+
+actor:
+  name: local_copy(module)
+  refresh: False
+  resources: {num_cpus: 1.0}
+

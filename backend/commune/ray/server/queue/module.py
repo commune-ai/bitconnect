@@ -13,6 +13,7 @@ Background Actor for Message Brokers Between Quees
 
 class QueueServer(BaseModule):
 
+    default_actor_name = 'queue'
     default_config_path = 'ray.server.queue'
     def __init__(self,config=None, **kwargs):
         BaseModule.__init__(self, config=config, **kwargs)

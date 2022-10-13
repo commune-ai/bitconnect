@@ -4,6 +4,11 @@ name: launcher
 client: {}
 max_actor_count: 4
 # shifter: get_cfg(process.shifter.module)
+submodule:
+  queue: 
+    module: ray.server.queue.QueueServer
+    actor : {refresh: False,  name: queue}
+
 actor:
   name: local_copy(name)
   max_concurrency: 4

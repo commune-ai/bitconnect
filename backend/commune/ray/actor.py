@@ -179,6 +179,8 @@ class ActorModule:
             # import streamlit as st
             # st.write(actor_config, kwargs)
             try:
+                actor_config['name'] =  actor_config.get('name', cls.get_default_actor_name())
+                
                 config['actor'] = actor_config
                 kwargs['config'] = config
                 actor = cls.deploy_actor(**actor_config, **kwargs)
@@ -197,8 +199,8 @@ class ActorModule:
 
             return actor 
         else:
-            
             kwargs['config'] = config
+            kwargs['config']['actor'] = None
             return cls(**kwargs)
 
     default_ray_env = {'address':'auto', 'namespace': 'default'}
@@ -292,9 +294,11 @@ class ActorModule:
         return actor_exists(actor)
 
     @staticmethod
-    def get_actor(actor_name):
+    def get_actor(actor_name, wrap=False):
         actor =  ray.get_actor(actor_name)
         actor = ActorModule.add_actor_metadata(actor)
+        if wrap:
+            ActorModule.wrap_actor()
         return actor
 
     @property
@@ -309,6 +313,13 @@ class ActorModule:
     def actor_name(self):
         return self.config.get('actor', {}).get('name')
     
+    @property
+    def actor_running(self):
+        return self.is_actor_running
+
+    def is_actor_running(self):
+        return isinstance(self.actor_name, str)
+
     @property
     def actor_config(self):
         return self.config.get('actor',None)
@@ -474,6 +485,13 @@ class ActorModule:
     def get_module_path(cls):
         return cls.default_config_path.replace('.module', '')
 
+    @classmethod
+    def get_default_actor_name(cls):
+        if isinstance(hasattr(cls, 'default_actor_name'), str):
+            st.write(cls.default_actor_name)
+            return cls.default_actor_name
+        return cls.default_config_path.replace('.module', '')
+
 
     @staticmethod
     def load_object(module:str, __dict__:dict, **kwargs):
@@ -565,8 +583,11 @@ class ActorModule:
         assert isinstance(actor, ray.actor.ActorHandle)
         return actor.__dict__['_ray_actor_id'].hex()
 
-    def get_resources(self):
-        return self.config.get('actor', {}).get('resources', None)
+    def resource_usage(self):
+        resource_dict =  self.config.get('actor', {}).get('resources', None)
+        resource_dict = {k.replace('num_', ''):v for k,v in resource_dict.items()}
+        resource_dict['memory'] = self.memory_used(mode='ratio')
+        return  resource_dict
 
     @classmethod
     def wrap_actor(cls, actor):
@@ -601,6 +622,8 @@ class ActorModule:
             raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
 
         return usage_bytes / mode_factor
+
+
 
 
     @staticmethod

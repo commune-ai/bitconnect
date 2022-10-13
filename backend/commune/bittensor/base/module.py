@@ -37,7 +37,7 @@ class BitModule(BaseModule):
     default_network = 'nakamoto'
     default_config_path=f"bittensor.base"
     force_sync = False
-    default_wallet_config = {'name': 'default', 'hotkey': 'default'}
+    default_wallet_config = {'name': 'const', 'hotkey': 'Tiberius'}
 
     def __init__(self, config=None, **kwargs):
         
@@ -59,6 +59,10 @@ class BitModule(BaseModule):
         if sync:
             self.sync(**kwargs)
         
+    @staticmethod
+    def str2synapse(synapse:str, *args, **kwargs):
+        return getattr(bittensor.synapse, synapse)(*args, **kwargs)
+
     def save(self, path=None ,**kwargs):
         self.put_config(path=path, **kwargs)
 
@@ -74,6 +78,27 @@ class BitModule(BaseModule):
 
         return self.wallet
 
+    def get_endpoints(self, endpoint_ids=None , num_endpoints=None, random_sample=True):
+        endpoints =self.metagraph.endpoint_objs
+        selected_endpoints = []
+        if isinstance(endpoint_ids, list ):
+            for i in endpoint_ids:
+                assert isinstance(i, int), i
+                assert i > 0 and i < len(endpoints), endpoint_ids
+
+                selected_endpoints.append(endpoints[i])
+
+            return selected_endpoints
+        
+        if num_endpoints == None:
+            num_endpoints =self.num_endpoints
+
+        if random_sample == True:
+            endpoint_index_list = list(np.random.randint(0, self.n, (num_endpoints)))
+            selected_endpoints = [endpoints[idx] for idx in endpoint_index_list]
+        else:
+            selected_endpoints = endpoints[:num_endpoints]
+        return selected_endpoints
 
     def get_wallet(self, **kwargs):
         wallet_kwargs = self.config.get('wallet', self.default_wallet_config)
@@ -370,7 +395,7 @@ class BitModule(BaseModule):
                 return torch.argsort(metric_tensor, descending=descending, dim=0).tolist()    
     @property
     def should_sync_graph(self):
-        return (self.blocks_behind > self.config['blocks_behind_sync_threshold']) or self.force_sync
+        return (self.blocks_behind > self.config.get('blocks_behind_sync_threshold', 1)) or self.force_sync
 
     @property
     def blocks_behind(self):

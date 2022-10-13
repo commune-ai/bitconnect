@@ -48,7 +48,7 @@ class Launcher(BaseModule):
     @property
     def actor_map(self):
         self.get_config()
-        actor_names = self.config['running_actor_map'].keys()
+        actor_names = deepcopy(list(self.config['running_actor_map'].keys()))
         actor_map = {}
         for actor_name in actor_names:
             if self.actor_exists(actor_name):
@@ -116,9 +116,12 @@ class Launcher(BaseModule):
         for module_name in module_name_list:
             self.add_actor(module=module_name, *args, **kwargs)
     def add_actor(self, module, 
+
                     actor=dict(refresh=False, resources={'num_gpus':0, 'num_cpus': 1}),
                     refresh_cache=False,
                      **kwargs):
+
+
         actor['name'] = deepcopy(module)
 
 
@@ -212,9 +215,12 @@ class Launcher(BaseModule):
         module = Launcher.deploy(actor=False, wrap=True)
         # # st.write(module.module_tree)
         # actor = module.get_actor('algovera.base-1')
-        st.write(module.add_actor(module=f'bittensor.receptor.pool', refresh=False))
-        # st.write(module.remove_actor('algovera.base-3'))
-        # st.write(module.getattr('actor_map'))
+        # module.add_actor(module=f'bittensor.receptor.pool-{0}', refresh=False)
+        # # st.write(module.remove_actor('algovera.base-3'))
+        # # st.write(module.get_actor('bittensor.receptor.pool'))
+        # # module.remove_all_actors()
+        st.write(ray.get(module.queue.get.remote('put')))
+        # st.write(ray.get(ray.get_actor('ray.server.queue').put.remote('bro', 'bro')))
         # st.write(module.get_actor('bittensor.receptor.receptor'))
         # st.write(module.getattr('available_modules'))
         # st.write(actor.get_name(), actor.get_resources())

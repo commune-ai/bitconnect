@@ -16,6 +16,8 @@ class BaseModule(ActorModule):
     root = root_path
     tmp_dirname = root_path.split('/')[-1]
     tmp_dirname = __file__.split('/')[-3]
+
+
     def __init__(self, config=None, override={}, client=None ,**kwargs):
 
         ActorModule.__init__(self,config=config, override=override)
@@ -26,11 +28,24 @@ class BaseModule(ActorModule):
            
         self.get_submodules(get_submodules_bool = kwargs.get('get_submodules', True))
 
+        # st.write(self.client, client, kwargs.get('get_clients', True))
+        # self.register_actor()
 
     @property
     def client_config(self):
         return self.config.get('client', self.config.get('clients'))
 
+
+
+    running_actors_dir = '/tmp/commune/running_actors'
+    def register_actor(self):
+        if self.actor_running:
+            self.client.local.put_json(path=f'{running_actors_dir}/{self.actor_name}/config.json', data=data, **kwargs)
+
+    def deregister_actor(self):
+        if self.actor_running:
+
+            self.client.local.rm(path=f'{running_actors_dir}/{self.actor_name}/config.json', recursive=True)
 
     def get_clients(self, client=None, get_clients_bool = True):
         if get_clients_bool == False:
