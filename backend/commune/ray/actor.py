@@ -180,7 +180,7 @@ class ActorModule:
             # st.write(actor_config, kwargs)
             try:
                 actor_config['name'] =  actor_config.get('name', cls.get_default_actor_name())
-                
+                actor_config['resources'] =  actor_config.get('resources', {'num_cpus': 1.0, 'num_gpus': 0.0})
                 config['actor'] = actor_config
                 kwargs['config'] = config
                 actor = cls.deploy_actor(**actor_config, **kwargs)

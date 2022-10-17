@@ -28,6 +28,11 @@ receptor_pool:
     max_worker_threads: 0
     max_active_receptors: 0
 
+
+  memory_threshold:
+    value: 0.2
+    mode: ratio
+
   replicas: null
   actor: False
 

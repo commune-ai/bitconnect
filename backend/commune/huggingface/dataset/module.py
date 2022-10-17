@@ -123,7 +123,6 @@ if __name__ == '__main__':
     # module = DatasetModule.deploy(actor={'refresh': False}, load=True, wrap=True)
     # DatasetModule.ray_restart()
     module = DatasetModule.deploy(actor=False, load=True, wrap=False)
-
     # ray.get(module.put_batch.remote('fam', [1]*100 ))
     # st.write(ray.get(module.get_batch.remote('fam', 10)))
     # ray.get(module.load_receptor_pool.remote(actor=False))

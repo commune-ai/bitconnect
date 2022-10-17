@@ -21,7 +21,7 @@ from copy import deepcopy
 import math
 from typing import Tuple, List, Union
 from threading import Lock
-
+import pandas as pd
 import numpy as np
 import torch
 from loguru import logger
@@ -36,7 +36,6 @@ import ray
 import psutil
 
 import asyncio
-
 
 class ReceptorPoolModule (BaseModule, torch.nn.Module ):
     """ Manages a pool of grpc connections as receptors
@@ -400,7 +399,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
         return self.wallet
     @staticmethod
     def st_test_1():
-
+        return_info_dict = {'codes': [], 'latency': []}
         dataset_class =  BaseModule.get_object('bittensor.cortex.dataset2.module.DatasetModule')
         st.write(dataset_class)
         dataset = dataset_class.deploy(actor={'refresh': False}, load=True, wrap = True)
@@ -467,6 +466,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
                     with BaseModule.timer('Time: {t}', streamlit=False) as t: 
                         inputs_batch = []
                         forward_kwargs_list = []
+                        st.write(len(job2inputs_dict),'initial ')
      
                         for i in range(batch_count):
                             endpoints = dataset.get_endpoints(num_endpoints=num_endpoints)
@@ -481,30 +481,44 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
                                         min_success=min_success,return_success_only=True))
 
 
-                            for forward_kwargs in forward_kwargs_list:
-                                job = receptor_pool.forward(**forward_kwargs, ray_get=False)
-                                job2inputs_dict[job] = inputs
+                        for forward_kwargs in forward_kwargs_list:
+                            job = receptor_pool.forward(**forward_kwargs, ray_get=False)
+                            job2inputs_dict[job] = inputs
+
+                    
 
                         
+
+
                         running_jobs = list(job2inputs_dict.keys())
+
+
                         while len(running_jobs)>0:
+                            # running_jobs = list(job2inputs_dict.keys())
+                            st.write(len(running_jobs))
+
                             finished_jobs, running_jobs = ray.wait(running_jobs)
                             if len(finished_jobs) > 0:
                                 for job in finished_jobs:
                                     results = ray.get(job)
-                                    successes = len(results[0])
-                                    st.write(results[0][0][0].shape)
+
+                                    # st.write(results[0][0][0].shape)
+                                    return_info_dict['codes'] += [c[0] for c in results[1]]
+                                    return_info_dict['latency'] += [c[0] for c in results[2]]
+                                    successes = len([c for c in results[1] if c[0] == 1])
+
                                     metrics_dict['successes'] += successes
                                     inputs = job2inputs_dict.pop(job)
                                     metrics_dict['samples'] += inputs.shape[0] *  successes
 
                                     if successes > 0:
+                                        st.write(results[0][0][0].shape)
                                         metrics_dict['steps'] += 1*bundle_batch_factor
                                     metrics_dict['tokens'] += inputs.shape[0] * inputs.shape[1] *  successes
                                 
                                 del finished_jobs
                         metrics_dict['elapsed_seconds'] = t.elapsed_seconds
-        
+                        return_info_df = pd.DataFrame(return_info_dict)
 
                         # Measure state after.
                     io_2 = psutil.net_io_counters()
@@ -513,7 +527,6 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
 
                     metrics_dict['upload_mb'] = total_bytes_sent * 10e-6
                     metrics_dict['download_mb'] = total_bytes_recved *  10e-6
-
     
                 for k in ['tokens', 'samples', 'queries', 'successes', 'upload_mb', 'download_mb', 'steps']: 
                     metrics_dict[f"{k}_per_second"] = round_sig(metrics_dict[k] / (metrics_dict['elapsed_seconds']), 3)
@@ -524,6 +537,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
         num_cols = 3
         num_rows = total_metrics// num_cols
         last_row_cols = total_metrics % num_cols
+
 
         rows = []
 
@@ -552,8 +566,22 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
             if start_ray_cluster:
                 BaseModule.ray_start()
 
+        import plotly.express as px
+
+    
+        return_info_df = pd.DataFrame(return_info_dict)
+
+        with st.expander('Response Charts'):
+
+            code_count_dict = {k:int(v) for k,v in dict(return_info_df['codes'].value_counts()).items()}
+            fig = px.pie( values=list(code_count_dict.values()), names=list(code_count_dict.keys()), title='Return Code Statistics')
+            st.write(fig)
+
+            fig = px.histogram(return_info_df['latency'], title='Latency Statistics')
+            st.write(fig)
 
 
+        
 
         with st.expander('Resource Usage'):
             actor_name =receptor_pool.getattr('actor_name')
@@ -567,6 +595,9 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
         
             fig = px.pie( values=list(memory_dict.values()), names=list(memory_dict.keys()), title='Memory Usage')
             st.write(fig)
+
+    
+
     
     ############################
     ##### Forward Function #####

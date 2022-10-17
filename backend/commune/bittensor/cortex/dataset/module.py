@@ -58,19 +58,31 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         self.load_receptor_pool()
         self.load_bitmodule()
 
+    @property
+    def available_synapses(self):
+        return self.bitmodule.getattr('available_synapses')
 
     def load_dataset(self, refresh=False):
         dataset_class =  BaseModule.get_object('huggingface.dataset.module.DatasetModule')
-        self.dataset = dataset_class.deploy(actor={'refresh': refresh}, load=['tokenizer', 'dataset'], wrap = True)
+        self.dataset = dataset_class.deploy(actor={'refresh': refresh, 'name':'huggingface.dataset'}, load=['tokenizer', 'dataset'], wrap = True)
 
     def load_receptor_pool(self, refresh=False):
         receptor_pool_class =  BaseModule.get_object('bittensor.receptor.pool.module.ReceptorPoolModule')
         self.receptor_pool = receptor_pool_class.deploy(actor={'refresh': refresh},wallet=self.bitmodule.getattr('wallet'), wrap=True)
         return self.receptor_pool
 
+    def monitor_module_memory(self, module='receptor_pool'):
+        threshold_mode = self.config[module]['memory_threshold']['mode'] # ratio, percent, etc
+        threshold_value = self.config[module]['memory_threshold']['value']
+        receptor_pool_memory_value = self.receptor_pool.memory_usage(threshold_mode)
+        if receptor_pool_memory_value > threshold_value:
+            getattr(self, f'load_{module}')(refresh=True)
+
+        
+
     def load_bitmodule(self, refresh=False):
         module_class = BaseModule.get_object('bittensor.base.module.BitModule')
-        self.bitmodule = module_class.deploy(actor={'refresh': refresh},load=True, wrap = True)
+        self.bitmodule = module_class.deploy(actor={'refresh': refresh}, override={'network': self.config['network'], 'wallet': self.config['wallet']},load=True, wrap = True)
         return self.bitmodule
 
     def __str__(self):
@@ -142,7 +154,6 @@ class DatasetModule (BaseModule, torch.nn.Module ):
                         metrics_dict['successes'] += successes
                         inputs = job2inputs_dict.pop(job)
                         metrics_dict['samples'] += inputs.shape[0] *  successes
-                        st.write(inputs.shape)
                         metrics_dict['tokens'] += inputs.shape[0] * inputs.shape[1] *  successes
                     
                     del finished_jobs
@@ -172,7 +183,6 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         use_ray = False
 
         module = DatasetModule.deploy(actor=False)
-        st.write('bro')
         module.load_dataset(refresh=False)
         module.load_bitmodule(refresh=False)
         module.bitmodule.set_wallet(name='const', hotkey='Tiberius')
@@ -185,56 +195,56 @@ class DatasetModule (BaseModule, torch.nn.Module ):
             receptor_pool = module.load_receptor_pool(refresh=refresh)
             
 
-        with st.expander('Text', False):
-            input_text = st.text_area('Input Text')
+        # with st.expander('Text', False):
+        #     input_text = st.text_area('Input Text')
 
-        metrics_dict = {}
-        with st.sidebar.expander('Query', True):
+        # metrics_dict = {}
+        # with st.sidebar.expander('Query', True):
 
-            with st.form('Fire'):
-                batch_size = st.slider('batch size', 1, 128, 5)
-                num_endpoints = st.slider('num endpoints', 1, 1000, 50)
-                timeout = st.select_slider('timeout', list(np.arange(0.0, 5.0, 0.1)), 1.0)
-                batch_count = st.select_slider('batch count', list(range(1,10)), 1)
-                min_success = st.select_slider('min_success',list(np.arange(0.0, 1.0, 0.1)) , 0.5)
+        #     with st.form('Fire'):
+        #         batch_size = st.slider('batch size', 1, 128, 5)
+        #         num_endpoints = st.slider('num endpoints', 1, 1000, 50)
+        #         timeout = st.select_slider('timeout', list(np.arange(0.0, 5.0, 0.1)), 1.0)
+        #         batch_count = st.select_slider('batch count', list(range(1,10)), 1)
+        #         min_success = st.select_slider('min_success',list(np.arange(0.0, 1.0, 0.1)) , 0.5)
 
-                all_synapses = module.bitmodule.getattr('available_synapses')
-                synapse2idx = {s:s_i for s_i, s in enumerate(all_synapses)}
-                synapses = st.multiselect('synapspe', all_synapses, ['TextLastHiddenState'])
-                synapses = list(map(module.bitmodule.str2synapse, synapses))
+        #         all_synapses = module.bitmodule.getattr('available_synapses')
+        #         synapse2idx = {s:s_i for s_i, s in enumerate(all_synapses)}
+        #         synapses = st.multiselect('synapspe', all_synapses, ['TextLastHiddenState'])
+        #         synapses = list(map(module.bitmodule.str2synapse, synapses))
 
         
-                submit_button = st.form_submit_button('Fire')
+        #         submit_button = st.form_submit_button('Fire')
 
 
-                if submit_button:
-                    metrics_dict = module.get_samples(synapses=synapses, timeout=timeout, batch_count=batch_count, num_endpoints=num_endpoints, min_success=min_success , batch_size=batch_size)
+        #         if submit_button:
+        #             metrics_dict = module.get_samples(synapses=synapses, timeout=timeout, batch_count=batch_count, num_endpoints=num_endpoints, min_success=min_success , batch_size=batch_size)
     
 
-        if len(metrics_dict)>0: 
-            for k in ['tokens', 'samples', 'queries', 'successes', 'upload_mb', 'download_mb']: 
-                metrics_dict[f"{k}_per_second"] = round_sig(metrics_dict[k] / (metrics_dict['elapsed_seconds']), 3)
+        # if len(metrics_dict)>0: 
+        #     for k in ['tokens', 'samples', 'queries', 'successes', 'upload_mb', 'download_mb']: 
+        #         metrics_dict[f"{k}_per_second"] = round_sig(metrics_dict[k] / (metrics_dict['elapsed_seconds']), 3)
 
 
 
-            total_metrics =  len(metrics_dict)
-            num_cols = 3
-            num_rows = total_metrics// num_cols
-            last_row_cols = total_metrics % num_cols
+        #     total_metrics =  len(metrics_dict)
+        #     num_cols = 3
+        #     num_rows = total_metrics// num_cols
+        #     last_row_cols = total_metrics % num_cols
 
-            rows = []
+        #     rows = []
 
-            for i, k in enumerate(metrics_dict.keys()):
-                if i % num_cols == 0:
-                    row_column_count = num_cols
-                    rows.append(st.columns([1]*row_column_count))
+        #     for i, k in enumerate(metrics_dict.keys()):
+        #         if i % num_cols == 0:
+        #             row_column_count = num_cols
+        #             rows.append(st.columns([1]*row_column_count))
                 
-                rows[-1][(i % num_cols)].metric(f'{k}', metrics_dict[k])
+        #         rows[-1][(i % num_cols)].metric(f'{k}', metrics_dict[k])
 
-            st.write(f'Num successful returns: {success_count} (Time: {elapsed_time})')
+        #     st.write(f'Num successful returns: {success_count} (Time: {elapsed_time})')
 
-            import gc
-            gc.collect()
+        #     import gc
+        #     gc.collect()
 
 
         with st.sidebar.expander('Ray', True):
@@ -272,12 +282,122 @@ class DatasetModule (BaseModule, torch.nn.Module ):
     # then waits timeout before checking for success from each query.
     # The function returns a list of booleans True or false depending on the query result.
 
+    def str2synapse(self, synapse_str, *args, **kwargs):
+        synapse =getattr(bittensor.synapse, synapse_str)
+        # st.write(synapse)
+        if synapse_str in ['TextCausalLMNext','TextCausalLM']:
+            synapse =synapse(decode_topk=False, *args, **kwargs)
+        else:
+            synapse = synapse(*args, **kwargs)
+        
+        return synapse
+
+    def sample(self,
+                 batch_size=1,
+                 batch_multiplier=1,
+                 min_success=100,
+                 endpoint_ids=None , 
+                 num_endpoints=20,
+                 random_sample=True,
+                 timeout=1,
+                 seq_len=16,
+                 seq_multiplier=1,
+                 padding_fill_value = 1,
+                 synapse='TextCausalLMNext',
+                 success_only=False,
+                 ray_get=True):
+
+
+        self.monitor_module_memory(module='receptor_pool')
+        st.write(self.available_synapses)
+        assert synapse in self.available_synapses, f'{synapse} should be in available synapses {self.available_synapses}'
+        synapse = self.str2synapse(synapse)
+        macro_batch_size = batch_size*batch_multiplier
+        input_tokens = self.dataset.sample(batch_size=macro_batch_size)
+
+        
+        endpoints = self.bitmodule.get_endpoints(endpoint_ids=endpoint_ids , 
+                                                num_endpoints=num_endpoints, 
+                                                random_sample=random_sample)
+        st.write(endpoints)
+
+        # ensure sequence is sequence length
+        input_tokens_seq_len = input_tokens.shape[1]
+        if seq_len > input_tokens_seq_len:
+            input_tokens_seq_len = input_tokens.shape[1]
+            seq_filler = torch.full(size=(input_tokens.shape[0], seq_len - input_tokens_seq_len), fill_value=padding_fill_value)
+            input_tokens = torch.cat([input_tokens, seq_filler], dim=1)
+        else:
+            input_tokens = input_tokens[:,:seq_len]
+
+
+
+        forward_kwargs = dict(
+                              inputs= [input_tokens] ,
+                              synapses=[synapse],
+                              timeout=timeout, 
+                              endpoints=endpoints,
+                              min_success=min_success,
+                              return_success_only=success_only
+                              )
+
+
+        results = self.receptor_pool.forward(**forward_kwargs, ray_get=True)
+        
+
+
+        st.write([r[0].shape for r in results[0]])
+        results_dict = {'tensor':[], 'code':[], 'latency':[]}
+
+
+        num_responses = len(results[0])
+        for i in range(num_responses):
+            tensor = results[0][i][0]
+            code = results[1][i][0]
+            latency = results[2][i][0]
+
+            if str(synapse) in ['TextCausalLMNext', 'TextCausalLM']:
+                if tensor.shape[-1] != 2:
+                    continue
+
+            results_dict['tensor'].append(tensor)
+            results_dict['code'].append(code)
+            results_dict['latency'].append(latency)
+
+
+        results_dict['tensor'] = torch.stack(results_dict['tensor'])
+        results_dict['code'] = torch.tensor(results_dict['code'])
+        results_dict['latency'] = torch.tensor(results_dict['latency'])
+
+        return results_dict
+
+
 if __name__ == '__main__':
     
     import streamlit as st
     import time
     st.set_page_config(layout="wide")
-    DatasetModule.st_test_1()
+    # DatasetModule.st_test_1()
+
+
+    module = DatasetModule.deploy(actor=False)
+    st.write('bro')
+    module.load_dataset(refresh=False)
+    module.load_bitmodule(refresh=False)
+    module.bitmodule.set_wallet(name='const', hotkey='Tiberius')
+
+    st.write(module.bitmodule.getattr('wallet'))
+
+
+    with st.sidebar.expander('Receptor Pool', True):
+        refresh = st.button('Refresh')
+        receptor_pool = module.load_receptor_pool(refresh=refresh)
+
+    # st.write(module.receptor_pool.memory_usage('ratio')
+    # st.write(module.str2synapse(module.available_synapses[0]))
+    # st.write(module.sample())
+    # st.write(module.receptor_pool.memory_usage('ratio'))
+    st.write({k:v.shape for k,v in module.sample(batch_size=10, seq_len=10, timeout=4, num_endpoints=10).items()})
     # BaseModule.ray_restart()
    
    

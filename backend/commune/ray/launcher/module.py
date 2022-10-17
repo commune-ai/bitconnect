@@ -89,6 +89,7 @@ class Launcher(BaseModule):
         
         return job_id
 
+
     @property
     def resource_limit(self):
         return {'gpu': torch.cuda.device_count(), 
@@ -215,11 +216,10 @@ class Launcher(BaseModule):
         module = Launcher.deploy(actor=False, wrap=True)
         # # st.write(module.module_tree)
         # actor = module.get_actor('algovera.base-1')
-        # module.add_actor(module=f'bittensor.receptor.pool-{0}', refresh=False)
+        # module.add_actor(module=f'bittensor.receptor.pool-{0}', wallet=None, refresh=False)
         # # st.write(module.remove_actor('algovera.base-3'))
-        # # st.write(module.get_actor('bittensor.receptor.pool'))
+        st.write(module.get_actor('bittensor.receptor.pool-0'))
         # # module.remove_all_actors()
-        st.write(ray.get(module.queue.get.remote('put')))
         # st.write(ray.get(ray.get_actor('ray.server.queue').put.remote('bro', 'bro')))
         # st.write(module.get_actor('bittensor.receptor.receptor'))
         # st.write(module.getattr('available_modules'))
