@@ -1,0 +1,10 @@
+module: 'APIModule'
+# clients
+client: {}
+max_actor_count: 4
+# shifter: get_cfg(process.shifter.module)
+submodule:
+  queue: 
+    module: ray.server.queue.QueueServer
+    actor : {refresh: False}
+

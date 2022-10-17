@@ -133,7 +133,10 @@ class ActorModule:
         return dict_get(self.config, 'actor.name')
 
     def actor_info(self):
-        return dict_get(self.config, 'actor')
+        actor_info_dict = dict_get(self.config, 'actor')
+        actor_info_dict['resources'] = self.resource_usage()
+        return actor_info_dict
+
 
 
     @staticmethod
@@ -298,7 +301,7 @@ class ActorModule:
         actor =  ray.get_actor(actor_name)
         actor = ActorModule.add_actor_metadata(actor)
         if wrap:
-            ActorModule.wrap_actor()
+            ActorModule.wrap_actor(actor=actor)
         return actor
 
     @property
@@ -586,7 +589,7 @@ class ActorModule:
     def resource_usage(self):
         resource_dict =  self.config.get('actor', {}).get('resources', None)
         resource_dict = {k.replace('num_', ''):v for k,v in resource_dict.items()}
-        resource_dict['memory'] = self.memory_used(mode='ratio')
+        resource_dict['memory'] = self.memory_usage(mode='ratio')
         return  resource_dict
 
     @classmethod

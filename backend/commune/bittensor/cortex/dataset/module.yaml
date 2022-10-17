@@ -3,12 +3,14 @@ module: 'DatasetModule'
 client: {}
 
 
-submodule:
-  queue: 
-    module: ray.server.queue.QueueServer
-    actor : {refresh: False}
+# submodule:
+#   queue: 
+#     module: ray.server.queue.QueueServer
+#     actor : {refresh: False}
 
-
+queue: 
+  module: ray.server.queue.QueueServer
+  actor : {refresh: False}
 
 dataset:
   path: datasets.load_dataset

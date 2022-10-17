@@ -16,7 +16,7 @@
 # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION 
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
 # DEALINGS IN THE SOFTWARE.
-
+import time
 from copy import deepcopy
 import math
 from typing import Tuple, List, Union
@@ -51,12 +51,15 @@ class DatasetModule (BaseModule, torch.nn.Module ):
     ):
         torch.nn.Module.__init__(self)
         BaseModule.__init__(self, config=config, override=override, **kwargs)
+        self.load()
 
 
     def load(self):
-        self.load_dataset()
-        self.load_receptor_pool()
         self.load_bitmodule()
+        self.load_receptor_pool()
+        self.load_dataset()
+        self.load_queue()
+
 
     @property
     def available_synapses(self):
@@ -70,6 +73,14 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         receptor_pool_class =  BaseModule.get_object('bittensor.receptor.pool.module.ReceptorPoolModule')
         self.receptor_pool = receptor_pool_class.deploy(actor={'refresh': refresh},wallet=self.bitmodule.getattr('wallet'), wrap=True)
         return self.receptor_pool
+
+    def load_queue(self, refresh=False):
+        queue_config = self.config.get('queue')
+        queue_class =  BaseModule.get_object(queue_config['module'])
+        queue_config['actor']['refresh'] = refresh
+        self.queue = queue_class.deploy(actor=queue_config['actor'], wrap=True)
+        return self.queue
+
 
     def monitor_module_memory(self, module='receptor_pool'):
         threshold_mode = self.config[module]['memory_threshold']['mode'] # ratio, percent, etc
@@ -85,11 +96,11 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         self.bitmodule = module_class.deploy(actor={'refresh': refresh}, override={'network': self.config['network'], 'wallet': self.config['wallet']},load=True, wrap = True)
         return self.bitmodule
 
-    def __str__(self):
-        return "ReceptorPool({},{})".format(len(self.receptors), self.max_active_receptors)
+    # def __str__(self):
+    #     return "ReceptorPool({},{})".format(len(self.receptors), self.max_active_receptors)
 
-    def __repr__(self):
-        return self.__str__()
+    # def __repr__(self):
+    #     return self.__str__()
     
     def __exit__(self):
         for receptor in self.receptors:
@@ -106,73 +117,6 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         return {hotkey: v.state() for hotkey, v in self.receptors.items()}
 
 
-    def get_samples(self, num_endpoints=10, batch_count=10, batch_size=10, timeout=1, synapses=None, min_success=0.5):
-
-        return_success_only = True
-        results = None
-        job2inputs_dict = {}
-        metrics_dict=dict(
-            samples = 0, 
-            tokens = 0,
-            queries = 0, 
-            successes= 0,
-            elapsed_seconds =  -1,
-            upload_mb=0,
-            download_mb=0, 
-
-        )
-
-        io_1 = psutil.net_io_counters()
-        start_bytes_sent, start_bytes_recv = io_1.bytes_sent, io_1.bytes_recv
-
-        with BaseModule.timer('Time: {t}', streamlit=False) as t: 
-            inputs_batch = []
-            forward_kwargs_list = []
-
-            for i in range(batch_count):
-                endpoints = self.bitmodule.get_endpoints(num_endpoints=num_endpoints)
-                inputs = self.dataset.sample(batch_size=batch_size)
-                
-                inputs_batch.append(inputs)
-                metrics_dict['queries'] += len(endpoints)
-                forward_kwargs_list.append(dict(inputs= inputs ,synapses=synapses, timeout=timeout, endpoints=endpoints,
-                            min_success=min_success,return_success_only=True))
-
-
-            for forward_kwargs in forward_kwargs_list:
-                job = self.receptor_pool.forward(**forward_kwargs, ray_get=False)
-                job2inputs_dict[job] = inputs
-
-        
-            running_jobs = list(job2inputs_dict.keys())
-            while len(running_jobs)>0:
-                finished_jobs, running_jobs = ray.wait(running_jobs)
-                if len(finished_jobs) > 0:
-                    for job in finished_jobs:
-                        results = ray.get(job)
-                        successes = len(results[0])
-                        metrics_dict['successes'] += successes
-                        inputs = job2inputs_dict.pop(job)
-                        metrics_dict['samples'] += inputs.shape[0] *  successes
-                        metrics_dict['tokens'] += inputs.shape[0] * inputs.shape[1] *  successes
-                    
-                    del finished_jobs
-            metrics_dict['elapsed_seconds'] = t.elapsed_seconds
-
-
-        io_2 = psutil.net_io_counters()
-        total_bytes_sent = round_sig(io_2.bytes_sent - start_bytes_sent, 3)
-        total_bytes_recved = round_sig(io_2.bytes_recv - start_bytes_recv,3) 
-
-        metrics_dict['upload_mb'] = total_bytes_sent * 10e-6
-        metrics_dict['download_mb'] = total_bytes_recved *  10e-6
-
-
-        for k in ['tokens', 'samples', 'queries', 'successes', 'upload_mb', 'download_mb']: 
-            metrics_dict[f"{k}_per_second"] = round_sig(metrics_dict[k] / (metrics_dict['elapsed_seconds']), 3)
-
-        return metrics_dict
-        
 
     # Here is a useful solution that works for various operating systems, including Linux, Windows, etc.:
     @staticmethod
@@ -183,9 +127,9 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         use_ray = False
 
         module = DatasetModule.deploy(actor=False)
-        module.load_dataset(refresh=False)
-        module.load_bitmodule(refresh=False)
-        module.bitmodule.set_wallet(name='const', hotkey='Tiberius')
+        # module.load_dataset(refresh=False)
+        # module.load_bitmodule(refresh=False)
+        # module.bitmodule.set_wallet(name='const', hotkey='Tiberius')
 
         st.write(module.bitmodule.getattr('wallet'))
 
@@ -292,6 +236,103 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         
         return synapse
 
+
+    sample_generator_count = 0
+    sample_generator_count_max = 5
+    def sample_generator(self, num_samples=2,
+                         batch_size=1,
+                    batch_multiplier=1,
+                    min_success=100,
+                    endpoint_ids=None , 
+                    num_endpoints=20,
+                    random_sample=True,
+                    timeout=1,
+                    seq_len=16,
+                    seq_multiplier=1,
+                    padding_fill_value = 1,
+                    synapse='TextCausalLM',
+                    success_only=True,
+                    queue_topic=None):
+
+        while self.sample_generator_count >= self.sample_generator_count_max:
+            time.sleep(1)
+        
+        self.sample_generator_count += 1
+
+
+        
+        running_jobs_dict = {}
+        sample_kwargs = dict(batch_size=batch_size,
+                batch_multiplier=batch_multiplier,
+                min_success=min_success,
+                endpoint_ids=endpoint_ids , 
+                num_endpoints=num_endpoints,
+                random_sample=random_sample,
+                timeout=timeout,
+                seq_len=seq_len,
+                seq_multiplier=seq_multiplier,
+                padding_fill_value =padding_fill_value,
+                synapse=synapse,
+                success_only=success_only,
+                ray_get=False)
+            
+        for i in range(num_samples):
+
+            job = self.sample(**sample_kwargs)
+            running_jobs_dict[job] = True
+        running_jobs = list(running_jobs_dict.keys())
+
+        finished_results = []
+        while len(running_jobs)>0:
+            finished_jobs, running_jobs = ray.wait(running_jobs)
+            if len(finished_jobs) > 0:
+                for job in finished_jobs:
+                    results = ray.get(job)
+                    results = self.process_results(results=results, synapse=synapse)
+                    
+                    batch_chunked_tensors = torch.chunk(results['tensor'], chunks=batch_multiplier, dim=1)
+                    for batch_chunked_tensor in batch_chunked_tensors:
+                        if str(synapse) not in ['TextCausalLM', 'TextLastHiddenState']:
+                            seq_multiplier = 1
+
+                        chunked_tensors = torch.chunk(batch_chunked_tensor, chunks=seq_multiplier, dim=2)
+                        for chunked_tensor in chunked_tensors:
+                            finished_results.append({**results, **{'tensor': chunked_tensor}})
+                if isinstance(queue_topic, str):
+                    for finished_result in finished_results:
+                        self.queue.put(queue_topic,finished_result)
+                    
+        self.sample_generator_count -= 1 
+        return finished_results
+        
+
+    def process_results(self, results, synapse):
+        results_dict = {'tensor':[], 'code':[], 'latency':[]}
+
+
+        num_responses = len(results[0])
+        for i in range(num_responses):
+            tensor = results[0][i][0]
+            code = results[1][i][0]
+            latency = results[2][i][0]
+
+            st.write(tensor.shape)
+
+            if str(synapse) in ['TextCausalLMNext']:
+                if tensor.shape[-1] != 2:
+                    continue
+
+            results_dict['tensor'].append(tensor)
+            results_dict['code'].append(code)
+            results_dict['latency'].append(latency)
+
+
+        results_dict['tensor'] = torch.stack(results_dict['tensor'])
+        results_dict['code'] = torch.tensor(results_dict['code'])
+        results_dict['latency'] = torch.tensor(results_dict['latency'])
+
+        return results_dict
+
     def sample(self,
                  batch_size=1,
                  batch_multiplier=1,
@@ -303,23 +344,26 @@ class DatasetModule (BaseModule, torch.nn.Module ):
                  seq_len=16,
                  seq_multiplier=1,
                  padding_fill_value = 1,
-                 synapse='TextCausalLMNext',
-                 success_only=False,
+                 synapse='TextCausalLM',
+                 success_only=True,
                  ray_get=True):
 
 
         self.monitor_module_memory(module='receptor_pool')
-        st.write(self.available_synapses)
         assert synapse in self.available_synapses, f'{synapse} should be in available synapses {self.available_synapses}'
         synapse = self.str2synapse(synapse)
         macro_batch_size = batch_size*batch_multiplier
+        
         input_tokens = self.dataset.sample(batch_size=macro_batch_size)
 
         
         endpoints = self.bitmodule.get_endpoints(endpoint_ids=endpoint_ids , 
                                                 num_endpoints=num_endpoints, 
                                                 random_sample=random_sample)
-        st.write(endpoints)
+
+
+
+
 
         # ensure sequence is sequence length
         input_tokens_seq_len = input_tokens.shape[1]
@@ -341,36 +385,14 @@ class DatasetModule (BaseModule, torch.nn.Module ):
                               return_success_only=success_only
                               )
 
-
-        results = self.receptor_pool.forward(**forward_kwargs, ray_get=True)
         
-
-
-        st.write([r[0].shape for r in results[0]])
-        results_dict = {'tensor':[], 'code':[], 'latency':[]}
-
-
-        num_responses = len(results[0])
-        for i in range(num_responses):
-            tensor = results[0][i][0]
-            code = results[1][i][0]
-            latency = results[2][i][0]
-
-            if str(synapse) in ['TextCausalLMNext', 'TextCausalLM']:
-                if tensor.shape[-1] != 2:
-                    continue
-
-            results_dict['tensor'].append(tensor)
-            results_dict['code'].append(code)
-            results_dict['latency'].append(latency)
-
-
-        results_dict['tensor'] = torch.stack(results_dict['tensor'])
-        results_dict['code'] = torch.tensor(results_dict['code'])
-        results_dict['latency'] = torch.tensor(results_dict['latency'])
-
-        return results_dict
-
+        if ray_get:
+            results = self.receptor_pool.forward(**forward_kwargs, ray_get=ray_get)
+            results = self.process_results(results=results, synapse=synapse)
+            return results
+        else:
+            results_job = self.receptor_pool.forward(**forward_kwargs, ray_get=ray_get)
+            return results_job
 
 if __name__ == '__main__':
     
@@ -380,24 +402,29 @@ if __name__ == '__main__':
     # DatasetModule.st_test_1()
 
 
-    module = DatasetModule.deploy(actor=False)
+    module = DatasetModule.deploy(actor={'refresh': False}, wrap=True)
     st.write('bro')
-    module.load_dataset(refresh=False)
-    module.load_bitmodule(refresh=False)
-    module.bitmodule.set_wallet(name='const', hotkey='Tiberius')
+    # module.load_dataset(refresh=False)
+    # module.load_bitmodule(refresh=False)
+    # module.load_receptor_pool(refresh=True)
+    # module.load_queue(refresh=False)
+    # module.bitmodule.set_wallet(name='const', hotkey='Tiberius')
 
-    st.write(module.bitmodule.getattr('wallet'))
+    # st.write(module.bitmodule.getattr('wallet'))
 
 
-    with st.sidebar.expander('Receptor Pool', True):
-        refresh = st.button('Refresh')
-        receptor_pool = module.load_receptor_pool(refresh=refresh)
+    # with st.sidebar.expander('Receptor Pool', True):
+    #     refresh = st.button('Refresh')
+    #     receptor_pool = module.load_receptor_pool(refresh=refresh)
 
     # st.write(module.receptor_pool.memory_usage('ratio')
     # st.write(module.str2synapse(module.available_synapses[0]))
-    # st.write(module.sample())
+    # st.write(module.sample( batch_multiplier=2, batch_size=6, seq_len=10, seq_multiplier=2, timeout=2, num_endpoints=10)['tensor'].shape)
     # st.write(module.receptor_pool.memory_usage('ratio'))
-    st.write({k:v.shape for k,v in module.sample(batch_size=10, seq_len=10, timeout=4, num_endpoints=10).items()})
+    # module.sample_generator(num_samples=20, batch_multiplier=2, batch_size=6, seq_len=10, seq_multiplier=2, timeout=2, num_endpoints=10, queue_topic='demo', ray_get=False)
+    st.write(module.getattr('queue').size_map())
+    # st.write(module.load_receptor_pool(True))  
+    st.write(module.getattr('dataset').memory_usage('ratio'))
     # BaseModule.ray_restart()
    
    
