@@ -3,6 +3,7 @@
 # The MIT License (MIT)
 # Copyright © 2021 Yuma Rao
 
+import gc
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated 
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation 
 # the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, 
@@ -52,6 +53,7 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         torch.nn.Module.__init__(self)
         BaseModule.__init__(self, config=config, override=override, **kwargs)
         self.load()
+        
 
 
     def load(self):
@@ -60,6 +62,8 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         self.load_dataset()
         self.load_queue()
 
+    def refresh_module(self, module, *args, **kwargs):
+        return getattr(self, f'load_{module}')(refresh=True, *args, **kwargs)
 
     @property
     def available_synapses(self):
@@ -88,13 +92,21 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         receptor_pool_memory_value = self.receptor_pool.memory_usage(threshold_mode)
         if receptor_pool_memory_value > threshold_value:
             getattr(self, f'load_{module}')(refresh=True)
+            st.write('refreshed', receptor_pool_memory_value, threshold_value)
+            time.sleep(1)
+            st.write(self.receptor_pool.getattr('name'))
 
         
 
     def load_bitmodule(self, refresh=False):
         module_class = BaseModule.get_object('bittensor.base.module.BitModule')
         self.bitmodule = module_class.deploy(actor={'refresh': refresh}, override={'network': self.config['network'], 'wallet': self.config['wallet']},load=True, wrap = True)
+        self.sync()
         return self.bitmodule
+
+    def sync(self):
+        self.bitmodule.sync()
+        self.metagraph_state = self.bitmodule.getattr('metagraph_state')
 
     # def __str__(self):
     #     return "ReceptorPool({},{})".format(len(self.receptors), self.max_active_receptors)
@@ -131,8 +143,8 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         # module.load_bitmodule(refresh=False)
         # module.bitmodule.set_wallet(name='const', hotkey='Tiberius')
 
-        st.write(module.bitmodule.getattr('wallet'))
-
+        from ray.experimental.state.api import summarize_objects
+        print(summarize_objects())
 
         with st.sidebar.expander('Receptor Pool', True):
             refresh = st.button('Refresh')
@@ -191,33 +203,33 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         #     gc.collect()
 
 
-        with st.sidebar.expander('Ray', True):
-            restart_ray_cluster = st.button('Restart Ray Cluster')
-            if restart_ray_cluster:
-                BaseModule.ray_restart()
-            stop_ray_cluster = st.button('Stop Ray Cluster')
-            if stop_ray_cluster:
-                BaseModule.ray_stop()
+        # with st.sidebar.expander('Ray', True):
+        #     restart_ray_cluster = st.button('Restart Ray Cluster')
+        #     if restart_ray_cluster:
+        #         BaseModule.ray_restart()
+        #     stop_ray_cluster = st.button('Stop Ray Cluster')
+        #     if stop_ray_cluster:
+        #         BaseModule.ray_stop()
 
-            start_ray_cluster = st.button('Start Ray Cluster')
-            if start_ray_cluster:
-                BaseModule.ray_start()
-
-
+        #     start_ray_cluster = st.button('Start Ray Cluster')
+        #     if start_ray_cluster:
+        #         BaseModule.ray_start()
 
 
-        with st.expander('Resource Usage'):
-            actor_name =module.receptor_pool.getattr('actor_name')
-            memory_dict = {
-                actor_name: receptor_pool.memory_usage(mode='percent'),
-                'other': receptor_pool.memory_used(mode='percent') - receptor_pool.memory_usage(mode='percent'),
-                'free': receptor_pool.memory_available(mode='percent'),
-            }
 
-            import plotly.express as px
+
+        # with st.expander('Resource Usage'):
+        #     actor_name =module.receptor_pool.getattr('actor_name')
+        #     memory_dict = {
+        #         actor_name: receptor_pool.memory_usage(mode='percent'),
+        #         'other': receptor_pool.memory_used(mode='percent') - receptor_pool.memory_usage(mode='percent'),
+        #         'free': receptor_pool.memory_available(mode='percent'),
+        #     }
+
+        #     import plotly.express as px
         
-            fig = px.pie( values=list(memory_dict.values()), names=list(memory_dict.keys()), title='Memory Usage')
-            st.write(fig)
+        #     fig = px.pie( values=list(memory_dict.values()), names=list(memory_dict.keys()), title='Memory Usage')
+        #     st.write(fig)
     
     ############################
     ##### Forward Function #####
@@ -239,8 +251,42 @@ class DatasetModule (BaseModule, torch.nn.Module ):
 
     sample_generator_count = 0
     sample_generator_count_max = 5
-    def sample_generator(self, num_samples=2,
-                         batch_size=1,
+
+    def sample_generator_loop(self, loops=10,  splits=['train', 'test'], **kwargs):
+        for i in range(loops):
+            for split in splits:
+                st.write(i, split )
+                st.write('memory', self.receptor_pool.memory_usage('ratio'), self.queue.memory_usage('ratio'))
+                kwargs['split'] = kwargs['queue'] = split
+                self.sample_generator(**kwargs)
+                st.write(self.queue.size_map())
+                gc.collect()
+        
+    generator_map = {}
+    generator_jobs = {}
+    def start_generator(self, key=None, **kwargs):
+        if key == None:
+            key = kwargs.get('split')
+        self.generator_map[key] = self.sample_generator(**kwargs) 
+
+    def kill_generator(self, key=None):
+        self.generator_map.pop(key,None)
+        jobs = self.generator_jobs.pop(key,None)
+        ray.get(jobs)
+
+    rm_generator = kill_generator
+    def ls_generators(self):
+        return list(self.generator_map.keys())
+
+    def generate_sample(self, key):
+        return next(self.generator_map[key])
+
+    def num_generator_jobs(self, key):
+        return len(self.generator_jobs.get(key, []))
+    def sample_generator(self, 
+
+                    num_samples=2,
+                    batch_size=1,
                     batch_multiplier=1,
                     min_success=100,
                     endpoint_ids=None , 
@@ -251,11 +297,16 @@ class DatasetModule (BaseModule, torch.nn.Module ):
                     seq_multiplier=1,
                     padding_fill_value = 1,
                     synapse='TextCausalLM',
-                    success_only=True,
-                    queue_topic=None):
+                    success_only=False,
+                    generator=False,
+                    split=None,
+                    queue=None):
 
-        while self.sample_generator_count >= self.sample_generator_count_max:
-            time.sleep(1)
+        self.monitor_module_memory()
+
+
+        # while self.sample_generator_count >= self.sample_generator_count_max:
+        #     time.sleep(1)
         
         self.sample_generator_count += 1
 
@@ -273,8 +324,10 @@ class DatasetModule (BaseModule, torch.nn.Module ):
                 seq_multiplier=seq_multiplier,
                 padding_fill_value =padding_fill_value,
                 synapse=synapse,
+                split=split,
                 success_only=success_only,
                 ray_get=False)
+
             
         for i in range(num_samples):
 
@@ -282,9 +335,11 @@ class DatasetModule (BaseModule, torch.nn.Module ):
             running_jobs_dict[job] = True
         running_jobs = list(running_jobs_dict.keys())
 
+        self.generator_jobs[split] = running_jobs
         finished_results = []
         while len(running_jobs)>0:
             finished_jobs, running_jobs = ray.wait(running_jobs)
+            self.generator_jobs[split] = running_jobs
             if len(finished_jobs) > 0:
                 for job in finished_jobs:
                     results = ray.get(job)
@@ -297,18 +352,29 @@ class DatasetModule (BaseModule, torch.nn.Module ):
 
                         chunked_tensors = torch.chunk(batch_chunked_tensor, chunks=seq_multiplier, dim=2)
                         for chunked_tensor in chunked_tensors:
-                            finished_results.append({**results, **{'tensor': chunked_tensor}})
-                if isinstance(queue_topic, str):
-                    for finished_result in finished_results:
-                        self.queue.put(queue_topic,finished_result)
-                    
-        self.sample_generator_count -= 1 
-        return finished_results
+                            sample_result = {**results, **{'tensor': chunked_tensor}}
+                            # finished_results.append(sample_result)
+                            # if generator:
+                            yield sample_result
+        
+        self.kill_generator(split)
+        # queue_kwargs = {}
+        # if isinstance(queue, str):
+        #     queue_kwargs['topic'] = queue
+
+        # elif isinstance(queue, dict):
+        #     queue_kwargs = queue
+        # for finished_result in finished_results:
+
+        #     queue_kwargs['item'] = finished_result
+        #     job = self.queue.put(**queue_kwargs)
+
+        # self.sample_generator_count -= 1 
+        # return finished_results
         
 
     def process_results(self, results, synapse):
         results_dict = {'tensor':[], 'code':[], 'latency':[]}
-
 
         num_responses = len(results[0])
         for i in range(num_responses):
@@ -316,7 +382,6 @@ class DatasetModule (BaseModule, torch.nn.Module ):
             code = results[1][i][0]
             latency = results[2][i][0]
 
-            st.write(tensor.shape)
 
             if str(synapse) in ['TextCausalLMNext']:
                 if tensor.shape[-1] != 2:
@@ -333,6 +398,10 @@ class DatasetModule (BaseModule, torch.nn.Module ):
 
         return results_dict
 
+
+    def splits(self):
+        return self.dataset.getattr('splits')
+
     def sample(self,
                  batch_size=1,
                  batch_multiplier=1,
@@ -346,23 +415,24 @@ class DatasetModule (BaseModule, torch.nn.Module ):
                  padding_fill_value = 1,
                  synapse='TextCausalLM',
                  success_only=True,
+                 split=None,
                  ray_get=True):
 
 
-        self.monitor_module_memory(module='receptor_pool')
         assert synapse in self.available_synapses, f'{synapse} should be in available synapses {self.available_synapses}'
         synapse = self.str2synapse(synapse)
         macro_batch_size = batch_size*batch_multiplier
         
-        input_tokens = self.dataset.sample(batch_size=macro_batch_size)
+        input_tokens = self.dataset.sample(batch_size=macro_batch_size, split=split)
 
         
         endpoints = self.bitmodule.get_endpoints(endpoint_ids=endpoint_ids , 
                                                 num_endpoints=num_endpoints, 
                                                 random_sample=random_sample)
 
+        # endpoint_ids = [e.uid for e in endpoints]
 
-
+        # metagraph_dict = {k:self.metagraph_state[k][endpoint_ids]  for k in ['stake', 'incentive', 'consensus', 'trust','ranks', 'dividends', 'emmision']}
 
 
         # ensure sequence is sequence length
@@ -401,30 +471,55 @@ if __name__ == '__main__':
     st.set_page_config(layout="wide")
     # DatasetModule.st_test_1()
 
-
+    # DatasetModule.ray_restart()
     module = DatasetModule.deploy(actor={'refresh': False}, wrap=True)
-    st.write('bro')
-    # module.load_dataset(refresh=False)
-    # module.load_bitmodule(refresh=False)
-    # module.load_receptor_pool(refresh=True)
-    # module.load_queue(refresh=False)
+
+    # module.load_dataset(refresh=True)
+    # module.load_queue(refresh=True)
+
+    # st.write(module.queue)
+    # st.write(module.queue.memory_usage())
     # module.bitmodule.set_wallet(name='const', hotkey='Tiberius')
-
     # st.write(module.bitmodule.getattr('wallet'))
-
-
     # with st.sidebar.expander('Receptor Pool', True):
     #     refresh = st.button('Refresh')
     #     receptor_pool = module.load_receptor_pool(refresh=refresh)
-
     # st.write(module.receptor_pool.memory_usage('ratio')
     # st.write(module.str2synapse(module.available_synapses[0]))
     # st.write(module.sample( batch_multiplier=2, batch_size=6, seq_len=10, seq_multiplier=2, timeout=2, num_endpoints=10)['tensor'].shape)
     # st.write(module.receptor_pool.memory_usage('ratio'))
-    # module.sample_generator(num_samples=20, batch_multiplier=2, batch_size=6, seq_len=10, seq_multiplier=2, timeout=2, num_endpoints=10, queue_topic='demo', ray_get=False)
-    st.write(module.getattr('queue').size_map())
+
+    # st.write(module.getattr('queue').size('fam'))
+    # st.write(module.getattr('sample_generator_count'))
+    # module.sample_generator_loop( loops=20,  batch_multiplier=4, batch_size=6, seq_len=10, seq_multiplier=2, timeout=2, num_endpoints=10, split='train', queue='train')
+    # module.start_generator( num_samples=100, batch_multiplier=4, batch_size=6, seq_len=10, seq_multiplier=2, timeout=2, num_endpoints=10, split='train')
+
+    # st.write(module.num_generator_jobs('train'))
+
+    for i in range(100):
+        st.write(module.generate_sample('train'))
+    # for sample in :
+    #     st.write(sample['tensor'].shape)
+
+    # for sample in enumerate(module.sample_generator(  batch_multiplier=4, batch_size=6, seq_len=10, seq_multiplier=2, timeout=2, num_endpoints=10, split='train', queue='train'):
+        
+
+    # st.write(module.getattr('queue').delete('fam'))    
+    # st.write(module.getattr('queue').put('train', 'bro'))
+    
+    # st.write(module.queue.memory_usage('ratio'))
+    # # # st.write(module.queue.delete('test'))
+
+    # st.write(module.getattr('queue').size_map())
+    # for i in range(100):
+    #     st.write(module.queue.memory_usage('ratio'))
+    #     module.getattr('queue').get('test')
+    #     st.write(module.getattr('queue').size_map())
+    # for i in range(module.getattr('queue').size_map('train')):
+    #     module.getattr('queue').get('train')
+    #     module.getattr('queue').size('train')
+    #     st.write(i)
+    # st.write(module.getattr('queue').get('demo')['tensor'].shape)
     # st.write(module.load_receptor_pool(True))  
-    st.write(module.getattr('dataset').memory_usage('ratio'))
+    # st.write(module.getattr('dataset').memory_usage('ratio'))
     # BaseModule.ray_restart()
-   
-   

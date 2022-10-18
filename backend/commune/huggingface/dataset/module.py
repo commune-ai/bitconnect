@@ -56,7 +56,24 @@ class DatasetModule(BaseModule):
 
     def load_dataset(self, path, params, **kwargs):
         dataset_class = self.import_object(path)
+
+        split = params.get('split')
+        if isinstance(split, str):
+            params['split'] = {split: split}
+        elif isinstance(split, list):
+            params['split'] = {s:s for s in params['split']}  
+        
+
         self.dataset = dataset_class(**params)
+
+    @property
+    def info(self):
+        return self.dataset[self.splits[0]]._info.__dict__
+
+    @property
+    def features(self):
+        return self.dataset[self.splits[0]]._info.__dict__['features']
+
 
     def load_tokenizer(self, 
                         path='bittensor.tokenizer', 
@@ -88,15 +105,23 @@ class DatasetModule(BaseModule):
         device = kwargs.pop('device', self.device)
         return torch.tensor(self.tokenizer(text=text, padding=padding)['input_ids']).to(device)
 
-    def __getitem__(self, idx=None, tokenize=False):
+    @property
+    def splits(self):
+        return list(self.dataset.keys())
+
+
+    def __getitem__(self, idx=None, tokenize=False, split=None):
+        if split == None:
+            split = self.splits[0]
+        
         text_field = self.config['dataset']['text_field']
-        dataset_length = len(self.dataset)
+        dataset_length = len(self.dataset[split])
         if idx == None:
-            idx = random.randint(1,dataset_length)
+            idx = random.randint(1,dataset_length-1)
 
         assert idx <= dataset_length, f'{idx}<={dataset_length} '
     
-        sample = self.dataset[idx][text_field]
+        sample = self.dataset[split][idx][text_field]
         if tokenize == True:
             sample = self.tokenize(text=sample, padding=True)
         return sample
@@ -131,10 +156,12 @@ if __name__ == '__main__':
 
     # ray.get(module.delete.remote('receptor_pool'))
     
+    st.write(module.dataset)
     for i in range(10):
-        resp = module.sample(num_endpoints=100, timeout=1, batch_size=1, min_success=10, queue_topic=None)
+        resp = module.sample(batch_size=100, split='train')
+        
         # del module.receptor_pool
-        st.write(len(resp), i)
+        st.write(resp.shape, i)
     
     # finished_results = []
     # while running_jobs:

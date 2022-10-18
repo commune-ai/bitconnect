@@ -12,12 +12,13 @@ queue:
   module: ray.server.queue.QueueServer
   actor : {refresh: False}
 
+
 dataset:
   path: datasets.load_dataset
   params:
     path: glue
     name: cola
-    split: test
+    split: [test, train]
   text_field: sentence
 
 num_endpoints: 50
@@ -32,7 +33,7 @@ receptor_pool:
 
 
   memory_threshold:
-    value: 0.2
+    value: 0.1
     mode: ratio
 
   replicas: null

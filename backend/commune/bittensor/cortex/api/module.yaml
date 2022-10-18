@@ -7,4 +7,4 @@ submodule:
   queue: 
     module: ray.server.queue.QueueServer
     actor : {refresh: False}
-
+    wrap: True

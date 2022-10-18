@@ -11,6 +11,9 @@ Background Actor for Message Brokers Between Quees
 
 """
 
+
+
+
 class QueueServer(BaseModule):
 
     default_actor_name = 'queue'
@@ -29,8 +32,8 @@ class QueueServer(BaseModule):
         return f'{root}.{topic}'
 
     def create_topic(self, topic:str,
-                     maxsize:int=-1,
-                     refresh=False,
+                     maxsize:int=20,
+                     refresh=True,
                       **kwargs):
         
         self.get_config()
@@ -49,8 +52,6 @@ class QueueServer(BaseModule):
 
         self.put_config()
         return self.queue[topic] 
-
-
 
 
     @property
@@ -109,7 +110,14 @@ class QueueServer(BaseModule):
     def put(self, topic, item, block=False, timeout=None, **kwargs):
         if not self.exists(topic):
             self.create_topic(topic=topic, **kwargs)
-        return self.get_queue(topic).put(item, block=block, timeout=timeout)
+        
+        try:
+        
+            self.get_queue(topic).put(item, block=block, timeout=timeout)
+        except:
+            pass
+        del item
+
 
     def put_batch(self, topic, items, **kwargs):
         if not self.exists(topic):
@@ -138,7 +146,6 @@ class QueueServer(BaseModule):
 
     def empty(self, topic):
         # Whether the queue is empty.
-
         return self.get_queue(topic).empty()
 
 
@@ -148,6 +155,9 @@ class QueueServer(BaseModule):
 
     def size_map(self):
         return {t: self.size(t) for t in self.topics}
+
+
+
 
 
 class QueueClient(QueueServer):

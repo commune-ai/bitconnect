@@ -429,14 +429,6 @@ class GradioModule(BaseModule):
         
         return parser.parse_args()
 
-    def run_command(command:str):
-
-        process = subprocess.run(shlex.split(command), 
-                            stdout=subprocess.PIPE, 
-                            universal_newlines=True)
-        
-        return process
-
     default_uvicorn_kwargs =  dict(path=f"module:app", 
                                  host="0.0.0.0", port=8000, 
                                 reload=True, 
@@ -558,11 +550,6 @@ class GradioModule(BaseModule):
 
 
         return app      
-
-
-
-
-
 
 register = GradioModule.register
 app = GradioModule.get_app()

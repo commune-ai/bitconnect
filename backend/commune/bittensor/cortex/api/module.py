@@ -10,6 +10,9 @@ import pandas as pd
 sys.path.append(os.environ['PWD'])
 from commune.config import ConfigLoader
 import ray
+import uvicorn
+from fastapi import FastAPI
+import argparse
 from ray.util.queue import Queue
 import torch
 from commune.utils import  (RunningMean,
@@ -34,10 +37,9 @@ def cache():
 
 class APIModule(BaseModule):
 
-
     default_config_path = "bittensor.cortex.api"
 
-    def __inif__(self, config=None, **kwargs):
+    def __init__(self, config=None, **kwargs):
         BaseModule.__init__(self, config=config, **kwargs)
         self.actor_map = {}
 
@@ -81,16 +83,11 @@ class APIModule(BaseModule):
     def send_job(self, job_kwargs, block=False):
         self.client['ray'].queue.put(topic=self.config['queue']['in'], item=job_kwargs, block=block )
         
-
     def submit_job(self, module, fn, kwargs={}, args=[], ):
-
-
         assert self.actor_exists(module), f'{module} does not exists'
         actor = self.get_actor(module)
         job_id = getattr(actor, fn).remote(*args,**kwargs)
-
         self.queue.put(topic='api.in',item=job_id)
-        
         return job_id
 
     @property
@@ -103,8 +100,7 @@ class APIModule(BaseModule):
 
     #     while self.actor_count >= self.max_actor_count:
     #         for actor_name in self.actor_names:
-    #             self.remove_actor(actor_name)
-            
+    #             self.remove_actor(actor_name)   
 
     def resolve_actor_class(self,module):
         assert module in self.simple2module, f'options are {list(self.simple2module.keys())}'
@@ -116,7 +112,9 @@ class APIModule(BaseModule):
                     name= None,
                     tag=None,
                     refresh=False,
-                    resources={'num_gpus':0, 'num_cpus': 1},
+                    num_gpus =0, 
+                    num_cpus=1,
+                    max_concurrency=100,
                     wrap = False,
                      **kwargs):
 
@@ -133,8 +131,10 @@ class APIModule(BaseModule):
                 name = module +'-'+ tag 
 
         kwargs['actor'] = kwargs.get('actor',  {})
-        kwargs['actor'].update(dict(refresh=refresh, name=name, resources=resources))
-
+        kwargs['actor'].update(dict(refresh=refresh,
+                                     name=name, 
+                                    resources={'num_gpus':num_gpus, 'num_cpus': num_cpus},
+                                     max_concurrency=max_concurrency))
 
         actor_class = self.resolve_actor_class(module)
 
@@ -178,7 +178,7 @@ class APIModule(BaseModule):
 
     def running_actors(self, mode='name'):
         if mode in ['names', 'name']:
-            return self.actor_names()
+            return self.actor_names
         elif mode in ['actors', 'actor']:
             return self.actors
 
@@ -187,7 +187,6 @@ class APIModule(BaseModule):
         for actor_resource_usage in self.actor_resource_map().values():
             for k,v in actor_resource_usage.items():
                 total_resource_usage[k] += v
-        
         return total_resource_usage
 
     def list_actors(self, key=None):
@@ -196,7 +195,6 @@ class APIModule(BaseModule):
             return actor_names
         else:
             return [a for a in actor_names if a.startswith(key)]   
-
 
     def remove_actor(self,actor):
         '''
@@ -251,10 +249,125 @@ class APIModule(BaseModule):
 
     rm_all = remove_all = remove_all_actors
 
+    module = None
+    @classmethod
+    def get_instance(cls, config = {}):
+        if cls.module == None:
+            cls.module = cls(config=config)
+        return cls.module
+
+    @classmethod
+    def argparse(cls):
+        parser = argparse.ArgumentParser(description='Gradio API and Functions')
+        parser.add_argument('--api', action='store_true')
+
+        '''
+        if --no-api is chosen
+        '''
+        parser.add_argument('--port', type=int, default=8000)
+        
+        return parser.parse_args()
+
+    default_uvicorn_kwargs =  dict(path=f"module:app", 
+                                 host="0.0.0.0", port=8000, 
+                                reload=True, 
+                                workers=2)
 
 
 
-if __name__=="__main__":
+    def run_app(self,app=None, **kwargs):
+
+        '''
+        expample 
+        dict(
+            root= None,
+            path=f"module:app", 
+            host="0.0.0.0", port=8000, 
+            reload=True, 
+            workers=2
+            )
+        '''
+
+        app = self.get_app(app=app)
+        default_api_config = dict(
+                app="module:app",
+                host="0.0.0.0", port=8000, 
+                reload=True, 
+                workers=2
+                )
+        api_config = self.config.get('api', default_api_config)
+        uvicorn_kwargs = {**api_config, **kwargs}
+        uvicorn.run(**uvicorn_kwargs)
+
+    @classmethod
+    def get_app(cls, root='', config={}, **kwargs):
+        app = FastAPI(**kwargs)
+        assert isinstance(app, FastAPI)
+        if root == None:
+            root = ''
+
+        @app.get(f"{root}/")
+        async def root_endpoint():
+            return {"message": "Cortex MothaFucka"}
+
+        @app.get(f"{root}/module_tree")
+        async def module_tree():
+            self = cls.get_instance()
+            return self.module_tree
+
+        @app.get(f"{root}/queue/put")
+        async def queue_put(key:str,value ):
+            self = cls.get_instance()
+            self.queue.put(key, value)
+            return key
+
+        @app.get(f"{root}/queue/get")
+        async def queue_put(key:str ):
+            self = cls.get_instance()
+            return self.queue.get(key)
+
+        @app.get(f"{root}/actor/add")
+        async def add_actor(module:str, 
+                    name:str= None,
+                    tag:str=None,
+                    refresh:bool=False,
+                    num_cpus:int =1,
+                    num_gpus: int = 0,
+                    max_concurrency: int = 100 ):
+            self = cls.get_instance()
+            actor =  self.add_actor(module=module, 
+                                name=name, 
+                                tag=tag, 
+                                num_cpus=num_cpus, 
+                                num_gpus=num_gpus , 
+                                refresh=refresh, 
+                                max_concurrency=max_concurrency, 
+                                wrap=True)
+
+            return actor.getattr('actor_name')
 
 
-    APIModule.st_test()
+        @app.get(f"{root}/actor/add")
+        async def rm_actor(actor:str):
+            self = cls.get_instance()
+            self.rm_actor(actor)
+
+            assert not self.actor_exists(actor), 'Actor still exists fam'
+
+            return actor
+
+        @app.get(f"{root}/actor/running")
+        async def module_list(path_map:bool=False):
+            self = cls.get_instance()
+            return self.running_actors()
+
+        return app      
+
+app = APIModule.get_app()
+
+if __name__ == "__main__":
+    args = APIModule.argparse()
+    module = APIModule()
+    if args.api:
+        module.run_app()
+
