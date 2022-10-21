@@ -10,5 +10,7 @@ class Module(BaseModule):
         return input_text
 
 
+if __name__ == '__main__':
+    algovera_module = Module.deploy(actor={'refresh': False})
 
 # st.write(['.'.join(v.split('.')[:-2]) for v in Module().module_tree])

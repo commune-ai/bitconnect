@@ -8,10 +8,10 @@ start:
 	make up
 
 up_latest:
-	./start.sh --backend
+	./start.sh --backend --update --up
 
 start_latest:
-	./start.sh --backend
+	make up_latest
 
 bash_backend: 
 	docker exec -it bittensor-backend bash
