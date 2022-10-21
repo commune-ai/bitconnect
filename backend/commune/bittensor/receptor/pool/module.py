@@ -176,6 +176,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
         forward_outputs = []
         forward_codes = []
         forward_times = []
+        forward_uids = []
 
         assert min_success > 0
         if min_success <= 1:
@@ -188,6 +189,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
             for idx, call_arg in enumerate(call_args):
                 future = executor.submit( call_forward, call_arg)
                 future_map[future] = call_arg
+                
 
             success_response_cnt = 0
             for i,future in enumerate(concurrent.futures.as_completed(future_map)):
@@ -195,18 +197,20 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
                 
 
 
-                            
+                endpoint_uid = future_map[future]['receptor'].endpoint.uid
                 if response[1][0] == 1:
                     success_response_cnt += 1
 
                     forward_outputs.append( response[0] )
                     forward_codes.append( response[1] )
                     forward_times.append( response[2] )
+                    forward_uids.append(endpoint_uid)
                 else:
                     if not return_success_only:
                         forward_outputs.append( response[0] )
                         forward_codes.append( response[1] )
                         forward_times.append( response[2] )
+                        forward_uids.append(endpoint_uid)
                                 
                 if success_response_cnt >= min_success:
                     for receptor in receptors:
@@ -236,7 +240,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
         
 
             
-        return forward_outputs, forward_codes, forward_times
+        return forward_outputs, forward_codes, forward_times, forward_uids
 
     def backward(
                 self, 
@@ -610,6 +614,7 @@ if __name__ == '__main__':
     import streamlit as st
     import time
     st.set_page_config(layout="wide")
+    # ReceptorPoolModule.ray_restart()
     ReceptorPoolModule.st_test_1()
     st.write('fam')
     # BaseModule.ray_restart()

@@ -81,7 +81,7 @@ while :; do
         --purge)
             printf "$COMPOSE_FILES"
             printf $COLOR_R'Doing a deep clean ...\n\n'$COLOR_RESET
-            eval docker compose --project-name=$PROJECT_NAME "$COMPOSE_FILES" down;
+            eval docker-compose --project-name=$PROJECT_NAME "$COMPOSE_FILES" down;
             docker network rm ${PROJECT_NAME}_default || true;
             docker network rm ${PROJECT_NAME}_backend || true;
             shift
@@ -122,20 +122,20 @@ while :; do
         --down)
             printf $COLOR_R'Doing a deep clean ...\n\n'$COLOR_RESET
             eval docker network rm ${PROJECT_NAME}_default || true;
-            eval docker compose --project-name=$PROJECT_NAME "$COMPOSE_FILES" down;
+            eval docker-compose --project-name=$PROJECT_NAME "$COMPOSE_FILES" down;
             break;
         ;;
 
         
         --restart)
             printf $COLOR_R'Doing a deep clean ...\n\n'$COLOR_RESET
-            eval docker compose --project-name=$PROJECT_NAME "$COMPOSE_FILES" down;
+            eval docker-compose --project-name=$PROJECT_NAME "$COMPOSE_FILES" down;
             docker network rm ${PROJECT_NAME}_default || true;
 
-            # [ ${FORCEPULL} = "true" ] && eval docker compose  --project-name=$PROJECT_NAME "$COMPOSE_FILES" pull
-            # [ ${FORCEPULL} = "true" ] && eval docker compose  --project-name=$PROJECT_NAME "$COMPOSE_FILES" build
+            # [ ${FORCEPULL} = "true" ] && eval docker-compose  --project-name=$PROJECT_NAME "$COMPOSE_FILES" pull
+            # [ ${FORCEPULL} = "true" ] && eval docker-compose  --project-name=$PROJECT_NAME "$COMPOSE_FILES" build
             
-            eval docker compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" up --remove-orphans -d
+            eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" up --remove-orphans -d
            
            
             break
@@ -150,9 +150,9 @@ while :; do
             break
             ;;
         *)
-            [ ${FORCEPULL} = "true" ] && eval docker compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" pull
-            [ ${FORCEBUILD} = "true" ] && eval docker compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" build
-            eval docker compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME  "$COMPOSE_FILES" up -d
+            [ ${FORCEPULL} = "true" ] && eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" pull
+            [ ${FORCEBUILD} = "true" ] && eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" build
+            eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME  "$COMPOSE_FILES" up -d
             break
     esac
     shift

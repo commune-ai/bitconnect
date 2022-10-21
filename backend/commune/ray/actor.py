@@ -14,13 +14,15 @@ from importlib import import_module
 from .actor_pool import ActorPool
 from munch import Munch
 import json
+from ray.experimental.state.api import list_objects, list_actors, list_tasks, list_nodes
+
+
 class ActorModule: 
     default_ray_env = {'address': 'auto', 'namespace': 'default'}
     ray_context = None
     config_loader = ConfigLoader(load_config=False)
     default_config_path = None
     def __init__(self, config=None, override={}, **kwargs):
-        print(config, 'LOADED FAM') 
         
 
         self.config = self.resolve_config(config=config)
@@ -301,7 +303,7 @@ class ActorModule:
         actor =  ray.get_actor(actor_name)
         actor = ActorModule.add_actor_metadata(actor)
         if wrap:
-            ActorModule.wrap_actor(actor=actor)
+            actor = ActorModule.wrap_actor(actor=actor)
         return actor
 
     @property
@@ -684,3 +686,48 @@ class ActorModule:
     def memory_info():
         virtual_memory = psutil.virtual_memory()
         return {k:getattr(virtual_memory,k) for k in ['available', 'percent', 'used', 'shared', 'free', 'total', 'cached']}
+
+    @staticmethod
+    def get_memory_info(pid:int = None):
+        if pid == None:
+            pid = os.getpid()
+        # return the memory usage in percentage like top
+        process = psutil.Process(pid)
+        # st.write(dir(process))
+        memory_info = process.memory_full_info()._asdict()
+        memory_info['percent'] = process.memory_percent()
+        memory_info['ratio'] = memory_info['percent'] / 100
+        return memory_info
+
+
+    @staticmethod
+    def list_objects( *args, **kwargs):
+        return list_objects(*args, **kwargs)
+
+    @staticmethod
+    def list_actors(state='ALIVE', *args, **kwargs):
+        kwargs['filters'] = kwargs.get('filters', [("state", "=", state)])
+        actor_info_list =  list_actors(*args, **kwargs)
+        for i, actor_info in enumerate(actor_info_list):
+            actor_info_list[i]['memory'] = ActorModule.get_memory_info(pid=actor_info['pid'])
+
+        return actor_info_list
+
+
+    @staticmethod
+    def list_tasks(running=False, name=None, *args, **kwargs):
+        filters = []
+        if running == True:
+            filters.append([("scheduling_state", "=", "RUNNING")])
+        if isinstance(name, str):
+            filters.append([("name", "=", name)])
+        
+        if len(filters)>0:
+            kwargs['filters'] = filters
+
+        return list_tasks(*args, **kwargs)
+
+
+    @staticmethod
+    def list_nodes( *args, **kwargs):
+        return list_nodes(*args, **kwargs)
