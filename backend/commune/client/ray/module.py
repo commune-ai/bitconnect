@@ -28,7 +28,7 @@ class RayModule(BaseModule):
 if __name__ == '__main__':
     import streamlit as st
     module = RayModule.deploy(actor={'refresh': False},wrap=True)
-    st.write(module.actor)
+    st.write(module.actor._ray_method_signatures['__init__'][0])
 
 
 
