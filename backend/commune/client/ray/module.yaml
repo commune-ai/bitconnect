@@ -1,20 +1,19 @@
 
 module:  RayModule
 
-client: ['local', 's3', 'rest']
+client: ['local', 's3']
 
 servers:
   object:
-    module: 'ray.server.object.ObjectServer'
+    module: 'ray.server.object'
   queue:
-    module: 'ray.server.queue.QueueServer'
+    module: 'ray.server.queue'
 
 ray:
   address: auto
   namespace: default
 
 actor:
-  name: rest
   resources:
     'num_cpus': 0.5
   max_concurrency: 4

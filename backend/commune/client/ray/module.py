@@ -15,8 +15,10 @@ class RayModule(BaseModule):
         **kwargs
     ):
         BaseModule.__init__(self, config=config,  **kwargs)
-        # self.queue = self.get_module(**self.config['servers']['queue'], wrap=True)
-        # self.object  = self.get_module(**self.config['servers']['object'], wrap=True)
+        self.queue = self.get_actor(**self.config['servers']['queue'], wrap=True)
+        self.object  = self.get_actor(**self.config['servers']['object'], wrap=True)
+
+
 
     # def load_clients(self):
     #     # load object server
@@ -25,7 +27,9 @@ class RayModule(BaseModule):
 
 if __name__ == '__main__':
     import streamlit as st
-    module = RayModule.deploy(actor=False)
-    st.write(module.client.registered_clients)
+    module = RayModule.deploy(actor={'refresh': False},wrap=True)
+    st.write(module.actor)
+
+
 
 

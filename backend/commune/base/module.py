@@ -91,12 +91,6 @@ class BaseModule(ActorModule):
             config = self.config_loader.load(path=self.default_config_path)
         return config
     
-    @classmethod
-    def get_module(cls, module:str, **kwargs):
-
-        module_class = cls.get_object(module)
-        return module_class.deploy(**kwargs)
-
 
     def get_submodules(self, submodule_configs=None, get_submodules_bool=True):
         
@@ -367,7 +361,7 @@ class BaseModule(ActorModule):
         return {v:k for k,v in self.simple2module.items()}
 
 
-    def resolve_module_class(self,module:str):
+    def get_module_class(self,module:str):
 
         if module in self.simple2module:
             module_path = self.simple2module[module]
@@ -375,9 +369,9 @@ class BaseModule(ActorModule):
             module_path = module
         else:
             raise Exception(f'options are {list(self.simple2module.keys())} (short) and {list(self.simple2module.values())} (long)')
-        
-        actor_class= self.get_object(module_path)
-        return actor_class
+        st.write(module_path)
+        module_class= self.import_object('commune.'+module_path)
+        return module_class
 
 
     @property
@@ -452,28 +446,35 @@ class BaseModule(ActorModule):
             self.queue.put(topic=out_queue,item=output_dict)
 
 
-    def resolve_module_class(self,module):
-        assert module in self.simple2module, f'options are {list(self.simple2module.keys())}'
-        module_path = self.simple2module[module]
-        actor_class= self.get_object(module_path)
-        return actor_class
-
     def launch(self, module:str, 
                     refresh:bool=False,
                     resources:dict = {'num_gpus':0, 'num_cpus': 1},
                     max_concurrency:int=100,
                     name:str=None,
                      **kwargs):
-        actor = kwargs.pop('actor', {})
-        actor['name'] = actor.get('name', name if isinstance(name, str) else module)
-        actor['max_concurrency'] = actor.get('max_concurrency', max_concurrency)
-        actor['refresh'] = actor.get('refresh', refresh)
-        actor['resources'] = actor.get('resources', resources)
-        kwargs['actor'] = actor
-        actor_class = self.resolve_module_class(module)
-        return actor_class.deploy(**kwargs)
+        
 
-    get_actor = add_actor = launch_actor = launch
+        default_actor = {
+            'name' : name if isinstance(name, str) else module,
+            'max_concurrency' :  max_concurrency,
+            'refresh' : refresh, 
+            'resources' : resources
+        }
+
+        actor = kwargs.pop('actor', default_actor)
+        if actor == False:            
+            kwargs['actor'] = actor
+        elif actor == True:
+            kwargs['actor'] = default_actor
+        elif isinstance(actor, dict):
+            # if the actor
+            kwargs['actor'] = {**default_actor, **actor}
+        else:
+            raise NotImplemented(actor)
+
+        return self.get_module_class(module).deploy(**kwargs)
+
+    get_actor = get_module =add_actor = launch_actor = launch
 
     module_tree = module_list
 

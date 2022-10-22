@@ -28,10 +28,9 @@ from commune.utils import try_n_times
 
 
 class EstuaryModule(BaseModule):
-    default_config_path= 'client.estuary.module'
 
     def __init__(self, config=None):
-        BaseModule.__init__(self, config=config, get_clients=True)
+        BaseModule.__init__(self, config=config)
         self.api_key = self.get_api_key(api_key = self.config.get('api_key'))
         self.local =  LocalModule()
         self.ipfs = IPFSModule()

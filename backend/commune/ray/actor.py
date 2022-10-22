@@ -209,6 +209,7 @@ class ActorModule:
             # import streamlit as st
             # st.write(actor_config, kwargs)
             try:
+
                 actor_config['name'] =  actor_config.get('name', cls.get_default_actor_name())
                 actor_config['resources'] =  actor_config.get('resources', {'num_cpus': 1.0, 'num_gpus': 0.0})
                 config['actor'] = actor_config
@@ -513,7 +514,8 @@ class ActorModule:
 
     @classmethod
     def get_default_actor_name(cls):
-        return self.get_module_path(simple=True)
+
+        return cls.get_module_path(simple=True)
 
     @staticmethod
     def load_object(module:str, __dict__:dict, **kwargs):
@@ -614,7 +616,7 @@ class ActorModule:
     @classmethod
     def wrap_actor(cls, actor):
         wrapper_module_path = 'ray.client.module.ClientModule'
-        return cls.get_module(module=wrapper_module_path, server=actor)
+        return ActorModule.get_module(module=wrapper_module_path, server=actor)
 
     @property
     def pid(self):
@@ -768,7 +770,7 @@ class ActorModule:
     def get_module_path(cls, simple=True):
         module_path =  inspect.getmodule(cls).__file__
         if simple:
-            module_path = os.path.dirname(module_path.replace(cls.root, '')).replace('/', '.')[1:]
+            module_path = os.path.dirname(module_path.replace(ActorModule.root, '')).replace('/', '.')[1:]
         return module_path
 
     @staticmethod
