@@ -1,4 +1,4 @@
-module: 'ReceptorPoolModule'
+module: 'BaseModule'
 
 client: {}
 

@@ -1,7 +1,7 @@
 import ray
 from commune.config import ConfigLoader
 from commune.ray.utils import create_actor, actor_exists, kill_actor, custom_getattr, RayEnv
-from commune.utils import dict_put, get_object, dict_get, get_module_file, get_function_defaults, get_function_schema, is_class, Timer, get_functions, check_pid, kill_pid, dict_override, dict_merge
+from commune.utils import dict_put, get_object, dict_get, get_module_file, get_function_defaults, get_function_schema, is_class, Timer, get_functions, check_pid, kill_pid, dict_override, dict_merge, get_parents
 import subprocess 
 import shlex
 import os
@@ -12,7 +12,6 @@ import  psutil
 from types import ModuleType
 from importlib import import_module
 from .actor_pool import ActorPool
-from munch import Munch
 import json
 from ray.experimental.state.api import list_objects, list_actors, list_tasks, list_nodes
 
@@ -21,9 +20,9 @@ class ActorModule:
     default_ray_env = {'address': 'auto', 'namespace': 'default'}
     ray_context = None
     config_loader = ConfigLoader(load_config=False)
-    default_config_path = None
+    root_path = '/'.join(__file__.split('/')[:-2])
+    root = root_path
     def __init__(self, config=None, override={}, **kwargs):
-        
 
         self.config = self.resolve_config(config=config)
         self.override_config(override=override)
@@ -41,36 +40,51 @@ class ActorModule:
     def start_datetime(self):
         datetime.datetime.fromtimestamp(self.start_timestamp)
     
-
+    def get_age(self) :
+        return  self.get_current_timestamp() - self.start_timestamp
 
     @staticmethod
     def get_current_timestamp():
         return  datetime.datetime.utcnow().timestamp()
-        
+
+    @classmethod
+    def get_config_path(cls, simple=False):
+        config_path = cls.get_module_path(simple=simple)
+        if simple == False:
+            config_path = config_path.replace('.py', '.yaml')
+        return config_path
+
     def resolve_config(self, config, override={}, local_var_dict={}, recursive=True, return_munch=False, **kwargs):
         if config == None:
-            config = getattr(self,'config',  self.default_config_path)
-        elif (type(config) in  [list, dict]): 
-            if len(config) == 0:
-                assert isinstance(self.default_config_path, str)
-                config = self.default_config_path
+            config = getattr(self,'config',  self.get_config_path(simple=True))
+
         elif isinstance(config, str):
             config = config
+        elif isinstance(config, dict):
+            pass
         else:
             raise NotImplementedError(config)
+
 
         config = self.load_config(config=config, 
                              override=override, 
                             local_var_dict=local_var_dict,
-                            recursive=recursive)
-        
-        if return_munch:
-            config = Munch(config)
+                            recursive=recursive,
+                            return_munch=return_munch)
+
+        if config == None:
+            config = 'base'
+            config = self.load_config(config=config, 
+                        override=override, 
+                        local_var_dict=local_var_dict,
+                        recursive=recursive,
+                        return_munch=return_munch)
+            self.save_config(config=config)
 
         return config
 
     @staticmethod
-    def load_config(config=None, override={}, local_var_dict={}, recursive=True):
+    def load_config(config=None, override={}, local_var_dict={}, recursive=True, return_munch=False):
         """
         config: 
             Option 1: dictionary config (passes dictionary) 
@@ -79,13 +93,24 @@ class ActorModule:
         return ActorModule.config_loader.load(path=config, 
                                     local_var_dict=local_var_dict, 
                                      override=override,
-                                     recursive=True)
+                                     recursive=recursive,
+                                     return_munch=return_munch)
 
-
+    @classmethod
+    def save_config(cls, path=None, config=None):
+        """
+        config: 
+            Option 1: dictionary config (passes dictionary) 
+            Option 2: absolute string path pointing to config
+        """
+        if path == None:
+            path = cls.get_config_path()
+        return cls.config_loader.save(path=path, 
+                                      cfg=config)
     @classmethod
     def default_cfg(cls, override={}, local_var_dict={}):
 
-        return cls.config_loader.load(path=cls.default_config_path, 
+        return cls.config_loader.load(path=cls.get_config_path(), 
                                     local_var_dict=local_var_dict, 
                                      override=override)
 
@@ -94,10 +119,10 @@ class ActorModule:
     _config = default_cfg
 
     @classmethod
-    def get_module(cls, module:str, **kwargs):
-
+    def deploy_module(cls, module:str, **kwargs):
         module_class = cls.get_object(module)
         return module_class.deploy(**kwargs)
+    get_module = deploy_module
 
     @staticmethod
     def check_config(config):
@@ -296,8 +321,10 @@ class ActorModule:
     
     @staticmethod
     def actor_exists(actor):
-        return actor_exists(actor)
-
+        if isinstance(actor, str):
+            return actor in ActorModule.list_actor_names()
+        else:
+            raise NotImplementedError
     @staticmethod
     def get_actor(actor_name, wrap=False):
         actor =  ray.get_actor(actor_name)
@@ -316,7 +343,10 @@ class ActorModule:
 
     @property
     def actor_name(self):
-        return self.config.get('actor', {}).get('name')
+        actor_config =  self.config.get('actor', {})
+        if actor_config == None:
+            actor_config = {}
+        return actor_config.get('name')
     
     @property
     def actor_running(self):
@@ -426,12 +456,7 @@ class ActorModule:
     def get_module_filepath(cls):
         return inspect.getfile(cls)
 
-    @classmethod
-    def get_config_path(cls):
-        path =  ActorModule.get_module_filepath().replace('.py', '.yaml')
-        assert os.path.exists(path), f'{path} does not exist'
-        assert os.path.isfile(path), f'{path} is not a dictionary'
-        return path
+
 
     @classmethod
     def parents(cls):
@@ -487,16 +512,8 @@ class ActorModule:
 
 
     @classmethod
-    def get_module_path(cls):
-        return cls.default_config_path.replace('.module', '')
-
-    @classmethod
     def get_default_actor_name(cls):
-        if isinstance(hasattr(cls, 'default_actor_name'), str):
-            st.write(cls.default_actor_name)
-            return cls.default_actor_name
-        return cls.default_config_path.replace('.module', '')
-
+        return self.get_module_path(simple=True)
 
     @staticmethod
     def load_object(module:str, __dict__:dict, **kwargs):
@@ -561,7 +578,7 @@ class ActorModule:
 
     @property
     def __file__(self):
-        return self.get_module_filepath()
+        return self.get_module_path()
 
     @property
     def tmp_dir(self):
@@ -705,11 +722,19 @@ class ActorModule:
         return list_objects(*args, **kwargs)
 
     @staticmethod
-    def list_actors(state='ALIVE', *args, **kwargs):
+    def list_actors(state='ALIVE', detail=True, *args, **kwargs):
         kwargs['filters'] = kwargs.get('filters', [("state", "=", state)])
+        kwargs['detail'] = detail
+        
+
         actor_info_list =  list_actors(*args, **kwargs)
         for i, actor_info in enumerate(actor_info_list):
-            actor_info_list[i]['memory'] = ActorModule.get_memory_info(pid=actor_info['pid'])
+            resource_map = {'memory':  ActorModule.get_memory_info(pid=actor_info['pid'])}
+            resource_list = actor_info_list[i].pop('resource_mapping', [])
+            for resource in resource_list:
+                resource_map[resource['name'].lower()] = resource['resource_ids']
+
+            actor_info_list[i]['resources'] = resource_map
 
         return actor_info_list
 
@@ -721,6 +746,10 @@ class ActorModule:
             actor_name = actor.pop('name')
             actor_map[actor_name] = actor
         return actor_map
+
+    @staticmethod   
+    def list_actor_names():
+        return list(ActorModule.actor_map().keys())
 
     @staticmethod
     def list_tasks(running=False, name=None, *args, **kwargs):
@@ -734,6 +763,13 @@ class ActorModule:
             kwargs['filters'] = filters
 
         return list_tasks(*args, **kwargs)
+
+    @classmethod
+    def get_module_path(cls, simple=True):
+        module_path =  inspect.getmodule(cls).__file__
+        if simple:
+            module_path = os.path.dirname(module_path.replace(cls.root, '')).replace('/', '.')[1:]
+        return module_path
 
     @staticmethod
     def list_nodes( *args, **kwargs):

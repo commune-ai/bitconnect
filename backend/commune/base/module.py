@@ -5,6 +5,7 @@ import streamlit as st
 import os
 from .utils import enable_cache, cache
 from munch import Munch
+import inspect
 
 
 class BaseModule(ActorModule):
@@ -12,25 +13,28 @@ class BaseModule(ActorModule):
     default_config_path = 'base'
     client_module_class_path = 'client.manager.module.ClientModule'
     # assumes BaseModule is .../{src}/base/module.py
-    root_path = '/'.join(__file__.split('/'))
+    root_path = '/'.join(__file__.split('/')[:-2])
     root = root_path
-    tmp_dirname = root_path.split('/')[-1]
-    tmp_dirname = __file__.split('/')[-3]
-
-
+    
     def __init__(self, config=None, override={}, client=None ,**kwargs):
 
-        ActorModule.__init__(self,config=config, override=override)
-        
+        ActorModule.__init__(self,config=config, override=override, **kwargs)
+
         # for passing down the client to  submodules to avoid replicating a client for every submodule
-        self.client = self.get_clients(client=client, 
-                                        get_clients_bool = kwargs.get('get_clients', True)) 
+        self.client = self.get_clients(client=client) 
            
+
+        # st.write(self.__class__,self.registered_clients,'debug')
+        
+
         self.get_submodules(get_submodules_bool = kwargs.get('get_submodules', True))
 
         # st.write(self.client, client, kwargs.get('get_clients', True))
         # self.register_actor()
 
+    @property
+    def registered_clients(self):
+        return self.clients.registered_clients if self.clients else []
     @property
     def client_config(self):
         for k in ['client', 'clients']:
@@ -38,7 +42,6 @@ class BaseModule(ActorModule):
             if client_config != None:
                 return client_config
         return client_config
-
 
 
     running_actors_dir = '/tmp/commune/running_actors'
@@ -51,29 +54,33 @@ class BaseModule(ActorModule):
 
             self.client.local.rm(path=f'{running_actors_dir}/{self.actor_name}/config.json', recursive=True)
 
-    def get_clients(self, client=None, get_clients_bool = True):
-        if get_clients_bool == False:
-            return None
-
-        if client == None:
-            client = self.client_config
-        if client == None:
-            return None
-
+    def get_clients(self, client=None):
         client_module_class = self.get_object(self.client_module_class_path)
-        
-        if isinstance(self.client, client_module_class):
-            return self.client
-        
-        config = client_module_class.default_config()
-        config['clients'] = client
-
-        if isinstance(config, dict) :
-            return client_module_class(config=config)
-        elif isinstance(config, client_module_class):
-            return config 
+        client_config = client_module_class.default_config()
+        # st.write(client_config, client)
+        if client == False:
+            return None
+        elif client == True:
+            pass
+        elif client == None:
+            # does the config have clients
+            if isinstance(self.client_config, list):
+                client_config['include'] = self.client_config
+            elif isinstance(self.client_config, dict):
+                client_config  = self.client_config
+            elif self.client_config == None:
+                return 
+        elif isinstance(client, client_module_class):
+            return client
+        elif isinstance(client, dict):
+            client_config = client
+        elif isinstance(client, list):
+            # this is a list of clients
+            assert all([isinstance(c, str)for c in client]), f'all of the clients must be string if you are passing a list'
+            client_config['include'] = client
         else:
             raise NotImplementedError
+        return client_module_class(config=client_config)
             
     def get_config(self, config=None):
         if getattr(self, 'config') != None:
@@ -322,7 +329,7 @@ class BaseModule(ActorModule):
     def module2path(self):
         module2path = {}
         for k in self.simple_module_list:
-            module2path[k] =  '/'.join([os.getenv('PWD'), self.tmp_dirname, k.replace('.', '/')])
+            module2path[k] =  '/'.join([self.root_path, k.replace('.', '/')])
 
         return module2path
     @property
@@ -345,9 +352,11 @@ class BaseModule(ActorModule):
 
     @property
     def simple_module_list(self):
-        return list(self.simple2module.keys())
-
+        return self.list_modules()
     module_list = simple_module_list
+
+    def list_modules(self):
+        return list(self.simple2module.keys())
 
     @property
     def simple2module(self):
@@ -357,6 +366,18 @@ class BaseModule(ActorModule):
     def module2simple(self):
         return {v:k for k,v in self.simple2module.items()}
 
+
+    def resolve_module_class(self,module:str):
+
+        if module in self.simple2module:
+            module_path = self.simple2module[module]
+        elif module in self.module2simple:
+            module_path = module
+        else:
+            raise Exception(f'options are {list(self.simple2module.keys())} (short) and {list(self.simple2module.values())} (long)')
+        
+        actor_class= self.get_object(module_path)
+        return actor_class
 
 
     @property
@@ -385,8 +406,8 @@ class BaseModule(ActorModule):
 
 
 
-    def submit_fn(self, fn:str, queues={}, block=True,  *args, **kwargs):
-        
+    def submit_fn(self, fn:str, queues:dict={}, block:bool=True,  *args, **kwargs):
+
         if queues.get('in'):
             input_item = self.queue.get(topic=queues.get('in'), block=block)
             if isinstance(input_item, dict):
@@ -431,9 +452,28 @@ class BaseModule(ActorModule):
             self.queue.put(topic=out_queue,item=output_dict)
 
 
-             
+    def resolve_module_class(self,module):
+        assert module in self.simple2module, f'options are {list(self.simple2module.keys())}'
+        module_path = self.simple2module[module]
+        actor_class= self.get_object(module_path)
+        return actor_class
 
+    def launch(self, module:str, 
+                    refresh:bool=False,
+                    resources:dict = {'num_gpus':0, 'num_cpus': 1},
+                    max_concurrency:int=100,
+                    name:str=None,
+                     **kwargs):
+        actor = kwargs.pop('actor', {})
+        actor['name'] = actor.get('name', name if isinstance(name, str) else module)
+        actor['max_concurrency'] = actor.get('max_concurrency', max_concurrency)
+        actor['refresh'] = actor.get('refresh', refresh)
+        actor['resources'] = actor.get('resources', resources)
+        kwargs['actor'] = actor
+        actor_class = self.resolve_module_class(module)
+        return actor_class.deploy(**kwargs)
 
+    get_actor = add_actor = launch_actor = launch
 
     module_tree = module_list
 

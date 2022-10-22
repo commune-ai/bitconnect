@@ -1,8 +1,13 @@
 
 module:  RayModule
-# client: 
-#   block: ['ray']
 
+client: ['local', 's3', 'rest']
+
+servers:
+  object:
+    module: 'ray.server.object.ObjectServer'
+  queue:
+    module: 'ray.server.queue.QueueServer'
 
 ray:
   address: auto

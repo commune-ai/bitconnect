@@ -34,7 +34,6 @@ class ConfigLoader:
         local_var_dict: variables you want to replace with ENV variables
 
         '''
-        
         if load_config:
             self.load(path=path, local_var_dict=local_var_dict)
 
@@ -50,14 +49,17 @@ class ConfigLoader:
 
         return cfg
 
-
-    def load(self, path, local_var_dict={}, override={}, recursive=True):
+    def load(self, path, local_var_dict={}, override={}, recursive=True, return_munch=False):
         self.local_var_dict = local_var_dict
         self.cfg = self.parse_config(path=path)
        
         if recursive:
             self.cfg = self.resolver_methods(cfg=self.cfg)
+        if isinstance(override, dict) and len(override) > 0:
             self.cfg = self.override_cfg(cfg=self.cfg, override=override)
+        if return_munch:
+            return Munch(self.cfg)
+
         return self.cfg
 
     # def get_base_cfg(self, cfg,  key_path, local_key_path=[]):
@@ -338,13 +340,23 @@ class ConfigLoader:
                     )
                 return full_value
             return value
-
         loader.add_constructor(tag,constructor_env_variables)
         with open(path) as conf_data:
             cfg =  yaml.load(conf_data, Loader=loader)
         
+        return cfg
+
+
+    def save(self, path:str, cfg=None):
+        if cfg == None:
+            cfg = self.cfg
+        assert isinstance(cfg, dict)
+
+        with open(path, 'w') as file:
+            documents = yaml.dump(cfg, file)
         
         return cfg
+
+
 if __name__== "__main__":
     print(ConfigLoader(path=path).cfg) 
-

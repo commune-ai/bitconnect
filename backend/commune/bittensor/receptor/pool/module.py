@@ -44,7 +44,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
 
     def __init__(
         self, 
-        wallet: 'bittensor.Wallet',
+        wallet: 'bittensor.Wallet' = None,
         max_worker_threads: int = 150,
         max_active_receptors: int= 150,
         compression: str= None,
@@ -54,8 +54,9 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
         torch.nn.Module.__init__(self)
         BaseModule.__init__(self, config=config, override=override)
 
-
-
+        if wallet == None:
+            wallet = self.config.get('wallet')
+            wallet = bittensor.wallet(**wallet)
 
         self.wallet = wallet
         self.receptors = {}

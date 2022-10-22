@@ -13,7 +13,7 @@ from commune.utils import *
 
 
 
-class ObjectServerModule(BaseModule):
+class ObjectServer(BaseModule):
     default_config_path = 'ray.server.object'
     cache_dict= {}
     flat_cache_dict = {}
