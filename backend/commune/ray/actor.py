@@ -713,6 +713,14 @@ class ActorModule:
 
         return actor_info_list
 
+    @staticmethod
+    def actor_map(*args, **kwargs):
+        actor_list = ActorModule.list_actors(*args, **kwargs)
+        actor_map  = {}
+        for actor in actor_list:
+            actor_name = actor.pop('name')
+            actor_map[actor_name] = actor
+        return actor_map
 
     @staticmethod
     def list_tasks(running=False, name=None, *args, **kwargs):
@@ -726,7 +734,6 @@ class ActorModule:
             kwargs['filters'] = filters
 
         return list_tasks(*args, **kwargs)
-
 
     @staticmethod
     def list_nodes( *args, **kwargs):

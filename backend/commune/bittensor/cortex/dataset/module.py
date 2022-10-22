@@ -158,17 +158,7 @@ class DatasetModule (BaseModule, torch.nn.Module ):
 
     sample_generator_count = 0
     sample_generator_count_max = 5
-
-    def sample_generator_loop(self, loops=10,  splits=['train', 'test'], **kwargs):
-        for i in range(loops):
-            for split in splits:
-                st.write(i, split )
-                st.write('memory', self.receptor_pool.memory_usage('ratio'), self.queue.memory_usage('ratio'))
-                kwargs['split'] = kwargs['queue'] = split
-                self.sample_generator(**kwargs)
-                st.write(self.queue.size_map())
-                gc.collect()
-        
+    
     generator_map = {}
     def start_generator(self, split='train', refresh=False, **kwargs):
         if split in self.generator_map and refresh == False:
@@ -301,8 +291,6 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         # return finished_results
         # self.sample_generator_count -= 1 
         # return finished_results
-        
-
 
     def sample_queue(self, 
                     num_samples=2,
@@ -431,18 +419,23 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         return results_dict
 
 
+
+    # def submit(self, fn, *args, **kwargs):
+
+
     def splits(self):
         return self.dataset.getattr('splits')
+
 
     def sample(self,
                  batch_size=1,
                  batch_multiplier=1,
                  min_success=100,
                  endpoint_ids=None , 
-                 num_endpoints=30,
+                 num_endpoints=100,
                  random_sample=True,
-                 timeout=4,
-                 seq_len=16,
+                 timeout=2,
+                 seq_len=8,
                  seq_multiplier=1,
                  padding_fill_value = 1,
                  synapse='TextCausalLM',
@@ -506,26 +499,30 @@ class DatasetModule (BaseModule, torch.nn.Module ):
             results_dict['job'] = result
 
         return results_dict
+   
+
 
 if __name__ == '__main__':
     
     import streamlit as st
     import time
+    import msgpack
+    import json
 
 
-    module = DatasetModule.deploy(actor=False, wrap=True)
+
+    # module = DatasetModule.deploy(actor={'refresh': False}, wrap=True)
     # st.write(module.list_actors(detail=True))
     # st.write(module.refresh_module('receptor_pool'))
     # st.write(module.list_actors())
-
-
-    # module.sample_generator( num_samples=10, max_concurrent_calls=5, batch_multiplier=1, batch_size=5, seq_len=10, seq_multiplier=1, timeout=4, num_endpoints=100, split='train')
-    
-    
+    # module.start_generator( num_samples=10, max_concurrent_calls=5, batch_multiplier=1, batch_size=5, seq_len=10, seq_multiplier=1, timeout=4, num_endpoints=100, split='train')
     # st.write(module.generate_sample('train'))
-    
-    sample_dict = module.sample(num_endpoints=100)
-    st.write({k:v.shape for k,v in sample_dict.items()})
+    # for i in range(10):
+    #     st.write(module.queue.list_actors())
+
+    # sample_dict = module.sample(num_endpoints=10)
+    # st.write({k:v.shape for k,v in sample_dict.items()})
+    # st.write(module.submit_fn('sample', num_endpoints=100))
 
     # st.write(module.getattr('generator_map')['train'].__dict__)
 

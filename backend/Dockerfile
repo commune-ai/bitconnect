@@ -34,5 +34,6 @@ RUN python3 -m pip install -e ./ipfsspec
 # RUN python3 -m pip install torchsort
 
 COPY ./scripts .
+RUN apt install -y protobuf-compiler
 
 

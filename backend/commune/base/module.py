@@ -9,7 +9,7 @@ from munch import Munch
 
 class BaseModule(ActorModule):
     client = None
-    default_config_path = None
+    default_config_path = 'base'
     client_module_class_path = 'client.manager.module.ClientModule'
     # assumes BaseModule is .../{src}/base/module.py
     root_path = '/'.join(__file__.split('/'))
@@ -33,7 +33,11 @@ class BaseModule(ActorModule):
 
     @property
     def client_config(self):
-        return self.config.get('client', self.config.get('clients'))
+        for k in ['client', 'clients']:
+            client_config =  self.config.get(k, None)
+            if client_config != None:
+                return client_config
+        return client_config
 
 
 
@@ -236,7 +240,6 @@ class BaseModule(ActorModule):
     def refresh_json(self):
         self.rm_json()
 
-
     def load_cache(self, **kwargs):
         enable_bool =  kwargs.get('enable', True)
         assert isinstance(enable_bool, bool), f'{disable_bool}'
@@ -380,6 +383,55 @@ class BaseModule(ActorModule):
 
         return modules
 
+
+
+    def submit_fn(self, fn:str, queues={}, block=True,  *args, **kwargs):
+        
+        if queues.get('in'):
+            input_item = self.queue.get(topic=queues.get('in'), block=block)
+            if isinstance(input_item, dict):
+                kwargs = input_item
+            elif isinstance(input_item, list):
+                args = input_item
+            else:
+                args = [input_item]
+        
+        out_item =  getattr(self, fn)(*args, **kwargs)
+
+        if isinstance(queues.get('out'), str):
+            self.queue.put(topic=queues.get('out'), item=out_item)
+    
+    def stop_loop(self, key='default'):
+        return self.loop_running_loop.pop(key, None)
+
+    def running_loops(self):
+        return list(self.loop_running_map.keys())
+
+    loop_running_map = {}
+    def start_loop(self, in_queue=None, out_queue=None, key='default', refresh=False):
+        
+        in_queue = in_queue if isintance(in_queue,str) else 'in'
+        out_queue = out_queue if isintance(out_queue,str) else 'out'
+        
+        if key in self.loop_running_map:
+            if refresh:
+                while key in self.loop_running_map:
+                    self.stop_loop(key=key)
+            else:
+                return 
+        else:
+            self.loop_running_map[key] = True
+
+        while key in self.loop_running_map:
+            input_dict = self.queue.get(topic=in_queue, block=True)
+            fn = input_dict['fn']
+            fn_kwargs = input_dict.get('kwargs', {})
+            fn_args = input_dict.get('args', [])
+            output_dict  = self.submit_fn(fn=fn, *fn_args, **fn_kwargs)
+            self.queue.put(topic=out_queue,item=output_dict)
+
+
+             
 
 
 

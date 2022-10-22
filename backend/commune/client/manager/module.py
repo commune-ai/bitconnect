@@ -39,7 +39,6 @@ class ClientModule(BaseModule):
         self.default_clients = list(self.client_path_dict.keys())
 
     def register_clients(self, clients=None):
-        print(clients, 'FUCKYOU', self.default_clients)
 
         if clients == None:
             # resort to list of default cleitns if none
@@ -47,9 +46,6 @@ class ClientModule(BaseModule):
         elif type(clients) in [list, dict]:
             if len(clients) == 0:
                 clients = self.default_clients
-        
-
-
 
         if isinstance(clients, bool):
             if clients == True:
@@ -70,8 +66,6 @@ class ClientModule(BaseModule):
     def register_all_clients(self):
         self.register_clients()
 
-
-
     def get_client_class(self, client:str):
         assert client in self.client_path_dict, f"{client} is not in {self.default_clients}"
         return self.get_object(self.client_path_dict[client])
@@ -84,7 +78,7 @@ class ClientModule(BaseModule):
         
         
         client_module = self.get_client_class(client)(**kwargs)
-        setattr(self, client,client_module )
+        setattr(self, client, client_module )
         self.registered_clients[client] = client_module
 
     def remove_client(client:str):

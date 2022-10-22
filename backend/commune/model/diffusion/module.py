@@ -188,26 +188,36 @@ class DiffuserModule(BaseModule):
         byte_im = buf.getvalue()
         return byte_im
 
+    @staticmethod
+    def st_demo():
+
+        with st.form('Prompt'):
+            # text = st.input_text('Input Text', 'd')
+            text = st.text_input('Input Prompt','a malibu beach house with a ferarri in the driveway' )
+            submitted = st.form_submit_button("Sync")
+
+            if submitted:
+                img = module.image_to_np(module.predict_txt2img(text,inf_steps=100,  height=512, width=512)[0])
+                st.image(img)
+    
     
 if __name__ == '__main__':
     import ray
     # module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_cpus': 2, 'num_gpus': 0.6}}, wrap=True)
-    module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_gpus': 0.5, 'num_cpus': 2}}, wrap=True)
+    # module = DiffuserModule.deploy(actor={'refresh': False, 
+    #                                       'resources': {'num_gpus': 0.5, 'num_cpus': 2}}, wrap=True)
+    
+    # st.write(module.list_actors(detail=True))
+    # st.write(st.write(ray.get_actor('model.diffusion').getattr.remote('config')))
+    # module.getattr('')
+    # st.write(module.getattr('config'))
     # st.write(module.pipeline.to('cuda'))
     # st.write('fam')
-    st.write('fram')
-    st.write(module.kill_actor('model.diffusion.2'))
-    st.write(ray.get_actor('model.diffusion'))
+    # st.write('fram')
     # st.write(module.kill_actor('model.diffusion.2'))
-    st.write(module.list_actors())
-
-    with st.form('Prompt'):
-        # text = st.input_text('Input Text', 'd')
-        text = st.text_input('Input Prompt','a malibu beach house with a ferarri in the driveway' )
-        submitted = st.form_submit_button("Sync")
-        if submitted:
-            img = module.image_to_np(module.predict_txt2img(text,inf_steps=40,  height=512, width=512, )[0])
-            st.image(img)
+    # st.write(ray.get_actor('model.diffusion'))
+    # # st.write(module.kill_actor('model.diffusion.2'))
+    # st.write(module.list_actors())
     # # st.write(module.pipeline)
     # ray.kill(ray.get_actor('actor'))
 
