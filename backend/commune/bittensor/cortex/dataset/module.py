@@ -86,21 +86,40 @@ class DatasetModule (BaseModule, torch.nn.Module ):
     def available_synapses(self):
         return self.bitmodule.getattr('available_synapses')
 
-    def load_dataset(self, refresh=False):
-        dataset_class =  BaseModule.get_object('huggingface.dataset.module.DatasetModule')
-        self.dataset = dataset_class.deploy(actor={'refresh': refresh, 'name':'huggingface.dataset'}, load=['tokenizer', 'dataset'], wrap = True)
+    def load_module(self, module,refresh=None):
+        module_config = deepcopy(self.config.get(module))
+        st.write(module_config)
+        module_path = module_config.pop('module', module_config.pop('path', None))
+        module_class =  self.get_module_class(module_path)
+        
 
-    def load_receptor_pool(self, refresh=False):
-        receptor_pool_class =  BaseModule.get_object('bittensor.receptor.pool.module.ReceptorPoolModule')
-        self.receptor_pool = receptor_pool_class.deploy(actor={'refresh': refresh},wallet=self.bitmodule.getattr('wallet'), wrap=True)
-        return self.receptor_pool
+        actor = module_config.pop('actor', {'refresh': False})
+        if actor == True:
+            actor = {'refresh': False}
+        elif actor == False:
+            actor = actor
+        elif isinstance(actor, dict):
+            if refresh  :
+                refresh = actor.get('refresh', False)
+            actor['refresh'] = refresh
+        # the rest goes to the kwargs
+        kwargs = module_config.pop('params', module_config.pop('kwargs', module_config))
+        kwargs['wrap'] = kwargs.get('wrap', True)
+        kwargs['actor'] = actor
 
-    def load_queue(self, refresh=False):
-        queue_config = self.config.get('queue')
-        queue_class =  BaseModule.get_object(queue_config['module'])
-        queue_config['actor']['refresh'] = refresh
-        self.queue = queue_class.deploy(actor=queue_config['actor'], wrap=True)
-        return self.queue
+        module_instance =  module_class.deploy(**kwargs)
+        setattr(self, module,module_instance)
+        return module_instance
+
+    def load_dataset(self, *args, **kwargs):
+        return self.load_module(module='dataset', *args,**kwargs)
+
+    def load_receptor_pool(self, *args, **kwargs):
+        return self.load_module(module='receptor_pool', *args,**kwargs)
+
+    def load_queue(self, *args, **kwargs):
+        return self.load_module(module='queue', *args,**kwargs)
+
 
     def load_bitmodule(self, refresh=False, network=None, wallet = None):
         module_class = BaseModule.get_object('bittensor.base.module.BitModule')
@@ -450,7 +469,7 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         synapse = self.str2synapse(synapse)
         macro_batch_size = batch_size*batch_multiplier
         
-        input_tokens = self.dataset.sample(batch_size=macro_batch_size, split=split)
+        input_tokens = self.dataset.sample(batch_size=macro_batch_size, split=split, sequence_length=seq_len)
 
         
         endpoints = self.bitmodule.get_endpoints(endpoint_ids=endpoint_ids , 
@@ -511,7 +530,8 @@ if __name__ == '__main__':
 
 
 
-    # module = DatasetModule.deploy(actor={'refresh': False}, wrap=True)
+    module = DatasetModule.deploy(actor={'refresh': False}, wrap=True)
+    st.write(module.dataset)
     # st.write(module.list_actors(detail=True))
     # st.write(module.refresh_module('receptor_pool'))
     # st.write(module.list_actors())

@@ -5,18 +5,8 @@ client: {}
 
 submodule:
   queue: 
-    module: ray.server.queue.QueueServer
+    module: ray.server.queue
     actor : {refresh: False}
-
-
-# dataset:
-#   path: datasets.load_dataset
-#   params:
-#     path: glue
-#     name: cola
-#     split: [test, 'train']
-#   text_field: sentence
-
 
 dataset:
   path: datasets.load_dataset
@@ -25,6 +15,7 @@ dataset:
     name: wikitext-103-v1
     split: [test, 'train']
   text_field: text
+  min_token_length: 10
 
 
 

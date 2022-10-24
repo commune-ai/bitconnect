@@ -48,18 +48,13 @@ class DiffuserModule(BaseModule, DiffusionPipeline):
 
     def __init__(
         self,
-        vae: AutoencoderKL,
-        text_encoder: CLIPTextModel,
-        tokenizer: CLIPTokenizer,
-        unet: UNet2DConditionModel,
-        scheduler: Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
-        safety_checker: StableDiffusionSafetyChecker,
-        feature_extractor: CLIPFeatureExtractor,
         config:dict=None,
         **kwargs
     ):
         BaseModule.__init__(self, config=config, **kwargs)
         DiffusionPipeline.__init__(self)
+        self.load_modules()
+
 
         if hasattr(scheduler.config, "steps_offset") and scheduler.config.steps_offset != 1:
             deprecation_message = (
@@ -367,6 +362,17 @@ class DiffuserModule(BaseModule, DiffusionPipeline):
 
         return StableDiffusionPipelineOutput(images=image, nsfw_content_detected=has_nsfw_concept)
 
+
+    def load_modules(self):
+        self.vae = 
+        text_encoder: CLIPTextModel,
+        tokenizer: CLIPTokenizer,
+        unet: UNet2DConditionModel,
+        scheduler: Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
+        safety_checker: StableDiffusionSafetyChecker,
+        feature_extractor: CLIPFeatureExtractor,
+
+
     @staticmethod
     def st_demo():
         import streamlit as st
@@ -382,6 +388,8 @@ class DiffuserModule(BaseModule, DiffusionPipeline):
                 img = module.image_to_np(module.predict_txt2img(text,inf_steps=100,  height=512, width=512)[0])
                 st.image(img)
     
+
+
     
 if __name__ == '__main__':
     import ray

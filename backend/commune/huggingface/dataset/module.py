@@ -26,7 +26,6 @@ from commune.ray.actor_pool import ActorPool
 
 class DatasetModule(BaseModule):
     __file__ = __file__
-    default_config_path = 'huggingface.dataset'
     def __init__(self, config=None, load=True, **kwargs):
         BitModule.__init__(self, config=config,  **kwargs)
 
@@ -65,6 +64,18 @@ class DatasetModule(BaseModule):
         
 
         self.dataset = dataset_class(**params)
+        filter_fn = lambda x: len(x[self.config['dataset']['text_field']]) >= self.config['dataset']['min_token_length']
+        self.datasets = self.filter_dataset(fn=filter_fn, dataset=self.dataset)
+
+    def filter_dataset(self, fn, dataset=None):
+        if dataset == None:
+            dataset = self.dataset
+
+        for split in dataset.keys():
+            dataset[split] = dataset[split].filter(fn)
+
+
+        return dataset
 
     @property
     def info(self):
@@ -110,33 +121,56 @@ class DatasetModule(BaseModule):
         return list(self.dataset.keys())
 
 
-    def __getitem__(self, idx=None, tokenize=False, split=None):
+    def split_size(self, split=None):
         if split == None:
             split = self.splits[0]
+        return len(self.dataset[split])
+
+    def split_size_map(self):
+        return {split: self.dataset[split] for split in self.splits}
+
+    def __getitem__(self, idx=None, split='train', sequence_length=128):
         
         text_field = self.config['dataset']['text_field']
-        dataset_length = len(self.dataset[split])
+        dataset_length =  self.split_size(split)
         if idx == None:
-            idx = random.randint(1,dataset_length-1)
+            idx = random.randint(1,dataset_length-1)    
 
-        assert idx <= dataset_length, f'{idx}<={dataset_length} '
+        final_sample  = ''
+        while len(final_sample.split()) < sequence_length:
+            if split == None:
+                split = self.splits[0]
+                
+            sample = self.dataset[split][idx][text_field]
+            final_sample += sample if len(final_sample) == 0 else '\n' + sample
+            idx = (idx + 1 ) % dataset_length
+        
+        final_sample = ' '.join(final_sample.split()[:sequence_length])
+
+        return final_sample
+
+    def sample(self, batch_size=10, sequence_length=16, random=True, idx_list = None, tokenize=True, padding=True,  **kwargs):
+        if idx_list != None:
+            assert isinstance(idx_list, list)
+            batch_size = len(idx_list)
+            samples =  [self.__getitem__(idx=idx_list[i] ,**kwargs) for i in range(batch_size)]
+
+        elif idx_list == None:
+            samples =  [self.__getitem__(idx=None if random else i,**kwargs) for i in range(batch_size)]
+        else:
+            raise NotImplementedError(type(idx_list))
+
+        if tokenize:
+            samples = self.tokenize(samples, padding=padding)
+        return samples
+
     
-        sample = self.dataset[split][idx][text_field]
-        if tokenize == True:
-            sample = self.tokenize(text=sample, padding=True)
-        return sample
-
-    def sample(self, batch_size=1, random=True, **kwargs):
-        return self.tokenize([self.__getitem__(idx=None if random else i, tokenize=False,**kwargs) for i in range(batch_size)])
-
+    
     def resolve_device(self, device=None):
         if device == None:
             device = self.device
         
         return device
-
-
-
 
 if __name__ == '__main__':
 
@@ -147,7 +181,8 @@ if __name__ == '__main__':
     # module = BenchmarkModule.deploy(actor={'refresh': False, 'name': f'benchmark'})
     # module = DatasetModule.deploy(actor={'refresh': False}, load=True, wrap=True)
     # DatasetModule.ray_restart()
-    module = DatasetModule.deploy(actor=False, load=True, wrap=False)
+    module = DatasetModule.deploy(actor={'refresh': False}, load=True, wrap=True)
+    st.write(module.sample(idx_list= [1032], tokenize=False))
     # ray.get(module.put_batch.remote('fam', [1]*100 ))
     # st.write(ray.get(module.get_batch.remote('fam', 10)))
     # ray.get(module.load_receptor_pool.remote(actor=False))
@@ -156,12 +191,12 @@ if __name__ == '__main__':
 
     # ray.get(module.delete.remote('receptor_pool'))
     
-    st.write(module.dataset)
-    for i in range(10):
-        resp = module.sample(batch_size=100, split='train')
+    # st.write(module.dataset)
+    # for i in range(10):
+    #     resp = module.sample(batch_size=100, split='train')
         
-        # del module.receptor_pool
-        st.write(resp.shape, i)
+    #     # del module.receptor_pool
+    #     st.write(resp.shape, i)
     
     # finished_results = []
     # while running_jobs:

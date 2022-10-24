@@ -40,10 +40,10 @@ unet:
   params:
     name: pretrained_model_name_or_path
     subfolder: unet
-
+    
 schedular:
   module: diffusers.schedulers.DDPMScheduler
-  fn: __init__
+  fn: null
   params:
     beta_start: 0.00085
     beta_end: 0.012

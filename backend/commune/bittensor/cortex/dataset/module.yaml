@@ -9,27 +9,25 @@ client: {}
 #     actor : {refresh: False}
 
 queue: 
-  module: ray.server.queue.QueueServer
+  module: ray.server.queue
   actor : {refresh: False}
 
-
 dataset:
-  path: datasets.load_dataset
-  params:
-    path: glue
-    name: cola
-    split: [test, train]
-  text_field: sentence
+  module: huggingface.dataset
+  actor: {'refresh': False}
+
 
 num_endpoints: 50
 
 synapses: ['TextLastHiddenState']
 
 receptor_pool:
-  path: commune.bittensor.receptor.pool.module.ReceptorPoolModule
+  path: bittensor.receptor.pool
   params:
     max_worker_threads: 0
     max_active_receptors: 0
+  
+  actor: {'refresh': False}
 
 
   memory_threshold:
