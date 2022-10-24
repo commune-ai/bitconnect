@@ -79,8 +79,6 @@ class ClientModule(BaseModule):
     def parse(self):
         fn_ray_method_signatures = self.actor._ray_method_signatures
         for fn_key in fn_ray_method_signatures:
-            ray.get(e)actor.function.remote()
-
             def fn(self, fn_key,server, *args, **kwargs):
                 
                 ray_get = kwargs.pop('ray_get', True)

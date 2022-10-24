@@ -8,6 +8,28 @@
 export DOCKER_BUILDKIT=0
 export COMPOSE_DOCKER_CLI_BUILD=0
 
+
+# Specify the ethereum default RPC container provider
+
+export NETWORK_RPC_HOST="172.15.0.3"
+export NETWORK_RPC_PORT="8545"
+export NETWORK_RPC_URL="http://"${NETWORK_RPC_HOST}:${NETWORK_RPC_PORT}
+export GANACHE_PORT="8545"
+export GANACHE_HOST="172.15.0.3"
+export GANACHE_URL="http://"${GANACHE_HOST}:${GANACHE_PORT}
+
+# export NETWORK_RPC_URL='https://polygon-mumbai.g.alchemy.com/v2/YtTw29fEGWDXcMKpljSM63DbOrgXgJRx'
+# Use this seed on ganache to always create the same wallets
+export GANACHE_MNEMONIC=${GANACHE_MNEMONIC:-"taxi music thumb unique chat sand crew more leg another off lamp"}
+export WEB3_INFURA_PROJECT_ID="4b1e6d019d6644de887db1255319eff8"
+export WEB3_INFURA_URL=" https://mainnet.infura.io/v3/${WEB3_INFURA_PROJECT_ID}"
+export WEB3_ALCHEMY_PROJECT_ID="RrtpZjiUVoViiDEaYxhN9o6m1CSIZvlL"
+export WEB3_ALCHEMY_URL="https://eth-mainnet.g.alchemy.com/v2/${WEB3_INFURA_PROJECT_ID}"
+# Ocean contracts
+
+export PRIVATE_KEY="0x8467415bb2ba7c91084d932276214b11a3dd9bdb2930fefa194b666dd8020b99"
+
+
 IP="localhost"
 optspec=":-:"
 set -e
@@ -89,7 +111,12 @@ while :; do
             ;;
 
         --subtensor)
-        COMPOSE_FILES+=" -f subtensor/subtensor.yml"
+        COMPOSE_FILES+=" -f subtensor/docker-compose.yml"
+
+        ;;
+
+        --ganache)
+        COMPOSE_FILES+=" -f ganache/ganache.yml"
 
         ;;
 
@@ -103,10 +130,20 @@ while :; do
         
         ;;
 
-        --all)
+        --light)
+        COMPOSE_FILES=""
         COMPOSE_FILES+=" -f backend/backend.yml"
         COMPOSE_FILES+=" -f ipfs/ipfs.yml"
-        COMPOSE_FILES+=" -f subtensor/subtensor.yml"
+        COMPOSE_FILES+=" -f ganache/ganache.yml"
+        
+        ;;
+
+        --all)
+        COMPOSE_FILES=""
+        COMPOSE_FILES+=" -f backend/backend.yml"
+        COMPOSE_FILES+=" -f ipfs/ipfs.yml"
+        COMPOSE_FILES+=" -f ganache/ganache.yml"
+        COMPOSE_FILES+=" -f subtensor/docker-compose.yml"
         
         ;;
         --pull)

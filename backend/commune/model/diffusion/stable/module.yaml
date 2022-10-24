@@ -1,0 +1,53 @@
+module: DiffuserModule
+
+revision: fp16
+enable_attention_slicing: True
+
+tokenizer:
+  module: CLIPTokenizer
+  fn: from_pretrained
+  params:
+    name: 
+    subfolder: tokenizer
+  
+text_encoder:
+  modole: transformers.CLIPTextModel
+  fn: from_pretrained
+  params:
+    name: pretrained_model_name_or_path
+    subfolder: text_encoder
+
+vae:
+  module: diffusers.models.AutoencoderKL
+  fn: from_pretrained
+  params:
+    name: pretrained_model_name_or_path
+    subfolder: vae
+  
+safety_checker: 
+  module: diffusers.pipelines.stable_diffusion.StableDiffusionSafetyChecker
+  fn: from_pretrained
+  params: 
+    name: CompVis/stable-diffusion-safety-checker
+feature_extractor: 
+  module: transformers.CLIPFeatureExtractor
+  fn: from_pretrained
+  params: 
+    name: openai/clip-vit-base-patch32
+unet:
+  module: diffusers.models.UNet2DConditionModel
+  fn: from_pretrained
+  params:
+    name: pretrained_model_name_or_path
+    subfolder: unet
+
+schedular:
+  module: diffusers.schedulers.DDPMScheduler
+  fn: __init__
+  params:
+    beta_start: 0.00085
+    beta_end: 0.012
+    beta_schedule: scaled_linear
+
+
+hf_token: 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
