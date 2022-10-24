@@ -13,11 +13,15 @@ class ClientModule(BaseModule):
     def __init__(self, config=None, **kwargs):
         BaseModule.__init__(self, config=config)
         actor = kwargs.get('server', kwargs.get('actor'))
+        if actor == False:
+            actor = self.config['server']
         if isinstance(actor, str):
-            actor = self.get_actor(self.config['server'])
+            actor = self.get_actor(actor)
         elif isinstance(actor, dict):
             actor = self.get_module(**actor)
-        assert isinstance(actor, ray.actor.ActorHandle)
+        elif isinstance(actor, ray.actor.ActorHandle):
+            actor = actor
+
         actor_name = ray.get(actor.getattr.remote('actor_name'))
         self.config['server'] = actor_name
         self.fn_signature_map = {}
@@ -75,6 +79,7 @@ class ClientModule(BaseModule):
     def parse(self):
         fn_ray_method_signatures = self.actor._ray_method_signatures
         for fn_key in fn_ray_method_signatures:
+            ray.get(e)actor.function.remote()
 
             def fn(self, fn_key,server, *args, **kwargs):
                 
@@ -122,7 +127,7 @@ class ClientModule(BaseModule):
 
 
         return BaseModule.__getattribute__(self, key)
-        
+    
 
     def __setattr__(self, *args, **kwargs):
         BaseModule.__setattr__(self,*args, **kwargs)
