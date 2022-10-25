@@ -606,12 +606,24 @@ video {
   top: 2.25rem;
 }
 
+.-bottom-4 {
+  bottom: -1rem;
+}
+
+.-right-4 {
+  right: -1rem;
+}
+
 .-bottom-0 {
   bottom: -0px;
 }
 
 .top-4 {
   top: 1rem;
+}
+
+.top-10 {
+  top: 2.5rem;
 }
 
 .z-20 {
@@ -624,6 +636,10 @@ video {
 
 .z-10 {
   z-index: 10;
+}
+
+.z-\[1000\] {
+  z-index: 1000;
 }
 
 .-z-10 {
@@ -742,6 +758,10 @@ video {
   height: 90%;
 }
 
+.h-7 {
+  height: 1.75rem;
+}
+
 .h-\[600px\] {
   height: 600px;
 }
@@ -780,6 +800,10 @@ video {
 
 .w-3\/4 {
   width: 75%;
+}
+
+.w-7 {
+  width: 1.75rem;
 }
 
 .w-32 {
@@ -822,6 +846,14 @@ video {
   flex: 1 1 0%;
 }
 
+.flex-none {
+  flex: none;
+}
+
+.flex-initial {
+  flex: 0 1 auto;
+}
+
 .rotate-180 {
   --tw-rotate: 180deg;
   -webkit-transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
@@ -859,12 +891,20 @@ video {
   cursor: grab;
 }
 
+.cursor-move {
+  cursor: move;
+}
+
 .cursor-nwse-resize {
   cursor: nwse-resize;
 }
 
 .cursor-default {
   cursor: default;
+}
+
+.touch-none {
+  touch-action: none;
 }
 
 .select-none {
@@ -965,6 +1005,10 @@ video {
   border-width: 1px;
 }
 
+.border-4 {
+  border-width: 4px;
+}
+
 .border-y-2 {
   border-top-width: 2px;
   border-bottom-width: 2px;
@@ -997,14 +1041,14 @@ video {
   border-color: rgb(0 0 0 / var(--tw-border-opacity));
 }
 
-.border-Retro-dark-blue {
-  --tw-border-opacity: 1;
-  border-color: rgb(3 94 232 / var(--tw-border-opacity));
-}
-
 .border-white {
   --tw-border-opacity: 1;
   border-color: rgb(255 255 255 / var(--tw-border-opacity));
+}
+
+.border-Retro-dark-blue {
+  --tw-border-opacity: 1;
+  border-color: rgb(3 94 232 / var(--tw-border-opacity));
 }
 
 .bg-white {
@@ -1043,6 +1087,11 @@ video {
 .bg-neutral-900 {
   --tw-bg-opacity: 1;
   background-color: rgb(23 23 23 / var(--tw-bg-opacity));
+}
+
+.bg-Blue-Royal {
+  --tw-bg-opacity: 1;
+  background-color: rgb(61 118 224 / var(--tw-bg-opacity));
 }
 
 .bg-Warm-Blue {
@@ -1293,6 +1342,10 @@ video {
   padding: 0px;
 }
 
+.p-\[0\.6rem\] {
+  padding: 0.6rem;
+}
+
 .p-1 {
   padding: 0.25rem;
 }
@@ -1475,10 +1528,6 @@ video {
 .underline {
   -webkit-text-decoration-line: underline;
           text-decoration-line: underline;
-}
-
-.opacity-50 {
-  opacity: 0.5;
 }
 
 .opacity-60 {

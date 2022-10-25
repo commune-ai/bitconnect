@@ -350,9 +350,16 @@ class GradioModule(BaseModule):
     def ls_ports(self):
         return self.subprocess_manager.ls()
 
-    def add(self,module:str, port:int):
+    def add(self,module:str, port:int, mode:str):
         module = self.resolve_module_path(module)
-        command  = f'python {__file__} --module={module} --port={port}'
+        module = self.get_object(module).get_module_filepath()
+        print(module, __file__ , 'DEBUG')
+        command_map ={
+            'gradio':  f'python {__file__} --module={module} --port={port}',
+            'streamlit': f'streamlit run {module} --server.port={port}'
+        }
+
+        command  = command_map[mode]
         process = self.subprocess_manager.add(key=str(port), command=command, add_info= {'module':module })
         return {
             'module': module,
@@ -543,11 +550,11 @@ async def ls():
 
 
 @app.get("/add")
-async def module_add(module:str=None):
+async def module_add(module:str=None, mode='streamlit'):
     self = GradioModule.get_instance()
     port = self.suggest_port()
     # self.launch(module=module)
-    return self.add(port=port, module=module)
+    return self.add(port=port, module=module, mode=mode)
 
 
 @app.get("/rm")

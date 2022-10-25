@@ -2,6 +2,6 @@ module: ClientModule
 name: ClientModule
 
 client: {}
-api : "enter an api key"
+api : "gFT5j1IjbbLUJnk2EfmckTKfsf0BKk6WNN2emOXz"
 baseline : ['small', 'medium', 'large', 'xlarge']
 credit : 74.87

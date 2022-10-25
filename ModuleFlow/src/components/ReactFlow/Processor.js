@@ -153,7 +153,7 @@ export default function Processor() {
     const onDrop = useCallback(
       (event) => {
         event.preventDefault();
-
+        console.log("dropped")
         if(event.dataTransfer.getData('application/reactflow')  !== ""){
           const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
           const type = event.dataTransfer.getData('application/reactflow');
@@ -169,7 +169,8 @@ export default function Processor() {
               const position = reactFlowInstance.project({
                 x: event.clientX - reactFlowBounds.left,
                 y: event.clientY - reactFlowBounds.top,});
-                                      
+                console.log("new Node")
+           
                 const newNode = {
                   id: `${item}-${data.port}-${nodes.length+1}`,
                   type,
@@ -182,6 +183,7 @@ export default function Processor() {
                           emoji : `${style.emoji}`,
                           delete : deleteNode },};
                   setNodes((nds) => nds.concat(newNode));
+                  console.log(nodes)
                 })    
         }
       },

@@ -36,12 +36,13 @@ export default class Navbar extends Component{
      */
     fetch_classes = async () => {
         this.setState({loading : true})
-        await fetch(`http://localhost:8000/list?${new URLSearchParams({ mode : "gradio" })}`, { method: 'GET', mode : 'cors',})
+        await fetch(`http://localhost:8000/list?${new URLSearchParams({ mode : "simple" })}`, { method: 'GET', mode : 'cors',})
             .then(response => response.json())
             .then(data => {
                     this.handelTabs(this.state.menu, data)
                     this.setState({loading : false})
-                    this.setState({menu : data.sort(function(x, y) {return (x.read === y.read)? 0 : x.read? -1 : 1;})})
+                    
+                    this.setState({menu : data.sort(function(x, y) {return (x === y)? 0 : x? -1 : 1;})})
                 }).catch(error => {console.log(error)}) 
     }
 
@@ -143,12 +144,12 @@ export default class Navbar extends Component{
      */
     subComponents(item, index){
         return(<>
-                <li key={`${index}-li`} onDragStart={(event) => this.onDragStart(event, 'custom', item.path, index)} 
+                <li key={`${index}-li`} onDragStart={(event) => this.onDragStart(event, 'custom', item, index)} 
                     className={` text-white text-md flex flex-col text-center items-center cursor-grab shadow-lg
-                                 p-5 px-2 mt-4 rounded-md ${ this.state.open ? `${item.read ? "hover:animate-pulse" : "opacity-50 select-none"}  ${this.state.colour[index] === null ? "" : this.state.colour[index]} ` : `hidden`}  break-all -z-20`} draggable={item.read}>
+                                 p-5 px-2 mt-4 rounded-md ${ this.state.open ? `hover:animate-pulse ${this.state.colour[index] === null ? "" : this.state.colour[index]} ` : `hidden`}  break-all -z-20`} draggable={true}>
 
                     <div key={`${index}-div`}  className=" absolute -mt-2 text-4xl opacity-60 z-10 ">{`${this.state.emoji[index] === null ? "" : this.state.emoji[index]}`}</div>    
-                    <h4 key={`${index}-h4`}  className={`  max-w-full font-sans text-blue-50 leading-tight font-bold text-xl flex-1 z-20  ${this.state.open ? "" : "hidden"}`} style={{"textShadow" : "0px 1px 2px rgba(0, 0, 0, 0.25)"}} >{`${item.path}`} </h4>
+                    <h4 key={`${index}-h4`}  className={`  max-w-full font-sans text-blue-50 leading-tight font-bold text-xl flex-1 z-20  ${this.state.open ? "" : "hidden"}`} style={{"textShadow" : "0px 1px 2px rgba(0, 0, 0, 0.25)"}} >{`${item}`} </h4>
 
                 </li >      
 
