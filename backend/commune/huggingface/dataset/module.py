@@ -10,7 +10,7 @@ from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
 # import torchsort
 from commune.bittensor import BitModule
-from commune import BaseModule
+from commune import Module
 import ray
 from commune.bittensor.cortex.metric import causal_lm_loss, ranknet_loss
 from commune.utils import *
@@ -24,7 +24,7 @@ from torch import nn
 from commune.ray.actor_pool import ActorPool
 
 
-class DatasetModule(BaseModule):
+class DatasetModule(Module):
     __file__ = __file__
     def __init__(self, config=None, load=True, **kwargs):
         BitModule.__init__(self, config=config,  **kwargs)

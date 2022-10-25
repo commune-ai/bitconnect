@@ -1,5 +1,5 @@
 actor:
-  name: BaseModule
+  name: Module
   refresh: false
 client: {}
-module: BaseModule
+module: Module

@@ -3,15 +3,15 @@
 import streamlit as st
 import os, sys
 sys.path.append(os.getenv('PWD'))
-from commune import BaseModule
+from commune import Module
 from functools import partial
 import ray
 
-class ClientModule(BaseModule):
+class ClientModule(Module):
     default_config_path = 'ray.client.module'
     override_attributes = False
     def __init__(self, config=None, **kwargs):
-        BaseModule.__init__(self, config=config)
+        Module.__init__(self, config=config)
         actor = kwargs.get('server', kwargs.get('actor'))
         if actor == False:
             actor = self.config['server']
@@ -112,23 +112,23 @@ class ClientModule(BaseModule):
     
     def __getattribute__(self, key):
         if key in ['actor', 'fn_signature_map']:
-            return BaseModule.__getattribute__(self, key)
+            return Module.__getattribute__(self, key)
         
-        elif BaseModule.__getattribute__(self, 'override_attributes'):
+        elif Module.__getattribute__(self, 'override_attributes'):
 
 
-            if key in BaseModule.__getattribute__(self, 'fn_signature_map'):
-                return BaseModule.__getattribute__(self, key)
+            if key in Module.__getattribute__(self, 'fn_signature_map'):
+                return Module.__getattribute__(self, key)
             else:
                 
-                return BaseModule.__getattribute__(self,'getattr')(key)
+                return Module.__getattribute__(self,'getattr')(key)
 
 
-        return BaseModule.__getattribute__(self, key)
+        return Module.__getattribute__(self, key)
     
 
     def __setattr__(self, *args, **kwargs):
-        BaseModule.__setattr__(self,*args, **kwargs)
+        Module.__setattr__(self,*args, **kwargs)
 
 
 if __name__ == '__main__':

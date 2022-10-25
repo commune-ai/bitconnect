@@ -1,6 +1,6 @@
 import ray
 from ray.util.queue import Queue
-from commune import BaseModule
+from commune import Module
 
 """
 
@@ -10,7 +10,7 @@ Background Actor for Message Brokers Between Quees
 import ray
 from commune.ray.utils import kill_actor, create_actor
 
-class RayRedisServer(BaseModule):
+class RayRedisServer(Module):
     @staticmethod
     def set(key,message):
         return ray.global_worker.redis_client.set(key, message)

@@ -1,1 +1,1 @@
-from .base.module import BaseModule
+from .base.module import Module

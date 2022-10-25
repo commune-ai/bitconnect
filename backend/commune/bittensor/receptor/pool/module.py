@@ -30,14 +30,14 @@ import bittensor
 from commune.utils import round_sig
 import bittensor.utils.networking as net
 from concurrent.futures import ThreadPoolExecutor
-from commune import BaseModule
+from commune import Module
 from commune.bittensor.receptor.receptor.module import ReceptorModule
 import ray
 import psutil
 
 import asyncio
 
-class ReceptorPoolModule (BaseModule, torch.nn.Module ):
+class ReceptorPoolModule (Module, torch.nn.Module ):
     """ Manages a pool of grpc connections as receptors
     """
     default_config_path = 'bittensor.receptor.pool'
@@ -52,7 +52,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
         override= {},
     ):
         torch.nn.Module.__init__(self)
-        BaseModule.__init__(self, config=config, override=override)
+        Module.__init__(self, config=config, override=override)
 
         if wallet == None:
             wallet = self.config.get('wallet')
@@ -405,7 +405,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
     @staticmethod
     def st_test_1():
         return_info_dict = {'codes': [], 'latency': []}
-        dataset_class =  BaseModule.get_object('bittensor.cortex.dataset2.module.DatasetModule')
+        dataset_class =  Module.get_object('bittensor.cortex.dataset2.module.DatasetModule')
         st.write(dataset_class)
         dataset = dataset_class.deploy(actor={'refresh': False}, load=True, wrap = True)
         success_count = 0
@@ -468,7 +468,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
                     io_1 = psutil.net_io_counters()
                     start_bytes_sent, start_bytes_recv = io_1.bytes_sent, io_1.bytes_recv
 
-                    with BaseModule.timer('Time: {t}', streamlit=False) as t: 
+                    with Module.timer('Time: {t}', streamlit=False) as t: 
                         inputs_batch = []
                         forward_kwargs_list = []
                         st.write(len(job2inputs_dict),'initial ')
@@ -562,14 +562,14 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
         with st.sidebar.expander('Ray', True):
             restart_ray_cluster = st.button('Restart Ray Cluster')
             if restart_ray_cluster:
-                BaseModule.ray_restart()
+                Module.ray_restart()
             stop_ray_cluster = st.button('Stop Ray Cluster')
             if stop_ray_cluster:
-                BaseModule.ray_stop()
+                Module.ray_stop()
 
             start_ray_cluster = st.button('Start Ray Cluster')
             if start_ray_cluster:
-                BaseModule.ray_start()
+                Module.ray_start()
 
         import plotly.express as px
 
@@ -618,6 +618,6 @@ if __name__ == '__main__':
     # ReceptorPoolModule.ray_restart()
     ReceptorPoolModule.st_test_1()
     st.write('fam')
-    # BaseModule.ray_restart()
+    # Module.ray_restart()
    
    

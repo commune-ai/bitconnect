@@ -3,18 +3,18 @@ import os
 import sys
 import json
 sys.path.append(os.getcwd())
-from commune import BaseModule
+from commune import Module
 import ray
 import requests
 
 
-class RayModule(BaseModule):
+class RayModule(Module):
     def __init__(
         self,
         config=None,
         **kwargs
     ):
-        BaseModule.__init__(self, config=config,  **kwargs)
+        Module.__init__(self, config=config,  **kwargs)
         self.queue = self.get_actor(**self.config['servers']['queue'], wrap=True)
         self.object  = self.get_actor(**self.config['servers']['object'], wrap=True)
 

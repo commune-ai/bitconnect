@@ -64,37 +64,6 @@ COLOR_C="\033[0;36m"    # cyan
 # reset
 COLOR_RESET="\033[00m"
 
-
-
-function check_if_owned_by_root {
-    if [ -d "$OCEAN_HOME" ]; then
-        uid=$(ls -nd "$OCEAN_HOME" | awk '{print $3;}')
-        if [ "$uid" = "0" ]; then
-            printf $COLOR_R"WARN: $OCEAN_HOME is owned by root\n"$COLOR_RESET >&2
-        else
-            uid=$(ls -nd "$OCEAN_ARTIFACTS_FOLDER" | awk '{print $3;}')
-            if [ "$uid" = "0" ]; then
-                printf $COLOR_R"WARN: $OCEAN_ARTIFACTS_FOLDER is owned by root\n"$COLOR_RESET >&2
-            fi
-        fi
-    fi
-}
-
-
-function check_max_map_count {
-  vm_max_map_count=$(docker run --rm busybox sysctl -q vm.max_map_count)
-  vm_max_map_count=${vm_max_map_count##* }
-  vm_max_map_count=262144
-  if [ $vm_max_map_count -lt 262144 ]; then
-    printf $COLOR_R'vm.max_map_count current kernel value ($vm_max_map_count) is too low for Elasticsearch\n'$COLOR_RESET
-    printf $COLOR_R'You must update vm.max_map_count to at least 262144\n'$COLOR_RESET
-    printf $COLOR_R'Please refer to https://www.elastic.co/guide/en/elasticsearch/reference/6.6/vm-max-map-count.html\n'$COLOR_RESET
-    exit 1
-  fi
-}
-
-check_if_owned_by_root
-
 while :; do
     case $1 in
         #################################################

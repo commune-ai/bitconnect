@@ -18,7 +18,7 @@ import random
 import torch
 from copy import deepcopy
 # function to use requests.post to make an API call to the subgraph url
-from commune import BaseModule
+from commune import Module
 from tqdm import tqdm
 from plotly.subplots import make_subplots
 from commune.ray.utils import kill_actor, create_actor
@@ -29,7 +29,7 @@ import itertools
 from commune.streamlit import StreamlitPlotModule, row_column_bundles
 
 
-class BitModule(BaseModule):
+class BitModule(Module):
     sample_n = 400
     sample_mode = 'rank'
     sample_metric = 'ranks'
@@ -42,7 +42,7 @@ class BitModule(BaseModule):
     def __init__(self, config=None, **kwargs):
         
         
-        BaseModule.__init__(self, config=config, **kwargs) 
+        Module.__init__(self, config=config, **kwargs) 
         # self.sync_network(network=network, block=block)
         self.plot = StreamlitPlotModule()
         self.cli = bittensor.cli()

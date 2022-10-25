@@ -1,0 +1,12 @@
+
+module: ContractModule
+
+
+network:
+  module: web3.network
+  kwargs:
+    network: local.main.ganache
+
+client: {}
+
+

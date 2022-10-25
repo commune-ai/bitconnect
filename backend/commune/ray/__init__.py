@@ -1,1 +1,1 @@
-from .actor import ActorModule
+from .actor import Module

@@ -35,12 +35,12 @@ import bittensor.utils.stats as stat_utils
 
 from datetime import datetime
 
-from commune import BaseModule
+from commune import Module
 from .auth import AuthInterceptor
 
 logger = logger.opt(colors=True)
 
-class Axon( bittensor.grpc.BittensorServicer , BaseModule):
+class Axon( bittensor.grpc.BittensorServicer , Module):
     r""" Services Forward and Backward requests from other neurons.
     """
     def __new__(
@@ -221,7 +221,7 @@ class Axon( bittensor.grpc.BittensorServicer , BaseModule):
                 priority_threadpool (:obj:`bittensor.prioritythreadpool`, `optional`):
                     bittensor priority_threadpool.                
         """
-        # BaseModule.__init__(self, config=config)
+        # Module.__init__(self, config=config)
         self.ip = ip
         self.port = port
         self.wallet = wallet

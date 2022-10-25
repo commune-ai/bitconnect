@@ -32,7 +32,7 @@ import random
 from commune.utils import round_sig
 import bittensor.utils.networking as net
 from concurrent.futures import ThreadPoolExecutor
-from commune import BaseModule
+from commune import Module
 from commune.bittensor.base.module import BitModule
 from commune.bittensor.receptor.receptor.module import ReceptorModule
 import ray
@@ -250,7 +250,7 @@ if __name__ == '__main__':
     # # The tensor we are going to send over the wire
 
     # # module.forward(inputs=inputs)
-    # # BaseModule.ray_restart()
+    # # Module.ray_restart()
    
     # ##########################
     # ##### Run experiment #####

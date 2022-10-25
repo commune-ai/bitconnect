@@ -4,7 +4,7 @@
 import os, sys
 sys.path.append(os.environ['PWD'])
 import gradio
-from commune import BaseModule
+from commune import Module
 from inspect import getfile
 import inspect
 import socket
@@ -35,7 +35,7 @@ class bcolor:
 
     
 
-class GradioModule(BaseModule):
+class GradioModule(Module):
     default_config_path =  'gradio.api'
 
 
@@ -47,7 +47,7 @@ class GradioModule(BaseModule):
 
 
     def __init__(self, config=None):
-        BaseModule.__init__(self, config=config)
+        Module.__init__(self, config=config)
         self.subprocess_manager = self.get_object('subprocess.module.SubprocessModule')()
 
         self.host  = self.config.get('host', '0.0.0.0')

@@ -27,7 +27,7 @@ from commune.utils import  (RunningMean,
                         dict_put, dict_has, dict_get, dict_hash
                         )
 
-from commune import BaseModule
+from commune import Module
 
 
 def cache():
@@ -35,12 +35,12 @@ def cache():
         self.save_
     
 
-class APIModule(BaseModule):
+class APIModule(Module):
 
     default_config_path = "bittensor.cortex.api"
 
     def __init__(self, config=None, **kwargs):
-        BaseModule.__init__(self, config=config, **kwargs)
+        Module.__init__(self, config=config, **kwargs)
         self.actor_map = {}
 
 

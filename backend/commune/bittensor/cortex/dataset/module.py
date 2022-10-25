@@ -31,7 +31,7 @@ import bittensor
 from commune.utils import round_sig
 import bittensor.utils.networking as net
 from concurrent.futures import ThreadPoolExecutor
-from commune import BaseModule
+from commune import Module
 from commune.bittensor.receptor.receptor.module import ReceptorModule
 import ray
 import psutil
@@ -56,7 +56,7 @@ class GeneratorObject(object):
         serialized_data = (None, self.sample_count, self.jobs)
         return deserializer, serialized_data
 
-class DatasetModule (BaseModule, torch.nn.Module ):
+class DatasetModule (Module, torch.nn.Module ):
     """ Manages a pool of grpc connections as receptors
     """
     default_config_path = 'bittensor.cortex.dataset'
@@ -68,7 +68,7 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         **kwargs
     ):
         torch.nn.Module.__init__(self)
-        BaseModule.__init__(self, config=config, override=override, **kwargs)
+        Module.__init__(self, config=config, override=override, **kwargs)
         self.load()
         
 
@@ -122,7 +122,7 @@ class DatasetModule (BaseModule, torch.nn.Module ):
 
 
     def load_bitmodule(self, refresh=False, network=None, wallet = None):
-        module_class = BaseModule.get_object('bittensor.base.module.BitModule')
+        module_class = Module.get_object('bittensor.base.module.BitModule')
         network = network if network != None else self.config['network']
         wallet = wallet if wallet != None else self.config['wallet']
         self.bitmodule = module_class.deploy(actor={'refresh': refresh}, override={'network': network, 'wallet': wallet}, load=True, wrap = True)

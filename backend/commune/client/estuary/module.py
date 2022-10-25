@@ -16,21 +16,18 @@ from ipfspy.utils import parse_response
 
 from commune.client.local import LocalModule
 from commune.client.ipfs import IPFSModule
-from commune import BaseModule
+from commune import Module
 from commune.utils import try_n_times
 
 
 # register_implementation(IPFSFileSystem.protocol, IPFSFileSystem)
 # register_implementation(AsyncIPFSFileSystem.protocol, AsyncIPFSFileSystem)
 
-# with fsspec.open("ipfs://QmZ4tDuvesekSs4qM5ZBKpXiZGun7S2CYtEZRB3DYXkjGx", "r") as f:
-#     print(f.read())
 
-
-class EstuaryModule(BaseModule):
+class EstuaryModule(Module):
 
     def __init__(self, config=None):
-        BaseModule.__init__(self, config=config)
+        Module.__init__(self, config=config)
         self.api_key = self.get_api_key(api_key = self.config.get('api_key'))
         self.local =  LocalModule()
         self.ipfs = IPFSModule()
@@ -806,14 +803,16 @@ class EstuaryModule(BaseModule):
     def get_json(self, path):
         return json.loads(self.cat(path))
 
-    def force_put(self, lpath, rpath, max_trials=10):
+
+
+    def save(self, lpath, rpath, max_trials=10):
         trial_count = 0
         cid = None
         while trial_count<max_trials:
             try:
 
                 if self.local.isdir(lpath):
-                    files = self.local.ls(lpath)
+                    files = self.recursive_file_list(lpath)
                 else:
                     files = [lpath]
                 # for f in self.local.ls(lpath)
@@ -914,6 +913,10 @@ if __name__ == '__main__':
         output_files = [f for f in self.local.glob(path+'/**') if self.local.isfile(f)]
 
         return output_files
+
+
+
+
 
 
 

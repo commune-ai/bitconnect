@@ -2,7 +2,7 @@ import ray
 import os, sys
 sys.path.append(os.getenv('PWD'))
 from ray.util.queue import Queue
-from commune import BaseModule
+from commune import Module
 """
 
 Background Actor for Message Brokers Between Quees
@@ -13,13 +13,13 @@ from commune.utils import *
 
 
 
-class ObjectServer(BaseModule):
+class ObjectServer(Module):
     default_config_path = 'ray.server.object'
     cache_dict= {}
     flat_cache_dict = {}
 
     def __init__(self, config=None):
-        BaseModule.__init__(self, config=config)
+        Module.__init__(self, config=config)
 
     def put(self,key,value):
         object_id = ray.put(value)

@@ -3,17 +3,17 @@ import os
 import sys
 import json
 sys.path.append(os.getcwd())
-from commune import BaseModule
+from commune import Module
 import ray
 import requests
 
-class RestModule(BaseModule):
+class RestModule(Module):
     default_config_path = f"client.rest.module"
     def __init__(
         self,
         config=None
     ):
-        BaseModule.__init__(self, config=config)
+        Module.__init__(self, config=config)
 
     @property
     def url(self):

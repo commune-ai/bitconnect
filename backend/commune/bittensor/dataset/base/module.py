@@ -26,7 +26,7 @@ from typing import Union
 import sys 
 sys.path.append(os.getenv('PWD'))
 
-from commune import BaseModule
+from commune import Module
 import requests
 import torch
 from loguru import logger
@@ -37,11 +37,11 @@ import bittensor
 from commune.bittensor.dataset.thread_queue import ThreadQueue
 logger = logger.opt(colors=True)
 
-class Dataset(BaseModule):
+class Dataset(Module):
     """ Implementation for the dataset class, which handles dataloading from ipfs
     """
     def __init__(self, config=None):
-        BaseModule.__init__(self, config=config)
+        Module.__init__(self, config=config)
         # Used to retrieve directory contentx
         self.dataset_dir = 'http://global.ipfs.opentensor.ai/api/v0/cat' 
         self.text_dir = 'http://global.ipfs.opentensor.ai/api/v0/object/get'

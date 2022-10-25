@@ -1,9 +1,9 @@
 import os, sys
 sys.path.append(os.environ['PWD'])
-from commune import BaseModule
+from commune import Module
 
 
-class RecieverModule(BaseModule):
+class RecieverModule(Module):
     def receive(self):
         return 'bro'
 

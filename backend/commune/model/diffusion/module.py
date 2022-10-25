@@ -7,7 +7,7 @@ from copy import deepcopy
 import streamlit as st
 sys.path.append(os.environ['PWD'])
 from commune.utils import dict_put, get_object, dict_has
-from commune import BaseModule
+from commune import Module
 from diffusers import StableDiffusionPipeline, LMSDiscreteScheduler
 import torch
 import os
@@ -21,14 +21,14 @@ import torch
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, LMSDiscreteScheduler
 
 
-class DiffuserModule(BaseModule):
+class DiffuserModule(Module):
 
     default_config_path = 'model.diffusion'
     default_mode = 'txt2img'
     default_device = 'cuda'
 
     def __init__(self, config=None,  **kwargs):
-        BaseModule.__init__(self, config=config, **kwargs)
+        Module.__init__(self, config=config, **kwargs)
 
         self.mode = kwargs.get('mode', self.config.get('mode', self.default_mode))
         self.load_pipeline(**self.config['pipeline'])

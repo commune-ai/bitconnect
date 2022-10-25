@@ -1,9 +1,9 @@
 import os, sys
 sys.path.append(os.environ['PWD'])
-from commune import BaseModule
+from commune import Module
 
 
-class SenderModule(BaseModule):
+class SenderModule(Module):
     def send_echo(self, *args, **kwargs):
         return kwargs
     

@@ -10,7 +10,7 @@ from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
 # import torchsort
 from commune.bittensor import BitModule
-from commune import BaseModule
+from commune import Module
 
 from commune.bittensor.cortex.metric import causal_lm_loss, ranknet_loss
 from commune.utils import *

@@ -7,7 +7,7 @@
 import os, sys
 sys.path.append(os.environ['PWD'])
 import gradio
-from commune import BaseModule
+from commune import Module
 from commune.utils import *
 import pandas as pd
 import time
@@ -15,7 +15,7 @@ import time
 
 
 
-class ClientModule(BaseModule):
+class ClientModule(Module):
     default_config_path =  'gradio.client.module'
 
     def bro(self, bro='bro', sup='fam',   fam='bro', output_example={'bro': 'fuck you jesus'}):

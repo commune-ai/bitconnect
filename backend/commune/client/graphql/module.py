@@ -1,13 +1,13 @@
 import os
 from .utils import graphql_query
-from commune import BaseModule
+from commune import Module
 import ray
 
-class GraphQLModule(BaseModule):
+class GraphQLModule(Module):
     default_config_path = "client.graphql.module"
 
     def __init__(self,config,):
-        BaseModule.__init__(self, config)
+        Module.__init__(self, config)
         self.
 
 

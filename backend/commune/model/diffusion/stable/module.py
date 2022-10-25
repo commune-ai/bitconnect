@@ -1,7 +1,7 @@
 import inspect
 from typing import Callable, List, Optional, Union
 import os, sys
-from  commune import BaseModule
+from  commune import Module
 import torch
 from copy import deepcopy
 from transformers import CLIPFeatureExtractor, CLIPTextModel, CLIPTokenizer
@@ -18,7 +18,7 @@ from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionS
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
-class DiffuserModule(BaseModule, DiffusionPipeline):
+class DiffuserModule(Module, DiffusionPipeline):
     r"""
     Pipeline for text-to-image generation using Stable Diffusion.
 
@@ -52,7 +52,7 @@ class DiffuserModule(BaseModule, DiffusionPipeline):
         **kwargs
     ):
         # import sftreamlit as st
-        BaseModule.__init__(self, config=config, override={})
+        Module.__init__(self, config=config, override={})
         DiffusionPipeline.__init__(self)
         self.load_modules()
         self.resolve_device(device=kwargs.get('device'))

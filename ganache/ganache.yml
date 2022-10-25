@@ -2,13 +2,13 @@
 version: "3.9"
 services:
   ganache:
-    cpu_count: 4
+    cpu_count: 2
+    container_name: ganache
     build:
       context: ./
       dockerfile: Dockerfile
     ports:
       - ${GANACHE_PORT}:${GANACHE_PORT}
-
     environment:
       OCEAN_NETWORK_URL: ${NETWORK_RPC_URL}
       MNEMONIC: ${GANACHE_MNEMONIC}

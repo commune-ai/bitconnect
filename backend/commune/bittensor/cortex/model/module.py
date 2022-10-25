@@ -10,7 +10,7 @@ from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
 import torchsort
 from commune.bittensor import BitModule
-from commune import BaseModule
+from commune import Module
 
 from commune.bittensor.cortex.metric import causal_lm_loss, ranknet_loss
 from commune.utils import *
@@ -24,7 +24,7 @@ from torch import nn
 from commune.ray.actor_pool import ActorPool
 
 
-class CortexModule(BaseModule):
+class CortexModule(Module):
     __file__ = __file__
     default_config_path = 'bittensor.cortex.trainer'
     def __init__(self, config=None, **kwargs):

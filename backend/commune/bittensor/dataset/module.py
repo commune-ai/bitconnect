@@ -27,7 +27,7 @@ import copy
 import sys 
 sys.path.append(os.getenv('PWD'))
 
-from commune.bittensor.dataset.base.module import BaseModule
+from commune.bittensor.dataset.base.module import Module
 import requests
 import torch
 from loguru import logger

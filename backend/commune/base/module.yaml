@@ -1,4 +1,4 @@
-module: 'BaseModule'
+module: 'Module'
 
 client: {}
 

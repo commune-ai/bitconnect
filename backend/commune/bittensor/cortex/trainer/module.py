@@ -9,7 +9,7 @@ from tqdm.auto import tqdm
 from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
 from commune.bittensor import BitModule
-from commune import BaseModule
+from commune import Module
 import ray
 from commune.bittensor.cortex.metric import causal_lm_loss, ranknet_loss
 from commune.utils import *
@@ -22,7 +22,7 @@ from torch import nn
 from commune.ray.actor_pool import ActorPool
 
 
-class TrainerModule(BaseModule):
+class TrainerModule(Module):
     __file__ = __file__
     default_config_path = 'bittensor.cortex.trainer'
 
@@ -32,7 +32,7 @@ class TrainerModule(BaseModule):
         **kwargs
     ):
         torch.nn.Module.__init__(self)
-        BaseModule.__init__(self, config=config, **kwargs)
+        Module.__init__(self, config=config, **kwargs)
         self.load()
 
     def load(self):
@@ -66,7 +66,7 @@ class TrainerModule(BaseModule):
     def load_bitmodule(self, refresh=False, sync=True, **kwargs):
         st.write(self.config)
         bitmodule_config = self.config['bitmodule']
-        module_class = BaseModule.get_object(bitmodule_config['module'])
+        module_class = Module.get_object(bitmodule_config['module'])
         wallet = kwargs.pop('wallet', bitmodule_config['wallet'])
         network = kwargs.pop('network', bitmodule_config['network'])
         self.bitmodule = module_class.deploy(actor={'refresh': refresh}, override={'network': network, 'wallet': wallet}, load=True, wrap = True)

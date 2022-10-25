@@ -35,7 +35,7 @@ from types import SimpleNamespace
 from typing import Tuple, List, Union
 from loguru import logger
 from grpc import _common
-from commune import BaseModule
+from commune import Module
 
 
 from bittensor._proto import bittensor_pb2 as bittensor_dot___proto_dot_bittensor__pb2
@@ -62,7 +62,7 @@ class BittensorStub(object):
                 )
 
 
-class ReceptorModule(nn.Module, BaseModule):
+class ReceptorModule(nn.Module, Module):
 
     default_config_path = 'bittensor.receptor.receptor'
     def __init__(
@@ -89,7 +89,7 @@ class ReceptorModule(nn.Module, BaseModule):
                     bittensor protocol stub created from channel.
         """
         nn.Module.__init__(self)
-        BaseModule.__init__(self, config=config, override=override)
+        Module.__init__(self, config=config, override=override)
         self.external_ip = str(net.get_external_ip())
 
 
@@ -722,11 +722,11 @@ class ReceptorModule(nn.Module, BaseModule):
 if __name__ == '__main__':
     import streamlit as st
     import ray 
-    # BaseModule.ray_restart()
-    dataset_class =  BaseModule.get_object('bittensor.cortex.dataset.module.DatasetModule')
+    # Module.ray_restart()
+    dataset_class =  Module.get_object('bittensor.cortex.dataset.module.DatasetModule')
     dataset = dataset_class.deploy(actor={'refresh': True}, load=['env', 'tokenizer', 'dataset'], wrap = True)
 
-    with BaseModule.timer('Fetch data {t}',  streamlit=True):
+    with Module.timer('Fetch data {t}',  streamlit=True):
         inputs = dataset.sample_raw_batch(batch_size=1)
         inputs = dataset.tokenize(inputs)
     endpoint = dataset.get_endpoints(num_endpoints=1)[0]

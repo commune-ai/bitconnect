@@ -4,7 +4,7 @@ sys.path.append(os.getenv('PWD'))
 from commune.ray.queue import Queue
 from commune.utils import dict_put,dict_get,dict_has,dict_delete
 from copy import deepcopy
-from commune import BaseModule
+from commune import Module
 """
 
 Background Actor for Message Brokers Between Quees
@@ -14,12 +14,12 @@ Background Actor for Message Brokers Between Quees
 
 
 
-class QueueServer(BaseModule):
+class QueueServer(Module):
 
     default_actor_name = 'queue'
     default_config_path = 'ray.server.queue'
     def __init__(self,config=None, **kwargs):
-        BaseModule.__init__(self, config=config, **kwargs)
+        Module.__init__(self, config=config, **kwargs)
         self.queue = {}
         # self.topic2actorname = {}
 
@@ -164,7 +164,7 @@ class QueueClient(QueueServer):
 
     default_config_path = 'ray.server.queue'
     def __init__(self,config=None, **kwargs):
-        BaseModule.__init__(self, config=config, **kwargs)
+        Module.__init__(self, config=config, **kwargs)
         self.queue = {}
         
     def delete_topic(self,topic,

@@ -23,7 +23,7 @@ from commune.utils import  (RunningMean,
                         dict_put, dict_has, dict_get, dict_hash
                         )
 
-from commune import BaseModule
+from commune import Module
 
 
 def cache():
@@ -31,13 +31,13 @@ def cache():
         self.save_
     
 
-class Launcher(BaseModule):
+class Launcher(Module):
 
 
     default_config_path = "ray.launcher"
 
     def __inif__(self, config=None, **kwargs):
-        BaseModule.__init__(self, config=config, **kwargs)
+        Module.__init__(self, config=config, **kwargs)
         self.actor_map = {}
 
         self.config['queue'] = {
@@ -132,7 +132,7 @@ class Launcher(BaseModule):
 
     @property
     def actor_map(self):
-        return BaseModule.actor_map()
+        return Module.actor_map()
     
     @property
     def actor_names(self):
@@ -157,24 +157,12 @@ class Launcher(BaseModule):
 
         return None
 
-    @staticmethod
-    def st_test():
-
-        import streamlit as st
-        module = Launcher.deploy(actor=False, wrap=True)
-        st.write(module.actor_map)
     @property
     def available_modules(self):
         return list(self.simple2module.keys())
 
     module_list = available_modules
     
-
-  
-    rm = remove = remove_actor
-
-
-
     def remove_all_actors(self):
         for actor in self.actor_names:
             self.remove_actor(actor)
@@ -182,7 +170,12 @@ class Launcher(BaseModule):
     rm_all = remove_all = remove_all_actors
 
 
+    @staticmethod
+    def st_test():
 
+        import streamlit as st
+        module = Launcher.deploy(actor=False, wrap=True)
+        st.write(module.actor_map)
 
 if __name__=="__main__":
 

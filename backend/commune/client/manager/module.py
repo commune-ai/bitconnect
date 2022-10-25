@@ -6,13 +6,13 @@ import os, sys
 sys.path.append(os.getenv('PWD'))
 import datasets
 from copy import deepcopy
-from commune import BaseModule
-class ClientModule(BaseModule):
+from commune import Module
+class ClientModule(Module):
     default_config_path = 'client.manager.module'
     registered_clients = {}
 
     def __init__(self, config=None ):
-        BaseModule.__init__(self, config=config,get_clients=False)
+        Module.__init__(self, config=config,get_clients=False)
         # st.write(self.config)
         self.register_clients(clients=self.include_clients)
 

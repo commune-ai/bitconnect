@@ -3,7 +3,7 @@ version: "3.2"
 services:
   backend:
     image: commune/bittensor/backend
-    container_name: bittensor-backend
+    container_name: backend
     build: ./
     # entrypoint: ["gunicorn", "--worker-class", "eventlet", "-w", "1", "-b", "0.0.0.0:5000", "--preload", "server.app:app"]
     shm_size: '20gb'

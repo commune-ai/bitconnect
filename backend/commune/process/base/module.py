@@ -18,7 +18,7 @@ from commune.ray.utils import create_actor
 
 
 
-class BaseModule(ActorBase):
+class Module(ActorBase):
     """
     Manages loading and processing of data
 
@@ -229,11 +229,11 @@ class BaseModule(ActorBase):
     @staticmethod
     def default_clients(clients =[], config=None):
         if config is None:
-            config =  BaseModule.load_config(BaseModule.default_client_config_path)
+            config =  Module.load_config(Module.default_client_config_path)
         if len(clients)>0 :
             config['client'] = {client: config['client'][client] for client in clients}
 
-        return BaseModule.get_module(config=config).client
+        return Module.get_module(config=config).client
 
 
     def connect_clients(self):

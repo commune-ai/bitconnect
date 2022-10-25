@@ -27,14 +27,14 @@ import concurrent
 import bittensor
 import bittensor.utils.networking as net
 from concurrent.futures import ThreadPoolExecutor
-from commune import BaseModule
+from commune import Module
 from commune.bittensor.receptor.receptor.asyncio.module import ReceptorModule
 import ray
 
 import asyncio
 logger = logger.opt(colors=True)
 
-class ReceptorPoolModule (BaseModule, torch.nn.Module ):
+class ReceptorPoolModule (Module, torch.nn.Module ):
     """ Manages a pool of grpc connections as receptors
     """
     default_config_path = 'bittensor.receptor.pool.asyncio'
@@ -49,7 +49,7 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
         override= {},
     ):
         torch.nn.Module.__init__(self)
-        BaseModule.__init__(self, config=config, override=override)
+        Module.__init__(self, config=config, override=override)
 
         self.wallet = wallet
         self.max_worker_threads = max_worker_threads
@@ -357,15 +357,15 @@ class ReceptorPoolModule (BaseModule, torch.nn.Module ):
 
 if __name__ == '__main__':
     import streamlit as st
-    # BaseModule.ray_restart()
-    dataset_class =  BaseModule.get_object('bittensor.cortex.dataset.module.DatasetModule')
+    # Module.ray_restart()
+    dataset_class =  Module.get_object('bittensor.cortex.dataset.module.DatasetModule')
     dataset = dataset_class.deploy(actor={'refresh': False}, load=['env', 'tokenizer'], wrap = True)
     inputs = dataset.tokenize(['100 whadup fam'])
     receptor = ReceptorPoolModule(wallet=dataset.getattr('wallet'))
     all_synapses = dataset.getattr('synapses')
     endpoints = dataset.get_endpoints(num_endpoints=100)
 
-    with BaseModule.timer('time: {t}',streamlit=True):
+    with Module.timer('time: {t}',streamlit=True):
         st.write(asyncio.run(receptor.forward(inputs= inputs ,synapses=all_synapses, timeout=1, endpoints=endpoints)))
 
     

@@ -11,7 +11,7 @@ from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
 
 from commune.bittensor import BitModule
-from commune import BaseModule
+from commune import Module
 
 from commune.utils import *
 

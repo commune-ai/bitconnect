@@ -1,9 +1,9 @@
-from commune import BaseModule
+from commune import Module
 
 
 import streamlit as st
 
-class Module(BaseModule):
+class Module(Module):
     default_config_path='algovera.base.module'
 
     def bro(self, input_text= 'hello'):
