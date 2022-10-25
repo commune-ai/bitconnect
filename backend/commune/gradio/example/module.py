@@ -15,3 +15,6 @@ class ExampleModule(BaseModule):
     def bro(self, input1=1, inpupt2=10, output_example={'bro': 1}):
         pass
 
+
+
+

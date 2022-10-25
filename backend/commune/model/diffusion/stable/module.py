@@ -3,9 +3,9 @@ from typing import Callable, List, Optional, Union
 import os, sys
 from  commune import BaseModule
 import torch
-
+from copy import deepcopy
 from transformers import CLIPFeatureExtractor, CLIPTextModel, CLIPTokenizer
-
+import streamlit as st
 from diffusers.configuration_utils import FrozenDict
 from diffusers.models import AutoencoderKL, UNet2DConditionModel
 from diffusers.pipeline_utils import DiffusionPipeline
@@ -45,32 +45,33 @@ class DiffuserModule(BaseModule, DiffusionPipeline):
         feature_extractor ([`CLIPFeatureExtractor`]):
             Model that extracts features from generated images to be used as inputs for the `safety_checker`.
     """
-
+    config = None
     def __init__(
         self,
         config:dict=None,
         **kwargs
     ):
-        BaseModule.__init__(self, config=config, **kwargs)
-        DiffusionPipeline.__init__(self)
+        # import sftreamlit as st
+        BaseModule.__init__(self, config=config, override={})
+        # DiffusionPipeline.__init__(self)
         self.load_modules()
-
-
-        if hasattr(scheduler.config, "steps_offset") and scheduler.config.steps_offset != 1:
+        
+         
+        if hasattr(self.scheduler.config, "steps_offset") and self.scheduler.config.steps_offset != 1:
             deprecation_message = (
                 f"The configuration file of this scheduler: {scheduler} is outdated. `steps_offset`"
-                f" should be set to 1 instead of {scheduler.config.steps_offset}. Please make sure "
+                f" should be set to 1 instead of {self.scheduler.config.steps_offset}. Please make sure "
                 "to update the config accordingly as leaving `steps_offset` might led to incorrect results"
                 " in future versions. If you have downloaded this checkpoint from the Hugging Face Hub,"
                 " it would be very nice if you could open a Pull request for the `scheduler/scheduler_config.json`"
                 " file"
             )
             deprecate("steps_offset!=1", "1.0.0", deprecation_message, standard_warn=False)
-            new_config = dict(scheduler.config)
+            new_config = dict(self.scheduler.config)
             new_config["steps_offset"] = 1
             scheduler._internal_dict = FrozenDict(new_config)
 
-        if safety_checker is None:
+        if self.safety_checker is None:
             logger.warn(
                 f"You have disabled the safety checker for {self.__class__} by passing `safety_checker=None`. Ensure"
                 " that you abide to the conditions of the Stable Diffusion license and do not expose unfiltered"
@@ -81,14 +82,15 @@ class DiffuserModule(BaseModule, DiffusionPipeline):
             )
 
         self.register_modules(
-            vae=vae,
-            text_encoder=text_encoder,
-            tokenizer=tokenizer,
-            unet=unet,
-            scheduler=scheduler,
-            safety_checker=safety_checker,
-            feature_extractor=feature_extractor,
+            vae=self.vae,
+            text_encoder=self.text_encoder,
+            tokenizer=self.tokenizer,
+            unet=self.unet,
+            scheduler=self.scheduler,
+            safety_checker=self.safety_checker,
+            feature_extractor=self.feature_extractor,
         )
+
 
     def enable_attention_slicing(self, slice_size: Optional[Union[str, int]] = "auto"):
         r"""
@@ -116,6 +118,7 @@ class DiffuserModule(BaseModule, DiffusionPipeline):
         """
         # set slice_size = `None` to disable `attention slicing`
         self.enable_attention_slicing(None)
+
 
     @torch.no_grad()
     def __call__(
@@ -362,16 +365,37 @@ class DiffuserModule(BaseModule, DiffusionPipeline):
 
         return StableDiffusionPipelineOutput(images=image, nsfw_content_detected=has_nsfw_concept)
 
+    def load_module(self, module,refresh=None):
+       
+        module_config = deepcopy(self.config.get(module))
+        
+        assert isinstance(module_config, dict ), f'{module}'
+        module_path = module_config.get('module', module_config.get('path', None))
+        st.write(module_config)
+        try:
+            module_class = self.import_object(module_path)
+        except:
+            module_class =  self.get_module_class(module_path)
 
-    def load_modules(self):
-        self.vae = 
-        text_encoder: CLIPTextModel,
-        tokenizer: CLIPTokenizer,
-        unet: UNet2DConditionModel,
-        scheduler: Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
-        safety_checker: StableDiffusionSafetyChecker,
-        feature_extractor: CLIPFeatureExtractor,
+        module_kwargs = module_config.get('kwargs', module_config.get('params'))
+        module_init_fn = module_config.get('fn', None)
 
+        if module_init_fn == None:
+            module_object =  module_class(**module_kwargs)
+        else:
+            module_init_fn = getattr(module_class,module_init_fn)
+            module_object =  module_init_fn(**module_kwargs)
+        return module_object
+    def load_modules(self, modules=None):
+        default_modules = ['vae', 'text_encoder',
+                         'tokenizer', 'unet', 'scheduler', 'safety_checker', 'feature_extractor']
+        
+        if modules == None:
+            modules = default_modules
+        for module in modules:
+            module_object = self.load_module(module=module)
+            setattr(self, module, module_object)
+        
 
     @staticmethod
     def st_demo():
@@ -390,32 +414,9 @@ class DiffuserModule(BaseModule, DiffusionPipeline):
     
 
 
-    
+
 if __name__ == '__main__':
     import ray
-    DiffuserModule.deploy()
-    # module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_cpus': 2, 'num_gpus': 0.6}}, wrap=True)
-    # module = DiffuserModule.deploy(actor={'refresh': False, 
-    #                                       'resources': {'num_gpus': 0.5, 'num_cpus': 2}}, wrap=True)
-    
-    # st.write(module.list_actors(detail=True))
-    # st.write(st.write(ray.get_actor('model.diffusion').getattr.remote('config')))
-    # module.getattr('')
-    # st.write(module.getattr('config'))
-    # st.write(module.pipeline.to('cuda'))
-    # st.write('fam')
-    # st.write('fram')
-    # st.write(module.kill_actor('model.diffusion.2'))
-    # st.write(ray.get_actor('model.diffusion'))
-    # # st.write(module.kill_actor('model.diffusion.2'))
-    # st.write(module.list_actors())
-    # # st.write(module.pipeline)
-    # ray.kill(ray.get_actor('actor'))
-
-    # st.write(module.forward('whadup fam, what are you sayin'))
-    # DiffuserModule.ray_restart()
-
-    # from ray.experimental.state.api import list_actors
-    # # ray.kill(ray.get_actor('actor'))
-    # st.write(list_actors(filters=[("state", "=", "ALIVE")]))
-
+    module = DiffuserModule.deploy(actor=False, wrap=True)
+    module.to('cuda')
+    st.write(module.__call__(prompt='yo whadup',num_inference_steps=50 ))

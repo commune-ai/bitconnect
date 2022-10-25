@@ -25,6 +25,8 @@ class ActorModule:
     def __init__(self, config=None, override={}, **kwargs):
 
         self.config = self.resolve_config(config=config)
+
+
         self.override_config(override=override)
         self.start_timestamp =self.current_timestamp
         self.cache = {}
@@ -55,16 +57,19 @@ class ActorModule:
         return config_path
 
     def resolve_config(self, config, override={}, local_var_dict={}, recursive=True, return_munch=False, **kwargs):
+        
+        import streamlit as st ; 
+        
         if config == None:
-            config = getattr(self,'config',  self.get_config_path(simple=True))
-
+            config =  self.get_config_path(simple=True)
+            import streamlit as st
+            # st.write(self.get_config_path(simple=True),config, self.config , 'bro')
         elif isinstance(config, str):
             config = config
         elif isinstance(config, dict):
             pass
         else:
             raise NotImplementedError(config)
-
 
         config = self.load_config(config=config, 
                              override=override, 
@@ -771,6 +776,7 @@ class ActorModule:
         module_path =  inspect.getmodule(cls).__file__
         if simple:
             module_path = os.path.dirname(module_path.replace(ActorModule.root, '')).replace('/', '.')[1:]
+
         return module_path
 
     @staticmethod

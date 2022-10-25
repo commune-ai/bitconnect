@@ -2,48 +2,54 @@ module: DiffuserModule
 
 revision: fp16
 enable_attention_slicing: True
-
+client: {}
+device: cuda
 tokenizer:
-  module: CLIPTokenizer
+  module: transformers.CLIPTokenizer
   fn: from_pretrained
   params:
-    name: 
+    pretrained_model_name_or_path: CompVis/stable-diffusion-v1-4
     subfolder: tokenizer
+    use_auth_token: local_copy(hf_token)
   
 text_encoder:
-  modole: transformers.CLIPTextModel
+  module: transformers.CLIPTextModel
   fn: from_pretrained
   params:
-    name: pretrained_model_name_or_path
+    pretrained_model_name_or_path: CompVis/stable-diffusion-v1-4
     subfolder: text_encoder
+    use_auth_token: local_copy(hf_token)
 
 vae:
   module: diffusers.models.AutoencoderKL
   fn: from_pretrained
   params:
-    name: pretrained_model_name_or_path
+    pretrained_model_name_or_path: CompVis/stable-diffusion-v1-4
     subfolder: vae
+    use_auth_token: local_copy(hf_token)
   
 safety_checker: 
   module: diffusers.pipelines.stable_diffusion.StableDiffusionSafetyChecker
   fn: from_pretrained
   params: 
-    name: CompVis/stable-diffusion-safety-checker
+    pretrained_model_name_or_path: CompVis/stable-diffusion-safety-checker
+    use_auth_token: local_copy(hf_token)
 feature_extractor: 
   module: transformers.CLIPFeatureExtractor
   fn: from_pretrained
   params: 
-    name: openai/clip-vit-base-patch32
+    pretrained_model_name_or_path: openai/clip-vit-base-patch32
+    use_auth_token: local_copy(hf_token)
 unet:
   module: diffusers.models.UNet2DConditionModel
   fn: from_pretrained
   params:
-    name: pretrained_model_name_or_path
+    pretrained_model_name_or_path: CompVis/stable-diffusion-v1-4
     subfolder: unet
+    use_auth_token: local_copy(hf_token)
     
-schedular:
+scheduler:
   module: diffusers.schedulers.DDPMScheduler
-  fn: null
   params:
     beta_start: 0.00085
     beta_end: 0.012

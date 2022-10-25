@@ -25,7 +25,6 @@ class BaseModule(ActorModule):
            
 
         # st.write(self.__class__,self.registered_clients,'debug')
-        
 
         self.get_submodules(get_submodules_bool = kwargs.get('get_submodules', True))
 
@@ -360,19 +359,15 @@ class BaseModule(ActorModule):
     def module2simple(self):
         return {v:k for k,v in self.simple2module.items()}
 
-
     def get_module_class(self,module:str):
-
         if module in self.simple2module:
             module_path = self.simple2module[module]
         elif module in self.module2simple:
             module_path = module
         else:
-            raise Exception(f'options are {list(self.simple2module.keys())} (short) and {list(self.simple2module.values())} (long)')
-        st.write(module_path)
+            raise Exception(f'({module}) not in options {list(self.simple2module.keys())} (short) and {list(self.simple2module.values())} (long)')
         module_class= self.import_object('commune.'+module_path)
         return module_class
-
 
     @property
     def full_module_list(self):

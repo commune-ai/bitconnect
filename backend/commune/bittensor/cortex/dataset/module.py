@@ -99,8 +99,8 @@ class DatasetModule (BaseModule, torch.nn.Module ):
         elif actor == False:
             actor = actor
         elif isinstance(actor, dict):
-            if refresh  :
-                refresh = actor.get('refresh', False)
+            if isinstance(refresh, bool) :
+                refresh = actor.get('refresh', refresh)
             actor['refresh'] = refresh
         # the rest goes to the kwargs
         kwargs = module_config.pop('params', module_config.pop('kwargs', module_config))
@@ -518,32 +518,17 @@ class DatasetModule (BaseModule, torch.nn.Module ):
             results_dict['job'] = result
 
         return results_dict
-   
+
+
+    @staticmethod
+    def streamlit():
+        import streamlit as st
+        module = DatasetModule.deploy(actor={'refresh': False}, wrap=True)
+        st.write(type(module.dataset))
 
 
 if __name__ == '__main__':
+    DatasetModule.streamlit()
     
-    import streamlit as st
-    import time
-    import msgpack
-    import json
-
-
-
-    module = DatasetModule.deploy(actor={'refresh': False}, wrap=True)
-    st.write(module.dataset)
-    # st.write(module.list_actors(detail=True))
-    # st.write(module.refresh_module('receptor_pool'))
-    # st.write(module.list_actors())
-    # module.start_generator( num_samples=10, max_concurrent_calls=5, batch_multiplier=1, batch_size=5, seq_len=10, seq_multiplier=1, timeout=4, num_endpoints=100, split='train')
-    # st.write(module.generate_sample('train'))
-    # for i in range(10):
-    #     st.write(module.queue.list_actors())
-
-    # sample_dict = module.sample(num_endpoints=10)
-    # st.write({k:v.shape for k,v in sample_dict.items()})
-    # st.write(module.submit_fn('sample', num_endpoints=100))
-
-    # st.write(module.getattr('generator_map')['train'].__dict__)
 
 

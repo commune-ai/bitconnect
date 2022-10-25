@@ -41,7 +41,7 @@ class Dataset(BaseModule):
     """ Implementation for the dataset class, which handles dataloading from ipfs
     """
     def __init__(self, config=None):
-        BaseModule.__init__(self,config=config)
+        BaseModule.__init__(self, config=config)
         # Used to retrieve directory contentx
         self.dataset_dir = 'http://global.ipfs.opentensor.ai/api/v0/cat' 
         self.text_dir = 'http://global.ipfs.opentensor.ai/api/v0/object/get'
