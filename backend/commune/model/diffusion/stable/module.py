@@ -53,10 +53,10 @@ class DiffuserModule(BaseModule, DiffusionPipeline):
     ):
         # import sftreamlit as st
         BaseModule.__init__(self, config=config, override={})
-        # DiffusionPipeline.__init__(self)
+        DiffusionPipeline.__init__(self)
         self.load_modules()
+        self.resolve_device(device=kwargs.get('device'))
         
-         
         if hasattr(self.scheduler.config, "steps_offset") and self.scheduler.config.steps_offset != 1:
             deprecation_message = (
                 f"The configuration file of this scheduler: {scheduler} is outdated. `steps_offset`"
@@ -90,6 +90,17 @@ class DiffuserModule(BaseModule, DiffusionPipeline):
             safety_checker=self.safety_checker,
             feature_extractor=self.feature_extractor,
         )
+
+
+    default_device = 'cuda'
+    def resolve_device(self, device='cuda'):
+        if device == None:
+            device =  self.config.get('device', self.default_device)
+        if 'cuda' in device:
+            if not torch.cuda.is_available():
+                print('bro, the cuda is not here fam, switching to cpu')
+                device = 'cpu'
+            self.to(device)
 
 
     def enable_attention_slicing(self, slice_size: Optional[Union[str, int]] = "auto"):
@@ -386,6 +397,7 @@ class DiffuserModule(BaseModule, DiffusionPipeline):
             module_init_fn = getattr(module_class,module_init_fn)
             module_object =  module_init_fn(**module_kwargs)
         return module_object
+    registered_modules = []
     def load_modules(self, modules=None):
         default_modules = ['vae', 'text_encoder',
                          'tokenizer', 'unet', 'scheduler', 'safety_checker', 'feature_extractor']
@@ -396,6 +408,7 @@ class DiffuserModule(BaseModule, DiffusionPipeline):
             module_object = self.load_module(module=module)
             setattr(self, module, module_object)
         
+            self.registered_modules.append(module)
 
     @staticmethod
     def st_demo():
@@ -414,9 +427,55 @@ class DiffuserModule(BaseModule, DiffusionPipeline):
     
 
 
+    def to(self, torch_device: Optional[Union[str, torch.device]] = None, modules = []):
+        if torch_device is None:
+            return self
+
+        if len(modules) == 0:
+            modules = self.registered_modules
+
+        for name in self.registered_modules:
+            module = getattr(self, name)
+            if isinstance(module, torch.nn.Module):
+                if module.dtype == torch.float16 and str(torch_device) in ["cpu", "mps"]:
+                    logger.warning(
+                        "Pipelines loaded with `torch_dtype=torch.float16` cannot run with `cpu` or `mps` device. It"
+                        " is not recommended to move them to `cpu` or `mps` as running them will fail. Please make"
+                        " sure to use a `cuda` device to run the pipeline in inference. due to the lack of support for"
+                        " `float16` operations on those devices in PyTorch. Please remove the"
+                        " `torch_dtype=torch.float16` argument, or use a `cuda` device to run inference."
+                    )
+                module.to(torch_device)
+
+        return self
+
+
+    @property
+    def device(self) -> torch.device:
+        r"""
+        Returns:
+            `torch.device`: The torch device on which the pipeline is located.
+        """
+        for name in self.registered_modules:
+            module = getattr(self, name)
+            if isinstance(module, torch.nn.Module):
+                return module.device
+        return torch.device("cpu")
+
+    @property
+    def device_map(self):
+        device_map  = {}
+        for name in self.registered_modules:
+            module = getattr(self, name)
+            if isinstance(module, torch.nn.Module):
+                device_map[name] = module.device
+        return device_map
 
 if __name__ == '__main__':
     import ray
-    module = DiffuserModule.deploy(actor=False, wrap=True)
-    module.to('cuda')
-    st.write(module.__call__(prompt='yo whadup',num_inference_steps=50 ))
+    st.write(torch.cuda.is_available())
+    module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_gpus': 0.4, 'num_cpus': 2}}, wrap=True)
+    # st.write(module)
+    # st.write(module.device)
+    # st.image(module.__call__(prompt='yo whadup',num_inference_steps=50 ))
+    st.write(module.__dict__)
