@@ -65,3 +65,5 @@ gradio_client:
 
 make backend:
 	make bash arg=backend
+make sync:
+	git submodule sync --recursive

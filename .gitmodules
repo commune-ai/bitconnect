@@ -1,10 +1,10 @@
 [submodule "bittensor"]
 	path = backend/bittensor
-	url = https://github.com/commune-ai/bittensor.git
+	url = https://github.com/opentensor/bittensor.git
 	branch= master
 [submodule "subtensor"]
 	path = subtensor
-	url = https://github.com/commune-ai/subtensor.git
+	url = https://github.com/opentensor/subtensor.git
 	branch= master
 [submodule "backend/cubit"]
 	path = backend/cubit
