@@ -27,15 +27,14 @@ class ConfigLoader:
     root =  os.path.join(os.environ['PWD'],'commune')
 
     def __init__(self, path=None,
-                 local_var_dict = {},
                  load_config=False):
         '''
         path: path to yaml config
-        local_var_dict: variables you want to replace with ENV variables
+        : variables you want to replace with ENV variables
 
         '''
         if load_config:
-            self.load(path=path, local_var_dict=local_var_dict)
+            self.load(path=path)
 
 
     @staticmethod
@@ -51,12 +50,12 @@ class ConfigLoader:
 
 
 
-    def load(self, path, local_var_dict={}, override={}, recursive=True, return_munch=False):
+    def load(self, path,override={}, recursive=True, return_munch=False):
         
-        
-        self.local_var_dict = local_var_dict
+
         self.cfg = self.parse_config(path=path)
        
+
         if recursive:
             self.cfg = self.resolver_methods(cfg=self.cfg)
         if isinstance(override, dict) and len(override) > 0:
@@ -292,8 +291,6 @@ class ConfigLoader:
         if type(path) in [dict, list]:
             return path
         assert isinstance(path, str), path
-
-        local_var_dict = self.local_var_dict
         
         path = self.resolve_config_path(path)
 
@@ -340,7 +337,7 @@ class ConfigLoader:
                 full_value = value
                 for g in match:
                     full_value = full_value.replace(
-                        f'${{{g}}}', os.environ.get(g, self.local_var_dict[g] if g in self.local_var_dict else None)
+                        f'${{{g}}}', os.environ.get(g,None)
                     )
                 return full_value
             return value

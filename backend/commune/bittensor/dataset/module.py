@@ -16,7 +16,7 @@
 # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
-
+from munch import Munch
 import json
 import os
 import random
@@ -44,9 +44,28 @@ logger = logger.opt(colors=True)
 
 
 
+import json
+import os
+import random
+import time
+from typing import Union
 
+import sys 
+sys.path.append(os.getenv('PWD'))
 
-class GenesisTextDataset( Dataset):
+from commune import Module
+import requests
+import torch
+from loguru import logger
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+from torch.utils.data.dataloader import DataLoader
+import bittensor
+from commune.bittensor.dataset.thread_queue import ThreadQueue
+logger = logger.opt(colors=True)
+
+import streamlit as st
+class GenesisTextDataset( Module):
     """ One kind of dataset that caters for the data from ipfs 
     """
 
@@ -65,23 +84,27 @@ class GenesisTextDataset( Dataset):
         _mock=None,
         config=None
     ):
-        Dataset.__init__(self)
 
-        if config == None: 
-            config = self.default_config_()
+        local_kwargs = {k:v for k,v in locals().items() if k != 'self' }
+        st.write(local_kwargs)
+        Module.__init__(self, config=config)
+        # Used to retrieve directory contentx
+        self.dataset_dir = 'http://global.ipfs.opentensor.ai/api/v0/cat' 
+        self.text_dir = 'http://global.ipfs.opentensor.ai/api/v0/object/get'
+        self.mountain_hash = 'QmSdDg6V9dgpdAFtActs75Qfc36qJtm9y8a7yrQ1rHm7ZX'
+        # Used when current corpus has been exhausted
+        # self.refresh_corpus = False
 
-        import streamlit as st
-        st.write(config, 'fuck')
-        config = copy.deepcopy( config )
-        self.block_size = config.dataset.block_size = block_size if block_size != None else config.dataset.block_size
-        self.batch_size = config.dataset.batch_size = batch_size if batch_size != None else config.dataset.batch_size
-        self.num_workers = config.dataset.num_workers = num_workers if num_workers != None else config.dataset.num_workers
-        self.dataset_name = config.dataset.dataset_name = dataset_name if dataset_name != [] else config.dataset.dataset_name
-        self.save_dataset = config.dataset.save_dataset = save_dataset if save_dataset != None else config.dataset.save_dataset
-        self.no_tokenizer = config.dataset.no_tokenizer = no_tokenizer if no_tokenizer != None else config.dataset.no_tokenizer
-        self.num_batches = config.dataset.num_batches = num_batches if num_batches != None else config.dataset.num_batches
-        self.max_datasets = config.dataset.max_datasets = max_datasets if max_datasets != None else config.dataset.max_datasets
-        self._mock = config.dataset._mock = _mock if _mock != None else config.dataset._mock
+        self.config = config = Munch({**self.config, **self.default_config_()})
+        self.block_size = self.config.dataset.block_size = block_size if block_size != None else config.dataset.block_size
+        self.batch_size = self.config.dataset.batch_size = batch_size if batch_size != None else config.dataset.batch_size
+        self.num_workers = self.config.dataset.num_workers = num_workers if num_workers != None else config.dataset.num_workers
+        self.dataset_name = self.config.dataset.dataset_name = dataset_name if dataset_name != [] else config.dataset.dataset_name
+        self.save_dataset = self.config.dataset.save_dataset = save_dataset if save_dataset != None else config.dataset.save_dataset
+        self.no_tokenizer = self.config.dataset.no_tokenizer = no_tokenizer if no_tokenizer != None else config.dataset.no_tokenizer
+        self.num_batches = self.config.dataset.num_batches = num_batches if num_batches != None else config.dataset.num_batches
+        self.max_datasets = self.config.dataset.max_datasets = max_datasets if max_datasets != None else config.dataset.max_datasets
+        self._mock = self.config.dataset._mock = _mock if _mock != None else config.dataset._mock
         self.check_config( config )
 
         self.tokenizer = bittensor.tokenizer( version = bittensor.__version__ )
@@ -103,7 +126,7 @@ class GenesisTextDataset( Dataset):
 
         os.makedirs(os.path.expanduser(self.data_dir), exist_ok=True)
             
-        st.write(self.reserve_multiple_data(self.num_batches))
+        # st.write(self.reserve_multiple_data(self.num_batches))
         # self.data_queue = ThreadQueue(
         #     producer_target = self.reserve_multiple_data,
         #     producer_arg = (self.num_batches, ),
@@ -114,7 +137,9 @@ class GenesisTextDataset( Dataset):
         self.close()
 
     def close(self):
-        self.data_queue.close()
+        if hasattr(self, 'data_queue'):
+            self.data_queue.close()
+
 
     def get_folder_size(self, folder):
         r""" Get the size (in byte) of a folder inside the data_dir.
@@ -694,7 +719,73 @@ class GenesisTextDataset( Dataset):
 
 
 
+    @staticmethod
+    def requests_retry_session(
+            retries=1,
+            backoff_factor=0.5,
+            status_forcelist=(104, 500, 502, 504),
+            session=None,
+        ):
+        """ Creates a retriable session for request calls. This enables
+        automatic retries and back-off retries should any request calls fail.
+
+        Args:
+            retries (int, optional): Maximum number of retries. Defaults to 3.
+            backoff_factor (float, optional): Factor by which to back off if a retry fails. Defaults to 0.3.
+            status_forcelist (tuple, optional): A set of integer HTTP status codes that we should force a retry on. Defaults to (500, 502, 504).
+            session ([type], optional): Session for which to set up the retries. Defaults to None.
+
+        Returns:
+            requests.Session(): A Requests Session object set up for retries and backoff.
+        """
+        session = session or requests.Session()
+        retry = Retry(
+            total=retries,
+            read=retries,
+            connect=retries,
+            backoff_factor=backoff_factor,
+            status_forcelist=status_forcelist,
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        return session
+
+    def get_ipfs_directory(self, address: str, file_meta: dict, action: str = 'post', timeout : int = 180):
+        r"""Connects to IPFS gateway and retrieves directory.
+        Args:
+            address: (:type:`str`, required):
+                The target address of the request. 
+            params: (:type:`tuple`, optional):
+                The arguments of the request. eg. (('arg', dataset_hash),)
+            action: (:type:`str`, optional):
+                POST or GET.
+            timeout: (:type:`int`, optional):
+                Timeout for getting the server's response. 
+        Returns:
+            dict: A dictionary of the files inside of the genesis_datasets and their hashes.
+        """
+        session = requests.Session()
+        session.params.update((('arg', file_meta['Hash']), ))
+        
+        try:
+            if action == 'get':
+                response = self.requests_retry_session(session=session).get(address, timeout=timeout)
+            elif action == 'post':
+                response = self.requests_retry_session(session=session).post(address, timeout=timeout)
+            logger.success("Loaded from IPFS:".ljust(20) + "<blue>{}</blue>".format(file_meta['Name']))
+
+        except Exception as E:
+            logger.error(f"Failed to get from IPFS {file_meta['Name']} {E}")
+            return None
+
+        return response
+
+
+
 
 
 if __name__ == '__main__':
-    module = GenesisTextDataset()
+    import streamlit as st
+    module = GenesisTextDataset.deploy(actor=False)
+    st.write(module.config)

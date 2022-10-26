@@ -1,12 +1,63 @@
-from commune.utils import get_object, dict_any, dict_put, dict_get, dict_has, dict_pop, deep2flat
+from commune.utils import get_object, dict_any, dict_put, dict_get, dict_has, dict_pop, deep2flat, Timer, dict_override
+import datetime
 from commune.config.loader import ConfigLoader
-from commune.ray.actor import Module
 import streamlit as st
 import os
-from .utils import enable_cache, cache
+import ray
+import torch
+from commune.ray.utils import actor_exists
 from munch import Munch
 import inspect
 from copy import deepcopy
+
+
+def cache(self, **kwargs):
+
+    if 'keys' in kwargs:
+        key_dict = {k: kwargs.get('keys') for k in ['save', 'load']}
+    else:
+        key_dict = dict(save=dict_any(x=input_kwargs, keys=['save', 'write'], default=[]),
+                        load= dict_any(x=input_kwargs, keys=['load', 'read'], default=[]))
+
+    def wrap_fn(fn):
+        def new_fn(self, *args, **kwargs):
+            [setattr(self, k, self.get_json(k)) for k in key_dict['load']]
+            fn(self, *args, **kwargs)
+            [self.put_json(k, getattr(self, k)) for k in key_dict['save']]
+        return new_fn
+    
+    return wrap_fn
+
+
+def enable_cache(**input_kwargs):
+    load_kwargs = dict_any(x=input_kwargs, keys=['load', 'read'], default={})
+    if isinstance(load_kwargs, bool):
+        load_kwargs = dict(enable=load_kwargs)
+
+    save_kwargs = dict_any(x=input_kwargs, keys=['save', 'write'], default={})
+    if isinstance(save_kwargs, bool):
+        save_kwargs = dict(enable=save_kwargs)
+
+    refresh = dict_any(x=input_kwargs, keys=['refresh', 'refresh_cache'], default=False)
+    assert isinstance(refresh, bool), f'{type(refresh)}'
+
+    def wrapper_fn(fn):
+        def new_fn(self, *args, **kwargs):
+
+            if refresh: 
+                self.cache = {}
+            else:
+                self.load_cache(**load_kwargs)
+
+            output = fn(self, *args, **kwargs)
+            self.save_cache(**save_kwargs)
+            return output
+        
+        return new_fn
+    return wrapper_fn
+
+
+
 
 class Module:
     client = None
@@ -440,7 +491,7 @@ class Module:
             self.queue.put(topic=out_queue,item=output_dict)
 
 
-    def launch_actor(self, module:str,**kwargs):
+    def launch(self, module:str,**kwargs):
         
 
         default_actor = {
@@ -469,8 +520,6 @@ class Module:
     module_tree = module_list
 
     def load_module(self, module:str, fn:str=None ,kwargs:dict={}, actor=False, **additional_kwargs):
-       
-        
         try:
             module_class = self.import_object(module)
         except:
@@ -479,15 +528,25 @@ class Module:
         module_init_fn = fn
         module_kwargs = {**kwargs, **additional_kwargs}
 
-        if module_init_fn == None:
 
-            module_object =  module_class(**module_kwargs)
+        if module_init_fn == None:
+            if actor:
+                # ensure actor is a dictionary
+                if actor == True:
+                    actor = {}
+                assert isinstance(actor, dict), f'{type(actor)} should be dictionary fam'
+                actor['name'] = actor.get('name', str(module_class))
+                module_object = self.create_actor(cls=module_class, cls_kwargs=module_kwargs, **actor)
+            else:
+                module_object =  module_class(**module_kwargs)
+
+
         else:
             module_init_fn = getattr(module_class,module_init_fn)
             module_object =  module_init_fn(**module_kwargs)
         
 
-        if actor
+
 
         return module_object
 
@@ -535,47 +594,36 @@ class Module:
             config_path = config_path.replace('.py', '.yaml')
         return config_path
 
-    def resolve_config(self, config, override={}, local_var_dict={}, recursive=True, return_munch=False, **kwargs):
-        
-        import streamlit as st ; 
+    def resolve_config(self, config, override={}, recursive=True ,return_munch=False, **kwargs):
         
         if config == None:
             config =  self.get_config_path(simple=True)
-            import streamlit as st
-            # st.write(self.get_config_path(simple=True),config, self.config , 'bro')
-        elif isinstance(config, str):
-            config = config
-        elif isinstance(config, dict):
-            pass
-        else:
-            raise NotImplementedError(config)
+        assert type(config) in [str, dict, Munch], f'CONFIG type {type(config)} no supported'
 
         config = self.load_config(config=config, 
                              override=override, 
-                            local_var_dict=local_var_dict,
-                            recursive=recursive,
-                            return_munch=return_munch)
+                             return_munch=return_munch)
+
 
         if config == None:
             config = 'base'
-            config = self.load_config(config=config, 
+            config = self.resolve_config(config=config, 
                         override=override, 
-                        local_var_dict=local_var_dict,
                         recursive=recursive,
                         return_munch=return_munch)
+            assert isinstance(config, dict),  f'bruh the config should be {type(config)}'
             self.save_config(config=config)
 
         return config
 
     @staticmethod
-    def load_config(config=None, override={}, local_var_dict={}, recursive=True, return_munch=False):
+    def load_config(config=None, override={}, recursive=True, return_munch=False):
         """
         config: 
             Option 1: dictionary config (passes dictionary) 
             Option 2: absolute string path pointing to config
         """
         return Module.config_loader.load(path=config, 
-                                    local_var_dict=local_var_dict, 
                                      override=override,
                                      recursive=recursive,
                                      return_munch=return_munch)
@@ -592,11 +640,8 @@ class Module:
         return cls.config_loader.save(path=path, 
                                       cfg=config)
     @classmethod
-    def default_cfg(cls, override={}, local_var_dict={}):
-
-        return cls.config_loader.load(path=cls.get_config_path(), 
-                                    local_var_dict=local_var_dict, 
-                                     override=override)
+    def default_cfg(cls, *args,**kwargs):
+        return cls.config_loader.load(path=cls.get_config_path(),*args, **kwargs)
 
     default_config = default_cfg
     config_template = default_cfg
@@ -680,32 +725,31 @@ class Module:
             except ConnectionError:
                 cls.ray_start()
                 ray_context =  cls.get_ray_context(init_kwargs=ray_config)
-        import streamlit as st
-        # st.write(ray_context, ray_config)
+
         if actor:
             actor_config =  config.get('actor', {})
+
+            assert isinstance(actor_config, dict), f'actor_config should be dict but is {type(actor_config)}'
             if isinstance(actor, dict):
                 actor_config.update(actor)
             elif isinstance(actor, bool):
                 pass
             else:
                 raise Exception('Only pass in dict (actor args), or bool (uses config["actor"] as kwargs)')  
-            # import streamlit as st
-            # st.write(actor_config, kwargs)
+
             try:
 
-                actor_config['name'] =  actor_config.get('name', cls.get_default_actor_name())
-                actor_config['resources'] =  actor_config.get('resources', {'num_cpus': 1.0, 'num_gpus': 0.0})
+                actor_config['name'] =  actor_config.get('name', cls.get_default_actor_name())                
                 config['actor'] = actor_config
                 kwargs['config'] = config
-                actor = cls.deploy_actor(**actor_config, **kwargs)
+                actor = Module.create_actor(cls=cls,  cls_kwargs=kwargs, **actor_config)
                 actor_id = cls.get_actor_id(actor)  
                 actor =  cls.add_actor_metadata(actor)
             except ray.exceptions.RayActorError:
                 actor_config['refresh'] = True
                 config['actor'] = actor_config
                 kwargs['config'] = config
-                actor = cls.deploy_actor(**actor_config, **kwargs)
+                actor = cls.create_actor(cls=cls, cls_kwargs=kwargs, **actor_config)
                 actor_id = cls.get_actor_id(actor)  
                 actor =  cls.add_actor_metadata(actor)
 
@@ -753,38 +797,21 @@ class Module:
             raise NotImplementedError(f'{init_kwargs} is not supported')
     
 
-
-    @classmethod
-    def deploy_actor(cls,
-                        name='actor',
-                        detached=True,
-                        resources={'num_cpus': 0.5, 'num_gpus': 0.0},
-                        max_concurrency=100,
-                        refresh=False,
-                        verbose = True, 
-                        redundant=False, 
-                        return_actor_handle=True,
-                        **kwargs):
  
 
+    @staticmethod
     def create_actor(cls,
-                 name,
+                 name, 
                  cls_kwargs,
-                 detached=True,
-                 resources={'num_cpus': 0.5, 'num_gpus': 0},
-                 max_concurrency=5,
+                 detached=True, 
+                 resources={'num_cpus': 1.0, 'num_gpus': 0},
+                 max_concurrency=10,
                  refresh=False,
                  return_actor_handle=False,
                  verbose = True,
-                 redundant=False):
-        '''
-          params:
-              config: configuration of the experiment
-              run_dag: run the dag
-              token_pairs: token pairs
-              resources: resources per actor
-              actor_prefix: prefix for the data actors
-          '''
+                 redundant=False,
+                 **kwargs):
+        
         if not torch.cuda.is_available() and 'num_gpus' in resources:
             del resources['num_gpus']
 
@@ -803,11 +830,12 @@ class Module:
         if refresh:
             if actor_exists(name):
                 kill_actor(actor=name,verbose=verbose)
+                # assert not actor_exists(name)
 
         if redundant:
             # if the actor already exists and you want to create another copy but with an automatic tag
             actor_index = 0
-            while not actor_exists(name):
+            while actor_exists(name):
                 name =  f'{name}-{actor_index}' 
                 actor_index += 1
 
@@ -1232,8 +1260,6 @@ class Module:
             raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
 
         return usage_bytes / mode_factor
-
-
 
     @staticmethod
     def memory_info():
