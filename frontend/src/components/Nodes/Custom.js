@@ -72,9 +72,9 @@ export default function CustomNodeIframe({id, data}){
         </div>
       </div>
 
-      { !collapsed && reachable && 
-          <animated.div className={`border-dashed  ${sizeAdjuster ? 'border-4 border-white' : ''} relative top-0 left-0 z-[1000] cursor-move touch-none shadow-lg rounded-xl`} style={{ x, y, width, height }} {...bind()}>
-            <div className={`absolute h-full w-full ${data.colour} shadow-2xl rounded-xl -z-20`}></div>
+      { !collapsed && reachable && <>
+          <animated.div className={`border-dashed  ${sizeAdjuster ? 'border-4 border-white' : ''} relative top-0 left-0 z-[1000] touch-none shadow-lg rounded-xl`} style={{width, height }} {...bind()}>
+            <div id="draggable" className={`absolute h-full w-full ${data.colour} shadow-2xl rounded-xl -z-20`}></div>
             <iframe id="iframe" 
                         key={refresh}
                         src={data.host} 
@@ -84,12 +84,13 @@ export default function CustomNodeIframe({id, data}){
               <div className={` ${sizeAdjuster ? '' : 'hidden'} rounded-full border-2 absolute -bottom-4 -right-4 w-7 h-7 bg-Blue-Royal cursor-nwse-resize touch-none shadow-lg`} ref={dragElement}>
             </div>  
             </animated.div>
+            </>
         }
 
         { collapsed  &&
               <div id={`draggable`}
                    className={` w-[340px] h-[140px]  text-white text-md flex flex-col text-center items-center cursor-grab shadow-lg
-                                p-5 px-2 rounded-md break-all -z-20 ${data.colour} hover:opacity-70 duration-300`}>
+                                p-5 px-2 rounded-md break-all -z-20 ${data.colour} hover:opacity-70 duration-300`} onClick={() => setCollapsible(collapsed => !collapsed)}>
                   <div  className="absolute text-6xl opacity-60 z-10 pt-8 ">{data.emoji}</div>    
                   <h2 className={`max-w-full font-sans text-blue-50 leading-tight font-bold text-3xl flex-1 z-20 pt-10`} style={{"textShadow" : "0px 1px 2px rgba(0, 0, 0, 0.25)"}} >{data.label}</h2>
               </div > 

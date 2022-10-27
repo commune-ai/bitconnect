@@ -99,7 +99,7 @@ while :; do
         ;;
 
         --frontend)
-        COMPOSE_FILES+=" -f ModuleFlow/frontend.yml"
+        COMPOSE_FILES+=" -f frontend/frontend.yml"
 
         ;;
 
