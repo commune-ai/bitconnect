@@ -5,6 +5,7 @@ import streamlit as st
 import os
 import ray
 import torch
+from importlib import import_module
 from commune.ray.utils import actor_exists
 from munch import Munch
 import inspect
@@ -65,14 +66,20 @@ class Module:
     # assumes Module is .../{src}/base/module.py
     root_path = '/'.join(__file__.split('/')[:-2])
     root = root_path
+    default_ray_env = {'address': 'auto', 'namespace': 'default'}
+    ray_context = None
+    config_loader = ConfigLoader(load_config=False)
+
+
     
     def __init__(self, config=None, override={}, client=None ,**kwargs):
-
-        Module.__init__(self,config=config, override=override, **kwargs)
-
+        self.config = self.resolve_config(config=config)
+        self.override_config(override=override)
+        self.start_timestamp =self.current_timestamp
+        self.cache = {}
+        
         # for passing down the client to  submodules to avoid replicating a client for every submodule
         self.client = self.get_clients(client=client) 
-           
 
         # st.write(self.__class__,self.registered_clients,'debug')
 
@@ -131,14 +138,14 @@ class Module:
             raise NotImplementedError
         return client_module_class(config=client_config)
             
-    def get_config(self, config=None):
-        if getattr(self, 'config') != None:
-            assert isinstance(self,dict)
-        if config == None:
+    # def get_config(self, config=None):
+    #     if getattr(self, 'config') != None:
+    #         assert isinstance(self,dict)
+    #     if config == None:
 
-            assert self.default_config_path != None
-            config = self.config_loader.load(path=self.default_config_path)
-        return config
+    #         assert self.default_config_path != None
+    #         config = self.config_loader.load(path=self.default_config_path)
+    #     return config
     
 
     def get_submodules(self, submodule_configs=None, get_submodules_bool=True):
@@ -493,16 +500,14 @@ class Module:
 
     def launch(self, module:str,**kwargs):
         
-
+        module_class = self.get_module_class(module)
         default_actor = {
-                'name' : False,
+                'name' : module_class.get_default_actor_name(),
                 'resources':  {'num_gpus':0, 'num_cpus': 1},
                 'max_concurrency' :  100,
                 'refresh' : False, 
             }
 
-        if inspect.isclass(module):
-            module
         actor = kwargs.pop('actor', default_actor)
         if actor == False:            
             kwargs['actor'] = False
@@ -514,19 +519,19 @@ class Module:
         else:
             raise NotImplemented(actor)
 
-        return self.get_module_class(module).deploy(**kwargs)
+        return module_class.deploy(**kwargs)
 
     get_actor = get_module =add_actor = launch_actor = launch
     module_tree = module_list
 
-    def load_module(self, module:str, fn:str=None ,kwargs:dict={}, actor=False, **additional_kwargs):
+    def load_module(self, module:str, fn:str=None ,kwargs:dict={}, actor=False, wrap=True, **additional_kwargs):
         try:
-            module_class = self.import_object(module)
-        except:
             module_class =  self.get_module_class(module)
+        except:
+            module_class = self.import_object(module)
 
         module_init_fn = fn
-        module_kwargs = {**kwargs, **additional_kwargs}
+        module_kwargs = {**kwargs}
 
 
         if module_init_fn == None:
@@ -537,6 +542,8 @@ class Module:
                 assert isinstance(actor, dict), f'{type(actor)} should be dictionary fam'
                 actor['name'] = actor.get('name', str(module_class))
                 module_object = self.create_actor(cls=module_class, cls_kwargs=module_kwargs, **actor)
+                if wrap == True: 
+                    module_object = self.wrap_actor(module_object)
             else:
                 module_object =  module_class(**module_kwargs)
 
@@ -555,20 +562,7 @@ class Module:
     # RAY ACTOR TINGS, TEHE
     #############
 
-    default_ray_env = {'address': 'auto', 'namespace': 'default'}
-    ray_context = None
-    config_loader = ConfigLoader(load_config=False)
-    root_path = '/'.join(__file__.split('/')[:-2])
-    root = root_path
-    def __init__(self, config=None, override={}, **kwargs):
 
-        self.config = self.resolve_config(config=config)
-
-
-        self.override_config(override=override)
-        self.start_timestamp =self.current_timestamp
-        self.cache = {}
-        
     @property
     def current_timestamp(self):
         return self.get_current_timestamp()
@@ -927,7 +921,6 @@ class Module:
         if not hasattr(self, '_actor_handle'):
             self._actor_handle = self.get_actor(self.actor_name)
         return self._actor_handle
-
     @property
     def module(self):
         return self.config['module']

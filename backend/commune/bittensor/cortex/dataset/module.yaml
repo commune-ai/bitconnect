@@ -1,6 +1,6 @@
 module: 'DatasetModule'
 
-client: {}
+client: [local]
 
 
 # submodule:
@@ -10,32 +10,40 @@ client: {}
 
 queue: 
   module: ray.server.queue
-  actor : {refresh: False}
+  actor : {'refresh': False}
 
 dataset:
   module: huggingface.dataset
   actor: {'refresh': False}
-
+  wrap: True
 
 num_endpoints: 50
 
 synapses: ['TextLastHiddenState']
 
+bitmodule:
+  module: bittensor.base.module.BitModule
+  actor: {'refresh': False}
+  kwargs:
+    override:
+      wallet: 
+        name: const
+        hotkey: Tiberius
+      network: nakamoto
+  wrap: True
+
 receptor_pool:
-  path: bittensor.receptor.pool
-  params:
+  module: bittensor.receptor.pool
+  kwargs:
     max_worker_threads: 0
     max_active_receptors: 0
   
   actor: {'refresh': False}
-
-
+  wrap: True
   memory_threshold:
     value: 0.1
     mode: ratio
 
-  replicas: null
-  actor: False
 
 # network: nobunaga
 network: nakamoto

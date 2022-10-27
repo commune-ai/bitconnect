@@ -15,8 +15,8 @@ class RayModule(Module):
         **kwargs
     ):
         Module.__init__(self, config=config,  **kwargs)
-        self.queue = self.get_actor(**self.config['servers']['queue'], wrap=True)
-        self.object  = self.get_actor(**self.config['servers']['object'], wrap=True)
+        self.queue = self.launch(**self.config['servers']['queue'], wrap=True)
+        self.object  = self.launch(**self.config['servers']['object'], wrap=True)
 
 
 

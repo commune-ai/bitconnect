@@ -61,7 +61,7 @@ RUN npx hardhat
 RUN npm install @openzeppelin/contracts
 RUN npm install @uniswap/v3-periphery
 RUN npm install @uniswap/v2-periphery
-RUN npm install --global @ceramicnetwork/cli @glazed/cli
+# RUN npm install --global @ceramicnetwork/cli @glazed/cli
 
 COPY ./scripts .
 

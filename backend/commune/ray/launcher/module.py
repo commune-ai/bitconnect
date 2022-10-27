@@ -171,13 +171,19 @@ class Launcher(Module):
 
 
     @staticmethod
+    def self.if_main():
+        def wrapper(fn):
+
+
+    @self.if__main__
+    @staticmethod
     def st_test():
+        if __name__=="__main__":
+            continue
+        
+        Launcher.st_test()
 
         import streamlit as st
         module = Launcher.deploy(actor=False, wrap=True)
         st.write(module.actor_map)
 
-if __name__=="__main__":
-
-
-    Launcher.st_test()

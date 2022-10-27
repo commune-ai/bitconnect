@@ -2,7 +2,7 @@
 """
 # The MIT License (MIT)
 # Copyright © 2021 Yuma Rao
-
+import streamlit as st
 import gc
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated 
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation 
@@ -69,7 +69,10 @@ class DatasetModule (Module, torch.nn.Module ):
     ):
         torch.nn.Module.__init__(self)
         Module.__init__(self, config=config, override=override, **kwargs)
-        self.load()
+        
+        st.write(Module)
+        if kwargs.get('load', True): 
+            self.load()
         
 
 
@@ -86,39 +89,14 @@ class DatasetModule (Module, torch.nn.Module ):
     def available_synapses(self):
         return self.bitmodule.getattr('available_synapses')
 
-    def load_module(self, module,refresh=None):
-        module_config = deepcopy(self.config.get(module))
-        st.write(module_config)
-        module_path = module_config.pop('module', module_config.pop('path', None))
-        module_class =  self.get_module_class(module_path)
-        
-
-        actor = module_config.pop('actor', {'refresh': False})
-        if actor == True:
-            actor = {'refresh': False}
-        elif actor == False:
-            actor = actor
-        elif isinstance(actor, dict):
-            if isinstance(refresh, bool) :
-                refresh = actor.get('refresh', refresh)
-            actor['refresh'] = refresh
-        # the rest goes to the kwargs
-        kwargs = module_config.pop('params', module_config.pop('kwargs', module_config))
-        kwargs['wrap'] = kwargs.get('wrap', True)
-        kwargs['actor'] = actor
-
-        module_instance =  module_class.deploy(**kwargs)
-        setattr(self, module,module_instance)
-        return module_instance
-
     def load_dataset(self, *args, **kwargs):
-        return self.load_module(module='dataset', *args,**kwargs)
+        return self.load_module(**self.config['dataset'])
 
     def load_receptor_pool(self, *args, **kwargs):
-        return self.load_module(module='receptor_pool', *args,**kwargs)
+        return self.load_module(**self.config['receptor_pool'])
 
     def load_queue(self, *args, **kwargs):
-        return self.load_module(module='queue', *args,**kwargs)
+        return self.load_module(**self.config['queue'])
 
 
     def load_bitmodule(self, refresh=False, network=None, wallet = None):
@@ -127,6 +105,7 @@ class DatasetModule (Module, torch.nn.Module ):
         wallet = wallet if wallet != None else self.config['wallet']
         self.bitmodule = module_class.deploy(actor={'refresh': refresh}, override={'network': network, 'wallet': wallet}, load=True, wrap = True)
         self.sync()
+        
         return self.bitmodule
 
     def monitor_module_memory(self, module='receptor_pool'):
@@ -510,8 +489,9 @@ class DatasetModule (Module, torch.nn.Module ):
 
             if include_metagraph and len(output_dict['tensor']) > 0:
                 if metagraph_features != None:
-                    metagraph_state = self.metagraph_state
+                    metagraph_state = self.metagraph.state_dict()
                     for k in metagraph_features:
+                        
                         results_dict[k] = metagraph_state[k][results_dict['endpoint']]
         else:
             # result is a ray job
@@ -523,12 +503,12 @@ class DatasetModule (Module, torch.nn.Module ):
     @staticmethod
     def streamlit():
         import streamlit as st
-        module = DatasetModule.deploy(actor={'refresh': False}, wrap=True)
+        module = DatasetModule.deploy(actor=False, wrap=True)
         st.write(type(module.dataset))
 
 
 if __name__ == '__main__':
-    DatasetModule.streamlit()
-    
+    module = DatasetModule()
+
 
 

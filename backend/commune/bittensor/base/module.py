@@ -41,8 +41,10 @@ class BitModule(Module):
 
     def __init__(self, config=None, **kwargs):
         
-        
+
         Module.__init__(self, config=config, **kwargs) 
+        
+        st.write(self.config, self.client)
         # self.sync_network(network=network, block=block)
         self.plot = StreamlitPlotModule()
         self.cli = bittensor.cli()
@@ -62,6 +64,9 @@ class BitModule(Module):
     @staticmethod
     def str2synapse(synapse:str, *args, **kwargs):
         return getattr(bittensor.synapse, synapse)(*args, **kwargs)
+    @property
+    def available_synapses(self):
+        return [f for f in dir(bittensor.synapse) if f.startswith('Text')]
 
     def save(self, path=None ,**kwargs):
         self.put_config(path=path, **kwargs)
@@ -99,6 +104,8 @@ class BitModule(Module):
         else:
             selected_endpoints = endpoints[:num_endpoints]
         return selected_endpoints
+
+
 
     def get_wallet(self, **kwargs):
         wallet_kwargs = self.config.get('wallet', self.default_wallet_config)
@@ -669,10 +676,6 @@ class BitModule(Module):
     @property
     def coldkey_endpoints(self):
         return self.my_endpoints(mode='coldkey')
-
-    @property
-    def available_synapses(self):
-        return [f for f in dir(bittensor.synapse) if f.startswith('Text')]
 
     ls_synapses = all_synapses = available_synapses
     

@@ -344,11 +344,19 @@ class GradioModule(Module):
     def ls_ports(self):
         return self.subprocess_manager.ls()
 
-    def add(self,module:str, port:int):
+    def add(self,module:str, port:int, mode='gradio'):
+
         module_list = self.get_modules()
         assert module in module_list, f'{module} is not in {module_list}'
-        command  = f'python {__file__} --module={module} --port={port}'
+
+        if mode == 'gradio':
+        commands  = dict(
+            gradio= f'python {self.__file__} --module={module} --port={port}'
+
+        )
+        
         process = self.subprocess_manager.add(key=str(port), command=command, add_info= {'module':module })
+        
         return {
             'module': module,
             'port': port,

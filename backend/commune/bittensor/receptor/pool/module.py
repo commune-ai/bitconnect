@@ -102,7 +102,6 @@ class ReceptorPoolModule (Module, torch.nn.Module ):
         """
         return {hotkey: v.state() for hotkey, v in self.receptors.items()}
 
-
     def rm_receptor(self, key):
         self.receptors[ key ].close()
         del self.receptors[ key ]
@@ -111,20 +110,21 @@ class ReceptorPoolModule (Module, torch.nn.Module ):
     def rm_all(self):
         for key in  deepcopy(list(self.receptors.keys())):
             self.rm_receptor(key=key)
-
-
     refresh = rm_all
+
     def forward(
             self, 
             endpoints: List [ 'bittensor.Endpoint' ],
             synapses: List[ 'bittensor.Synapse' ],
-            inputs: List [ torch.Tensor ],
+            inputs: Union[List [ torch.Tensor ], torch.Tensor],
             timeout: int,
-            min_success = 5,
+            min_success = 5, 
             return_success_only=False, 
             refresh=False,
             return_type = 'tuple',
-            max_workers=10
+            max_workers=10,
+            graph=None,
+            graph_features=['stake', 'ranks', 'trust', 'consensus', 'incentive', 'emission', 'dividends'],
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
         r""" Forward tensor inputs to endpoints.
             Args:
@@ -147,14 +147,10 @@ class ReceptorPoolModule (Module, torch.nn.Module ):
                 forward_times (:obj:`List[ List [float] ]` of shape :obj:`(num_endpoints * ( num_synapses ))`, `required`):
                     dendrite backward call times
         """
-        if not isinstance(inputs, list):
-            inputs = [inputs]
-        if len(endpoints) != len(inputs):
-            if len(inputs) == 1:
-                inputs = len(endpoints)*inputs
-            else:
-                raise ValueError('Endpoints must have the same length as passed inputs. Got {} and {}'.format(len(endpoints), len(inputs)))
 
+
+        if len(endpoints) != len(inputs):
+            raise ValueError('Endpoints must have the same length as passed inputs. Got {} and {}'.format(len(endpoints), len(inputs)))
 
         receptors = [ self._get_or_create_receptor_for_endpoint( endpoint ) for endpoint in endpoints ]
 
@@ -174,74 +170,80 @@ class ReceptorPoolModule (Module, torch.nn.Module ):
         
         responses=[]
         # Unpack responses
-        forward_outputs = []
-        forward_codes = []
-        forward_times = []
-        forward_uids = []
+        results_dict = dict(
+            outputs=[],
+            codes=[],
+            times=[],
+            uids=[]
+        )
 
-        assert min_success > 0
-        if min_success <= 1:
+        assert min_success > 0, f'{}'
+        if min_success < 1:
             min_success = int(min_success*len(endpoints))
+        elif min_success >= 1:
+            min_success = int(min(min_success,len(endpoints)))
+        elif min_success <= 0:
+            raise Exception(' REQUIRED: 0<min_success<len(endpoints)')
 
         # Submit calls to receptors.
         with concurrent.futures.ThreadPoolExecutor( max_workers = max_workers ) as executor:
             future_map = {}
-
             for idx, call_arg in enumerate(call_args):
                 future = executor.submit( call_forward, call_arg)
                 future_map[future] = call_arg
-                
 
             success_response_cnt = 0
             for i,future in enumerate(concurrent.futures.as_completed(future_map)):
-                response = future.result()
                 
-
-
+                response_call_args = future_map.pop(future)
+                response = future.result()
                 endpoint_uid = future_map[future]['receptor'].endpoint.uid
+
                 if response[1][0] == 1:
+                    # this indicates a successful response 
                     success_response_cnt += 1
-
-                    forward_outputs.append( response[0] )
-                    forward_codes.append( response[1] )
-                    forward_times.append( response[2] )
-                    forward_uids.append(endpoint_uid)
+                    results_dict['outputs'].append( response[0] )
+                    results_dict['codes'].append( response[1] )
+                    results_dict['times'].append( response[2] )
+                    results_dict['uids'].append(endpoint_uid)
                 else:
+                    # when return_success_only, ignore the responses that arent successful        
                     if not return_success_only:
-                        forward_outputs.append( response[0] )
-                        forward_codes.append( response[1] )
-                        forward_times.append( response[2] )
-                        forward_uids.append(endpoint_uid)
+                        results_dict['outputs'].append( response[0] )
+                        results_dict['codes'].append( response[1] )
+                        results_dict['times'].append( response[2] )
+                        results_dict['uids'].append(endpoint_uid)
                                 
+                # when the success_response_cnt > min_success
                 if success_response_cnt >= min_success:
-                    for receptor in receptors:
-                        receptor.semaphore.release()
-                    self._destroy_receptors_over_max_allowed()
-                    # ---- Return ----
-
-                    if return_type in ['tuple',  tuple]:
-                        return forward_outputs, forward_codes, forward_times
-                    elif return_typpe in ['dict', dict]:
-                        return dict(
-                            outputs=forward_outputs,
-                            codes =forward_codes,
-                            times = forward_times
-    
-                        )
-
+                    break
 
         # Release semephore.
         for receptor in receptors:
             receptor.semaphore.release()
         self._destroy_receptors_over_max_allowed()
-        # ---- Return ----
 
+        # refresh the receptors (kill them all) once done
         if refresh:
             self.refresh()
-        
 
-            
-        return forward_outputs, forward_codes, forward_times, forward_uids
+        
+        if graph != None:
+            graph_features = []
+            graph_state_dict = graph.state_dict()
+            for k in graph_features:
+                results_dict[k] = graph_state_dict[k][results_dict['endpoint']]
+
+
+
+        if return_type in ['tuple', tuple]:
+            return (results_dict['outputs'], 
+                    results_dict['codes'], 
+                    results_dict['times'],
+                    results_dict['uids'])
+        elif return_type in ['dict', dict]:
+
+            return results_dict
 
     def backward(
                 self, 

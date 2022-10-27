@@ -6,8 +6,3 @@ wallet:
   name: const
   hotkey: Tiberius
 
-actor:
-  name: local_copy(module)
-  refresh: False
-
-
