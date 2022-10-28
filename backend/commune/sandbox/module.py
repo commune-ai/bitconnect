@@ -110,7 +110,7 @@ class Sandbox(Module):
     def streamlit(self,
             sequence_length = 10,
             batch_size = 2,
-            timeout= 1,
+            timeout= 2,
             synapse = 'TextLastHiddenState',
             num_endpoints = 10
         ):
@@ -122,14 +122,14 @@ class Sandbox(Module):
 
         input_text = [' '.join(['ola']*sequence_length) for i in range(batch_size)][0]
         inputs = self.tokenize(input_text)
-        synapses = [bittensor.synapse.TextCausalLMNext() ]
+        synapses = [bittensor.synapse.TextLastHiddenState() ]
         endpoints = self.get_random_endpoints(num_endpoints)
         results = self.receptor_pool.forward(
                             endpoints=endpoints,
                             synapses= synapses,
                             timeout=timeout,
                             inputs= [inputs]*len(endpoints),
-                            return_type='tuple',
+                            return_type='dict',
                             graph=self.graph
                         )
             

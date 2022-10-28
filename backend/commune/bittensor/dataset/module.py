@@ -65,11 +65,10 @@ from commune.bittensor.dataset.thread_queue import ThreadQueue
 logger = logger.opt(colors=True)
 
 import streamlit as st
+
 class GenesisTextDataset( Module):
     """ One kind of dataset that caters for the data from ipfs 
     """
-
-
     def __init__(
         self,
         block_size=None,
@@ -86,11 +85,11 @@ class GenesisTextDataset( Module):
     ):
 
         local_kwargs = {k:v for k,v in locals().items() if k != 'self' }
-        st.write(local_kwargs)
         Module.__init__(self, config=config)
         # Used to retrieve directory contentx
-        self.dataset_dir = 'http://global.ipfs.opentensor.ai/api/v0/cat' 
-        self.text_dir = 'http://global.ipfs.opentensor.ai/api/v0/object/get'
+        self.ipfs_url = 'http://global.ipfs.opentensor.ai/api/v0'
+        self.dataset_dir = f'{self.ipfs_url}/cat' 
+        self.text_dir = f'{self.ipfs_url}/object/get'
         self.mountain_hash = 'QmSdDg6V9dgpdAFtActs75Qfc36qJtm9y8a7yrQ1rHm7ZX'
         # Used when current corpus has been exhausted
         # self.refresh_corpus = False
@@ -751,6 +750,7 @@ class GenesisTextDataset( Module):
         session.mount('https://', adapter)
         return session
 
+
     def get_ipfs_directory(self, address: str, file_meta: dict, action: str = 'post', timeout : int = 180):
         r"""Connects to IPFS gateway and retrieves directory.
         Args:
@@ -781,8 +781,17 @@ class GenesisTextDataset( Module):
 
         return response
 
+    async def api_get(self,session, url, **kwargs):
+        headers = kwargs.pop('headers', {}) 
+        params = kwargs.pop('params', kwargs)
+        res = await session.get(url, params=params,headers=headers)
+        return res
 
-
+    async def api_post(self,session, url, **kwargs):
+        headers = kwargs.pop('headers', {}) 
+        params = kwargs.pop('params', kwargs)
+        res = await session.get(url, params=params,headers=headers)
+        return res
 
 
 if __name__ == '__main__':
