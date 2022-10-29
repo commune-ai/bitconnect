@@ -12,7 +12,9 @@ class ClientModule(Module):
     override_attributes = False
     def __init__(self, config=None, **kwargs):
         Module.__init__(self, config=config)
+        
         actor = kwargs.get('server', kwargs.get('actor'))
+        st.write(actor)
         if actor == False:
             actor = self.config['server']
         if isinstance(actor, str):
@@ -21,6 +23,7 @@ class ClientModule(Module):
             actor = self.get_module(**actor)
         elif isinstance(actor, ray.actor.ActorHandle):
             actor = actor
+
 
         actor_name = ray.get(actor.getattr.remote('actor_name'))
         self.config['server'] = actor_name

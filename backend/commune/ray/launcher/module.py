@@ -7,6 +7,7 @@ import asyncio
 import multiprocessing
 import torch
 import psutil
+
 from ray.experimental.state.api import list_actors, list_objects, list_tasks
 
 sys.path.append(os.environ['PWD'])
@@ -182,12 +183,29 @@ class Launcher(Module):
 
     @staticmethod
     def st_test():
-        Module.new_loop()
-        module = Launcher.deploy(actor={'refresh': False}, wrap=True)
-        # st.write(module.launch_module(module='commune.asyncio.queue_server.AsyncQueueServer', actor=True, wrap=False))
-        # st.write(module.import_object('commune.asyncio.queue_server.AsyncQueueServer').__name__    )
-        st.write(module.get_actor('AsyncQueueServer').__dict__)
+        # Module.new_loop()
+        module = Launcher.deploy(actor=False, wrap=True)
+  
+        async_server = module.launch_module(module='commune.asyncio.queue_server', actor={'refresh': False}, wrap=True)
+        # # # async_server = module.import_object('commune.asyncio.queue_server.AsyncQueueServer')()
+
+        st.write(Module.list_actor_names())
+
+        # st.write(Module.get_function_schemas())
+
+        async_server = Launcher.get_actor('AsyncQueueServer', wrap=True)
+        
+        # st.write(async_server.functions)
+        # st.write(async_server)
+        
+        st.write(async_server.put(key='key', value='value'))
+        st.write(async_server.get(key='key'))
+
+        # st.write(ray.get(async_server.put.remote('key', 'bro')))
+        # st.write(ray.get(async_server.get.remote('key')))
+        
         # st.write(module.get_actor(''))
+
 
 
 if __name__ == '__main__':

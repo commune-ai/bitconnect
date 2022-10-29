@@ -1,4 +1,4 @@
-from commune.utils import get_object, dict_any, dict_put, dict_get, dict_has, dict_pop, deep2flat, Timer, dict_override
+from commune.utils import get_object, dict_any, dict_put, dict_get, dict_has, dict_pop, deep2flat, Timer, dict_override, get_functions, get_function_schema
 import datetime
 from commune.config.loader import ConfigLoader
 import streamlit as st
@@ -7,12 +7,14 @@ import ray
 import torch
 from importlib import import_module
 from munch import Munch
+import types
 import inspect
 from commune.ray.utils import kill_actor
 from copy import deepcopy
 import psutil
 import asyncio
 from ray.experimental.state.api import list_actors, list_objects, list_tasks
+
 
 
 def cache(self, **kwargs):
@@ -31,8 +33,6 @@ def cache(self, **kwargs):
         return new_fn
     
     return wrap_fn
-
-
 def enable_cache(**input_kwargs):
     load_kwargs = dict_any(x=input_kwargs, keys=['load', 'read'], default={})
     if isinstance(load_kwargs, bool):
@@ -62,32 +62,31 @@ def enable_cache(**input_kwargs):
 
 
 
+import streamlit as st
+st.write( )
 
 class Module:
     client = None
     client_module_class_path = 'client.manager.module.ClientModule'
     # assumes Module is .../{src}/base/module.py
-    root_path = '/'.join(__file__.split('/')[:-2])
+    root_dir = __file__[len(os.getenv('PWD'))+1:].split('/')[0]
+    root_path = os.path.join(os.getenv('PWD'), root_dir)
     root = root_path
     default_ray_env = {'address': 'auto', 'namespace': 'default'}
     ray_context = None
     config_loader = ConfigLoader(load_config=False)
 
 
-    
     def __init__(self, config=None, override={}, client=None , loop=None,**kwargs):
         self.config = self.resolve_config(config=config)
         self.override_config(override=override)
         self.start_timestamp =self.current_timestamp
-        self.cache = {}
-        
         # for passing down the client to  submodules to avoid replicating a client for every submodule
         self.client = self.get_clients(client=client) 
-
-        # st.write(self.__class__,self.registered_clients,'debug')
-
         self.get_submodules(get_submodules_bool = kwargs.get('get_submodules', True))
 
+
+        self.cache = {}
         # set asyncio loop
         # self.set_loop(loop=loop)
 
@@ -282,6 +281,7 @@ class Module:
         path = self.resolve_path(path=path, tmp_dir=tmp_dir)
         return self.client.local.exists(path)
 
+
     def rm_json(self, path=None,tmp_dir=None, recursive=True, **kwargs):
         if tmp_dir == None:
             tmp_dir = self.tmp_dir
@@ -420,20 +420,29 @@ class Module:
         return {v:k for k,v in self.simple2module.items()}
 
     def get_module_class(self,module:str):
+        if module[:len(self.root_dir)] != self.root_dir:
+            module = '.'.join(self.root_dir, module)
+
+        st.write(self.simple2module[module], 'bro')
         if module in self.simple2module:
             module_path = self.simple2module[module]
+
         elif module in self.module2simple:
             module_path = module
         else:
             raise Exception(f'({module}) not in options {list(self.simple2module.keys())} (short) and {list(self.simple2module.values())} (long)')
-        module_class= self.import_object('commune.'+module_path)
+        
+        
+        if self.root_dir != module_path[:len(self.root_dir)]:
+            module_path = '.'.join(self.root_dir, module_path)
+        module_class= self.import_object(module_path)
         return module_class
 
     @property
     def full_module_list(self):
         modules = []
         failed_modules = []
-        for root, dirs, files in self.client.local.walk('/app/commune'):
+        for root, dirs, files in self.client.local.walk(self.root_path):
             if all([f in files for f in ['module.py', 'module.yaml']]):
                 try:
                     cfg = self.config_loader.load(root)   
@@ -445,11 +454,13 @@ class Module:
 
                 module_path = root.lstrip(os.environ['PWD']).replace('/', '.')
                 module_path = '.'.join(module_path.split('.')[1:])
+                module_path = self.root_dir + '.'+ module_path
+
                 if isinstance(cfg.get('module'), str):
                     module_name = cfg.get('module').split('.')[-1]
                     modules.append(f"{module_path}.module.{module_name}")
                 elif module_path == None: 
-                    failed_modules.append(root)
+                    raise NotImplemented(root)
 
         return modules
 
@@ -527,15 +538,15 @@ class Module:
     get_module =add_actor = launch_actor = launch
     module_tree = module_list
 
-    def load_module(self, module:str, fn:str=None ,kwargs:dict={}, actor=False, wrap=True, **additional_kwargs):
+    def launch_module(self, module:str, fn:str=None ,kwargs:dict={}, actor=False, wrap=True, **additional_kwargs):
         try:
             module_class =  self.get_module_class(module)
-        except:
+        except Exception as e:
+            raise(e)
             module_class = self.import_object(module)
 
         module_init_fn = fn
         module_kwargs = {**kwargs}
-
 
         if module_init_fn == None:
             if actor:
@@ -543,8 +554,20 @@ class Module:
                 if actor == True:
                     actor = {}
                 assert isinstance(actor, dict), f'{type(actor)} should be dictionary fam'
-                actor['name'] = actor.get('name', module_class.__name__ )
+                parents = self.get_parents(module_class)
+
+
+                
+                if self.is_module(module_class):
+                    default_actor_name = module_class.get_default_actor_name()
+                else:
+                    default_actor_name = module_class.__name__
+                
+
+                actor['name'] = actor.get('name', default_actor_name )
                 module_object = self.create_actor(cls=module_class, cls_kwargs=module_kwargs, **actor)
+                
+                st.write(module_object)
                 if wrap == True: 
                     module_object = self.wrap_actor(module_object)
             else:
@@ -559,7 +582,7 @@ class Module:
 
 
         return module_object
-    launch_module = load_module
+    load_module = launch_module
     #############
 
     # RAY ACTOR TINGS, TEHE
@@ -569,6 +592,7 @@ class Module:
     @property
     def current_timestamp(self):
         return self.get_current_timestamp()
+
 
     def current_datetime(self):
         datetime.datetime.fromtimestamp(self.current_timestamp)
@@ -580,6 +604,7 @@ class Module:
     def get_age(self) :
         return  self.get_current_timestamp() - self.start_timestamp
 
+    age = property(get_age) 
     @staticmethod
     def get_current_timestamp():
         return  datetime.datetime.utcnow().timestamp()
@@ -694,14 +719,14 @@ class Module:
 
     @staticmethod
     def add_actor_metadata(actor):
-        actor_id = Module.get_actor_id(actor)
-        actor.config_set.remote('actor.id', actor_id)
+        # actor_id = Module.get_actor_id(actor)
+        # actor.config_set.remote('actor.id', actor_id)
 
-        actor_name = ray.get(actor.getattr.remote('actor_name'))
-        setattr(actor, 'actor_id', actor_id)
-        setattr(actor, 'actor_name', actor_name)
-        setattr(actor, 'id', actor_id)
-        setattr(actor, 'name', actor_name)
+        # actor_name = ray.get(actor.getattr.remote('actor_name'))
+        # setattr(actor, 'actor_id', actor_id)
+        # setattr(actor, 'actor_name', actor_name)
+        # setattr(actor, 'id', actor_id)
+        # setattr(actor, 'name', actor_name)
         return actor
 
 
@@ -884,6 +909,17 @@ class Module:
                 if verbose:
                     print(f'{actor} does not exist for it to be removed')
                 return None
+        
+        return ray.kill(actor)
+        
+    @staticmethod
+    def kill_actors(actors):
+        return_list = []
+        for actor in actors:
+            return_list.append(Module.kill_actor(actor))
+        
+        return return_list
+            
 
 
     @staticmethod
@@ -975,6 +1011,36 @@ class Module:
         functions = get_functions(object)
         return functions
 
+    def get_function_schema( fn, *args, **kwargs):
+        return get_function_schema(fn=fn, *args, **kwargs)
+
+    @classmethod
+    def get_function_schemas(cls, obj=None, *args,**kwargs):
+        if obj == None:
+            obj = cls
+        
+        fn_map = {}
+        st.write(obj.get_functions(obj))
+        for fn_key in obj.get_functions(obj):
+            # st.write(fn)
+            fn = getattr(obj, fn_key)
+            if not callable(fn) or isinstance(fn, type) or isinstance(fn, types.BuiltinFunctionType):
+                continue
+            fn_map[fn_key] = cls.get_function_schema(fn=fn, *args, **kwargs)
+        return fn_map
+    
+    @classmethod
+    def get_parents(cls, obj=None):
+        if obj == None:
+            obj = cls
+        return list(obj.__mro__[1:-1])
+
+    @classmethod
+    def is_module(cls, obj=None):
+        if obj == None:
+            obj = cls
+        return Module in cls.get_parents(obj)
+
     @classmethod
     def functions(cls, obj=None, return_type='str', **kwargs):
         if obj == None:
@@ -1022,8 +1088,12 @@ class Module:
 
 
     @classmethod
-    def get_module_filepath(cls):
-        return inspect.getfile(cls)
+    def get_module_filepath(cls, obj=None):
+        if obj == None:
+            obj = cls
+        return inspect.getfile(obj)
+
+    
 
 
 
@@ -1154,22 +1224,6 @@ class Module:
     def tmp_dir(self):
         return f'/tmp/commune/{self.name}'
 
-    _exposable_ = None  # Not necessary, just for pylint
-    class __metaclass__(type):
-        def __new__(cls, name, bases, state):
-            methods = state['_exposed_'] = dict()
-
-            # inherit bases exposed methods
-            for base in bases:
-                methods.update(getattr(base, '_exposed_', {}))
-
-            for name, member in state.items():
-                meta = getattr(member, '__meta__', None)
-                if meta is not None:
-                    print("Found", name, meta)
-                    methods[name] = member
-            return type.__new__(cls, name, bases, state)
-
     @staticmethod
     def get_actor_id( actor):
         assert isinstance(actor, ray.actor.ActorHandle)
@@ -1216,8 +1270,6 @@ class Module:
         return usage_bytes / mode_factor
 
 
-
-
     @staticmethod
     def memory_available(mode ='percent'):
 
@@ -1225,7 +1277,6 @@ class Module:
         available_memory_bytes = memory_info['available']
         available_memory_ratio = (memory_info['available'] / memory_info['total'])
     
-
         mode_factor = 1
         if mode  in ['gb']:
             mode_factor = 1e9
@@ -1250,7 +1301,6 @@ class Module:
         available_memory_bytes = memory_info['used']
         available_memory_ratio = (memory_info['used'] / memory_info['total'])
     
-
         mode_factor = 1
         if mode  in ['gb']:
             mode_factor = 1e9
@@ -1343,37 +1393,41 @@ class Module:
     def list_nodes( *args, **kwargs):
         return list_nodes(*args, **kwargs)
 
-
-
     ##############
     #   ASYNCIO
     ##############
 
     @staticmethod
-    def new_loop(set_loop=True):
+    def reset_event_loop(set_loop=True):
         loop = asyncio.new_event_loop()
         if set_loop:
             asyncio.set_event_loop(loop)
         return loop
+    new_loop = new_event_loop = reset_event_loop
 
-    def set_loop(self, loop=None, new=False):
-        if new:
-            loop = self.new_loop()
-        if loop == None:
-            loop = self.get_loop()
-        asyncio.set_event_loop(loop)
-        return loop
+
 
     @property
     def loop(self):
+        return getattr(self, '_loop',asyncio.get_event_loop())
+
+    @loop.setter
+    def loop(self, loop):
+        if loop == None:
+            loop = asyncio.get_event_loop()
+        self._loop = loop
+        return loop
+
+    def set_event_loop(self, loop=None, new=False):
+        self.loop = loop
+
+    @property
+    def get_event_loop(self):
         return asyncio.get_event_loop()     
 
-    def get_loop(self, loop=None):
-        if loop == None:
-            loop = self.loop
-        return loop
-    
     def async_run(self, job, loop=None): 
         if loop == None:
             loop = self.loop
         return loop.run_until_complete(job)
+
+

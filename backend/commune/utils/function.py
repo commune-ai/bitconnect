@@ -36,10 +36,10 @@ def get_functions(obj, include_parents=False):
     return fn_list
 
 
-def get_function_signature(self) -> dict: 
+def get_function_signature(fn) -> dict: 
     return dict(inspect.signature(fn)._parameters)
 
-def get_function_input_variables(self)-> dict:
+def get_function_input_variables(fn)-> dict:
     return list(dict(inspect.signature(fn)._parameters).keys())
 
 def get_function_defaults(fn, include_null = False, mode=['input','output'],output_example_key='output_example'):
@@ -79,7 +79,7 @@ def get_function_defaults(fn, include_null = False, mode=['input','output'],outp
 
 
 
-def get_function_schema(fn=None, include_self=True, defaults_dict=None, **kwargs):
+def get_function_schema(fn=None, include_self=True, defaults_dict=None,*args, **kwargs):
 
     if defaults_dict == None:
         assert fn != None

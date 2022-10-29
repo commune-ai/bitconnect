@@ -31,7 +31,7 @@ def kill_actor(actor, verbose=True):
                 print(f'{actor} does not exist for it to be removed')
             return None
 
-    ray.kill(actor)
+    return ray.kill(actor)
 
 
 

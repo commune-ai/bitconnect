@@ -2,24 +2,32 @@ import ray
 import os,sys
 sys.path.append(os.getenv('PWD'))
 from commune.ray.queue import Queue
+from commune import Module
 from commune.utils import dict_put,dict_get,dict_has,dict_delete
 from copy import deepcopy
 import asyncio
+import nest_asyncio
+
 """
 
 Background Actor for Message Brokers Between Quees
 
 """
-class AsyncQueueServer:
 
+import threading
+class AsyncQueueServer(Module):
     def __init__(self, loop=None, **kwargs):
-        self.set_event_loop(loop=loop)
+        Module.__init__(self)
+        # loop = asyncio.new_event_loop()
+        # self.set_event_loop()
+        # asyncio.set_event_loop(loop)
+        # self.set_event_loop(loop=loop)
+        nest_asyncio.apply()
+        self.loop = asyncio.new_event_loop()
         self.queue = {}
 
-    def set_event_loop(self, loop=None):
-        if loop == None:
-            loop = asyncio.get_event_loop()
-        self.loop = loop
+    # def __del__(self):
+    #     return self.loop.stop
 
     def create_queue(self, key:str, refresh=False, **kwargs):
         if self.queue_exists(key) and refresh:
@@ -27,6 +35,15 @@ class AsyncQueueServer:
         queue = asyncio.Queue(**kwargs)
         return self.add_queue(key=key, queue=queue)
 
+    def getattr(self, key):
+        return getattr(self, key, None)
+
+    @staticmethod
+    def new_event_loop(set_loop=False):
+        loop = asyncio.new_event_loop()
+        if set_loop:
+            asyncio.set_event_loop(loop)
+        return loop
 
     def queue_exists(self, key:str):
         return bool(key in self.queue)
@@ -58,12 +75,19 @@ class AsyncQueueServer:
         return jobs
 
 
-    def put(self, key, value, sync=False, *args, **kwargs):
+    async def async_put(self, key, value, *args, **kwargs):
+        pass
+        
+
+
+    def put(self, key, value, sync=True, *args, **kwargs):
+
         q = self.get_queue(key,*args, **kwargs)
         job = q.put(value)
         if sync:
             return self.async_run(job)
         return job
+
     
     def put_batch(self, key:str, values: list, sync=True):
         assert isinstance(values, list)
@@ -76,17 +100,29 @@ class AsyncQueueServer:
         return job
 
 
-
     def async_run(self, job):
         return self.loop.run_until_complete(job)
         
-
-    def get(self, key, sync=False, **kwargs):
+    async def async_get(self, key, *args, **kwargs):
         q = self.get_queue(key)
         job = q.get()
+        return await job
+
+
+    def get(self, key, sync=True, *args, **kwargs):
+        job = self.async_get(key=key,*args, **kwargs )
         if sync:
             return self.async_run(job)
         return job
+
+    async def get_batch(self, key, batch_size=10, sync=False, **kwargs):
+        q = self.get_queue(key)
+        batch_size = min(batch_size, q.qsize())
+        jobs = [self.async_get(key, **kwargs) for i in range(batch_size)]
+        return self.async_run(asyncio.gather(*job))
+
+
+
 
 
     def get_batch(self, key, batch_size=10, sync=False, **kwargs):
