@@ -15,7 +15,7 @@ class ClientModule(Module):
         Module.__init__(self, config=config,get_clients=False)
         # st.write(self.config)
         self.register_clients(clients=self.include_clients)
-
+        st.write('broo')
     def get_default_clients(self):
         client_path_dict = dict(
         ipfs = 'client.ipfs.module.IPFSModule',
@@ -24,7 +24,7 @@ class ClientModule(Module):
         estuary = 'client.estuary.module.EstuaryModule',
         pinata = 'client.pinata.module.PinataModule',
         rest = 'client.rest.module.RestModule',
-        ray='client.ray.module.RayModule'
+        # ray='client.ray.module.RayModule'
         )
         return client_path_dict
 

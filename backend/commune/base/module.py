@@ -63,7 +63,6 @@ def enable_cache(**input_kwargs):
 
 
 import streamlit as st
-st.write( )
 
 class Module:
     client = None
@@ -89,7 +88,7 @@ class Module:
         self.cache = {}
         # set asyncio loop
         # self.set_loop(loop=loop)
-
+        self.loop = self.new_loop()
     @property
     def registered_clients(self):
         return self.clients.registered_clients if self.clients else []
@@ -100,7 +99,6 @@ class Module:
             if client_config != None:
                 return client_config
         return client_config
-
 
     running_actors_dir = '/tmp/commune/running_actors'
     def register_actor(self):
@@ -421,9 +419,8 @@ class Module:
 
     def get_module_class(self,module:str):
         if module[:len(self.root_dir)] != self.root_dir:
-            module = '.'.join(self.root_dir, module)
+            module = '.'.join([self.root_dir, module])
 
-        st.write(self.simple2module[module], 'bro')
         if module in self.simple2module:
             module_path = self.simple2module[module]
 
@@ -434,7 +431,7 @@ class Module:
         
         
         if self.root_dir != module_path[:len(self.root_dir)]:
-            module_path = '.'.join(self.root_dir, module_path)
+            module_path = '.'.join([self.root_dir, module_path])
         module_class= self.import_object(module_path)
         return module_class
 
@@ -616,25 +613,25 @@ class Module:
             config_path = config_path.replace('.py', '.yaml')
         return config_path
 
-    def resolve_config(self, config, override={}, recursive=True ,return_munch=False, **kwargs):
+    @classmethod
+    def resolve_config(cls, config, override={}, recursive=True ,return_munch=False, **kwargs):
         
         if config == None:
-            config =  self.get_config_path(simple=True)
+            config =  cls.get_config_path(simple=True)
         assert type(config) in [str, dict, Munch], f'CONFIG type {type(config)} no supported'
-
-        config = self.load_config(config=config, 
+        config = cls.load_config(config=config, 
                              override=override, 
                              return_munch=return_munch)
 
 
         if config == None:
             config = 'base'
-            config = self.resolve_config(config=config, 
+            config = cls.resolve_config(config=config, 
                         override=override, 
                         recursive=recursive,
                         return_munch=return_munch)
-            assert isinstance(config, dict),  f'bruh the config should be {type(config)}'
-            self.save_config(config=config)
+            # assert isinstance(config, dict),  f'bruh the config should be {type(config)}'
+            # self.save_config(config=config)
 
         return config
 
@@ -736,18 +733,12 @@ class Module:
         deploys process as an actor or as a class given the config (config)
         """
         config = kwargs.pop('config', None)
-        config = Module.resolve_config(self=cls,config=config, **kwargs)
-        if cls.ray_initialized():
-            skip_ray = True
+        config = Module.resolve_config(config=config, **kwargs)
 
-        if skip_ray == False:
-            ray_config = config.get('ray', {})
-            try:
-                ray_context =  cls.get_ray_context(init_kwargs=ray_config)
-            except ConnectionError:
-                cls.ray_start()
-                ray_context =  cls.get_ray_context(init_kwargs=ray_config)
-
+        ray_config = config.get('ray', {})
+        if not cls.ray_initialized():
+            ray_context =  cls.get_ray_context(init_kwargs=ray_config)
+        
         if actor:
             actor_config =  config.get('actor', {})
 
@@ -788,16 +779,12 @@ class Module:
     @classmethod
     def get_ray_context(cls,init_kwargs=None, reinit=True):
         
-        if cls.ray_initialized():
-            return
-
+        # if cls.ray_initialized():
+        #     return
         if init_kwargs == None:
             init_kwargs = cls.default_ray_env
-
-            
-        if isinstance(init_kwargs, dict):
-
-            
+  
+        if isinstance(init_kwargs, dict): 
             for k in cls.default_ray_env.keys():
                 default_value= cls.default_ray_env.get(k)
                 init_kwargs[k] = init_kwargs.get(k,default_value)
@@ -817,7 +804,6 @@ class Module:
             return ray.init(**init_kwargs)
         else:
             raise NotImplementedError(f'{init_kwargs} is not supported')
-    
 
  
 
@@ -871,7 +857,6 @@ class Module:
                 pass
 
 
-        
         return ray.get_actor(name)
 
 
@@ -1215,10 +1200,6 @@ class Module:
     @staticmethod
     def kill_pid(pid):        
         return kill_pid(pid)
-
-    @property
-    def __file__(self):
-        return self.get_module_path()
 
     @property
     def tmp_dir(self):

@@ -23,9 +23,8 @@ class AsyncQueueServer(Module):
         # asyncio.set_event_loop(loop)
         # self.set_event_loop(loop=loop)
         nest_asyncio.apply()
-        self.loop = asyncio.new_event_loop()
+        self.loop = asyncio.get_event_loop()
         self.queue = {}
-
     # def __del__(self):
     #     return self.loop.stop
 
@@ -34,9 +33,6 @@ class AsyncQueueServer(Module):
             self.rm_queue(key)
         queue = asyncio.Queue(**kwargs)
         return self.add_queue(key=key, queue=queue)
-
-    def getattr(self, key):
-        return getattr(self, key, None)
 
     @staticmethod
     def new_event_loop(set_loop=False):
@@ -75,8 +71,8 @@ class AsyncQueueServer(Module):
         return jobs
 
 
-    async def async_put(self, key, value, *args, **kwargs):
-        pass
+    # async def async_put(self, key, value, *args, **kwargs):
+    #     pass
         
 
 
@@ -84,6 +80,7 @@ class AsyncQueueServer(Module):
 
         q = self.get_queue(key,*args, **kwargs)
         job = q.put(value)
+
         if sync:
             return self.async_run(job)
         return job
@@ -102,24 +99,20 @@ class AsyncQueueServer(Module):
 
     def async_run(self, job):
         return self.loop.run_until_complete(job)
-        
-    async def async_get(self, key, *args, **kwargs):
-        q = self.get_queue(key)
-        job = q.get()
-        return await job
 
 
     def get(self, key, sync=True, *args, **kwargs):
-        job = self.async_get(key=key,*args, **kwargs )
+        q = self.get_queue(key)
+        job = q.get()
         if sync:
             return self.async_run(job)
         return job
 
-    async def get_batch(self, key, batch_size=10, sync=False, **kwargs):
-        q = self.get_queue(key)
-        batch_size = min(batch_size, q.qsize())
-        jobs = [self.async_get(key, **kwargs) for i in range(batch_size)]
-        return self.async_run(asyncio.gather(*job))
+    # async def get_batch(self, key, batch_size=10, sync=False, **kwargs):
+    #     q = self.get_queue(key)
+    #     batch_size = min(batch_size, q.qsize())
+    #     jobs = [self.async_get(key, **kwargs) for i in range(batch_size)]
+    #     return self.async_run(asyncio.gather(*job))
 
 
 
@@ -156,6 +149,8 @@ class AsyncQueueServer(Module):
     def size_map(self):
         return {k: self.size(k) for k in self.queue}
 
+    async def bro(self):
+        return 1
 
 if __name__ == '__main__':
     import streamlit as st

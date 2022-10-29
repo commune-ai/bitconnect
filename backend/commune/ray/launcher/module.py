@@ -184,10 +184,10 @@ class Launcher(Module):
     @staticmethod
     def st_test():
         # Module.new_loop()
-        module = Launcher.deploy(actor=False, wrap=True)
+        # module = Launcher.deploy(actor=False, wrap=True)
   
-        async_server = module.launch_module(module='commune.asyncio.queue_server', actor={'refresh': False}, wrap=True)
-        # # # async_server = module.import_object('commune.asyncio.queue_server.AsyncQueueServer')()
+        # async_server = module.launch_module(module='commune.asyncio.queue_server', actor={'refresh': False}, wrap=True)
+        # # # # async_server = module.import_object('commune.asyncio.queue_server.AsyncQueueServer')()
 
         st.write(Module.list_actor_names())
 
@@ -198,7 +198,8 @@ class Launcher(Module):
         # st.write(async_server.functions)
         # st.write(async_server)
         
-        st.write(async_server.put(key='key', value='value'))
+        # st.write(async_server.get_age, 'age')
+        st.write(async_server.put(key='key', value=[{'bro': [10,5,6,7,]}]*100))
         st.write(async_server.get(key='key'))
 
         # st.write(ray.get(async_server.put.remote('key', 'bro')))
