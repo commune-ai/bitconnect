@@ -11,10 +11,7 @@ start_latest:
 	make up_latest
 
 bash_backend: 
-	docker exec -it backend bash
-
-backend: 
-	docker exec -it backend bash
+	make bash arg=backend
 
 restart:
 	make down && make up;
@@ -63,7 +60,5 @@ gradio_api:
 gradio_client:
 	make app arg=gradio/client
 
-make backend:
-	make bash arg=backend
-make sync:
+sync:
 	git submodule sync --recursive

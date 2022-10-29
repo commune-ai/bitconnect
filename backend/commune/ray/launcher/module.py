@@ -6,6 +6,9 @@ import os
 import asyncio
 import multiprocessing
 import torch
+import psutil
+from ray.experimental.state.api import list_actors, list_objects, list_tasks
+
 sys.path.append(os.environ['PWD'])
 from commune.config import ConfigLoader
 import ray
@@ -24,7 +27,7 @@ from commune.utils import  (RunningMean,
                         )
 
 from commune import Module
-
+import streamlit as st
 
 def cache():
     def wrapper_fn(self,*args, **kwargs):
@@ -34,11 +37,8 @@ def cache():
 class Launcher(Module):
 
 
-    default_config_path = "ray.launcher"
-
-    def __inif__(self, config=None, **kwargs):
+    def __init__(self, config=None, **kwargs):
         Module.__init__(self, config=config, **kwargs)
-        self.actor_map = {}
 
         self.config['queue'] = {
             'in': 'launcher.in',
@@ -103,19 +103,30 @@ class Launcher(Module):
                      **kwargs):
         actor = {}
 
-        actor_class = self.resolve_actor_class(module)
+        actor_class = self.get_module_class(module)
 
         actor['name'] = name if isinstance(name, str) else module
         actor['max_concurrency'] = max_concurrency
         actor['refresh'] = refresh
+
+        for m in ['cpu', 'gpu']:
+            resources[f'num_{m}s'] =  kwargs.get(f'{m}s', kwargs.get(m), kwargs.get(f'num_{m}s',  resources[f'num_{m}s']) )
         actor['resources'] = resources
+
         kwargs['actor'] = actor
 
         return actor_class.deploy(**kwargs)
 
-    get_actor = add_actor = launch_actor = launch
+    add_actor = launch_actor = launch
 
     def get_actor_replicas(self, actor_name):
+        actor_map = self.actor_map
+        actor_info = actor_map.get(actor_name)
+
+        replica_list = []
+        for k,v in self.actor_map.items():
+            if actor_info['class_name'] == v['class_name'] :
+                replica_list.append(v)
         return list(filter(lambda f: actor_name == self.actor_names[:len(actor_name)], self.actor_names))       
 
     get_replicas = get_actor_replicas
@@ -166,24 +177,18 @@ class Launcher(Module):
     def remove_all_actors(self):
         for actor in self.actor_names:
             self.remove_actor(actor)
-
     rm_all = remove_all = remove_all_actors
 
 
     @staticmethod
-    def self.if_main():
-        def wrapper(fn):
-
-
-    @self.if__main__
-    @staticmethod
     def st_test():
-        if __name__=="__main__":
-            continue
-        
-        Launcher.st_test()
+        Module.new_loop()
+        module = Launcher.deploy(actor={'refresh': False}, wrap=True)
+        # st.write(module.launch_module(module='commune.asyncio.queue_server.AsyncQueueServer', actor=True, wrap=False))
+        # st.write(module.import_object('commune.asyncio.queue_server.AsyncQueueServer').__name__    )
+        st.write(module.get_actor('AsyncQueueServer').__dict__)
+        # st.write(module.get_actor(''))
 
-        import streamlit as st
-        module = Launcher.deploy(actor=False, wrap=True)
-        st.write(module.actor_map)
 
+if __name__ == '__main__':
+    Launcher.st_test()

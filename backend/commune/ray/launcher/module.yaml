@@ -1,7 +1,7 @@
 module: 'process.launcher.module.Launcher'
 name: launcher
 # clients
-client: {}
+client: ['local']
 max_actor_count: 4
 # shifter: get_cfg(process.shifter.module)
 submodule:

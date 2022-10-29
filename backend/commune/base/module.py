@@ -6,10 +6,13 @@ import os
 import ray
 import torch
 from importlib import import_module
-from commune.ray.utils import actor_exists
 from munch import Munch
 import inspect
+from commune.ray.utils import kill_actor
 from copy import deepcopy
+import psutil
+import asyncio
+from ray.experimental.state.api import list_actors, list_objects, list_tasks
 
 
 def cache(self, **kwargs):
@@ -72,7 +75,7 @@ class Module:
 
 
     
-    def __init__(self, config=None, override={}, client=None ,**kwargs):
+    def __init__(self, config=None, override={}, client=None , loop=None,**kwargs):
         self.config = self.resolve_config(config=config)
         self.override_config(override=override)
         self.start_timestamp =self.current_timestamp
@@ -85,8 +88,8 @@ class Module:
 
         self.get_submodules(get_submodules_bool = kwargs.get('get_submodules', True))
 
-        # st.write(self.client, client, kwargs.get('get_clients', True))
-        # self.register_actor()
+        # set asyncio loop
+        # self.set_loop(loop=loop)
 
     @property
     def registered_clients(self):
@@ -521,7 +524,7 @@ class Module:
 
         return module_class.deploy(**kwargs)
 
-    get_actor = get_module =add_actor = launch_actor = launch
+    get_module =add_actor = launch_actor = launch
     module_tree = module_list
 
     def load_module(self, module:str, fn:str=None ,kwargs:dict={}, actor=False, wrap=True, **additional_kwargs):
@@ -540,7 +543,7 @@ class Module:
                 if actor == True:
                     actor = {}
                 assert isinstance(actor, dict), f'{type(actor)} should be dictionary fam'
-                actor['name'] = actor.get('name', str(module_class))
+                actor['name'] = actor.get('name', module_class.__name__ )
                 module_object = self.create_actor(cls=module_class, cls_kwargs=module_kwargs, **actor)
                 if wrap == True: 
                     module_object = self.wrap_actor(module_object)
@@ -556,7 +559,7 @@ class Module:
 
 
         return module_object
-
+    launch_module = load_module
     #############
 
     # RAY ACTOR TINGS, TEHE
@@ -822,19 +825,19 @@ class Module:
 
         # refresh the actor by killing it and starting it (assuming they have the same name)
         if refresh:
-            if actor_exists(name):
+            if Module.actor_exists(name):
                 kill_actor(actor=name,verbose=verbose)
-                # assert not actor_exists(name)
+                # assert not Module.actor_exists(name)
 
         if redundant:
             # if the actor already exists and you want to create another copy but with an automatic tag
             actor_index = 0
-            while actor_exists(name):
+            while Module.actor_exists(name):
                 name =  f'{name}-{actor_index}' 
                 actor_index += 1
 
 
-        if not actor_exists(name):
+        if not Module.actor_exists(name):
             
             try:
                 actor_class = ray.remote(cls)
@@ -872,10 +875,17 @@ class Module:
         self.kill_actor(self.config['actor']['name'])
 
     @staticmethod
-    def kill_actor(actor):
-        kill_actor(actor)
-        return f'{actor} killed'
-    
+    def kill_actor(actor, verbose=True):
+
+        if isinstance(actor, str):
+            if Module.actor_exists(actor):
+                actor = ray.get_actor(actor)
+            else:
+                if verbose:
+                    print(f'{actor} does not exist for it to be removed')
+                return None
+
+
     @staticmethod
     def actor_exists(actor):
         if isinstance(actor, str):
@@ -885,7 +895,7 @@ class Module:
     @staticmethod
     def get_actor(actor_name, wrap=False):
         actor =  ray.get_actor(actor_name)
-        actor = Module.add_actor_metadata(actor)
+        # actor = Module.add_actor_metadata(actor)
         if wrap:
             actor = Module.wrap_actor(actor=actor)
         return actor
@@ -895,7 +905,7 @@ class Module:
         return ray.runtime_context.get_runtime_context()
     @property
     def context(self):
-        if self.actor_exists(self.actor_name):
+        if Module.actor_exists(self.actor_name):
             return ray.runtime_context.get_runtime_context()
 
     @property
@@ -928,6 +938,9 @@ class Module:
     @property
     def name(self):
         return self.config.get('name', self.module)
+    
+    def class_name(self):
+        return self.__class__.__name__
 
     def mapattr(self, from_to_attr_dict={}):
         '''
@@ -1274,13 +1287,12 @@ class Module:
 
     @staticmethod
     def list_objects( *args, **kwargs):
-        return list_objects(*args, **kwargs)
+        return ray.experimental.state.api.list_objects(*args, **kwargs)
 
     @staticmethod
     def list_actors(state='ALIVE', detail=True, *args, **kwargs):
         kwargs['filters'] = kwargs.get('filters', [("state", "=", state)])
         kwargs['detail'] = detail
-        
 
         actor_info_list =  list_actors(*args, **kwargs)
         for i, actor_info in enumerate(actor_info_list):
@@ -1317,7 +1329,7 @@ class Module:
         if len(filters)>0:
             kwargs['filters'] = filters
 
-        return list_tasks(*args, **kwargs)
+        return ray.experimental.state.api.list_tasks(*args, **kwargs)
 
     @classmethod
     def get_module_path(cls, simple=True):
@@ -1330,3 +1342,38 @@ class Module:
     @staticmethod
     def list_nodes( *args, **kwargs):
         return list_nodes(*args, **kwargs)
+
+
+
+    ##############
+    #   ASYNCIO
+    ##############
+
+    @staticmethod
+    def new_loop(set_loop=True):
+        loop = asyncio.new_event_loop()
+        if set_loop:
+            asyncio.set_event_loop(loop)
+        return loop
+
+    def set_loop(self, loop=None, new=False):
+        if new:
+            loop = self.new_loop()
+        if loop == None:
+            loop = self.get_loop()
+        asyncio.set_event_loop(loop)
+        return loop
+
+    @property
+    def loop(self):
+        return asyncio.get_event_loop()     
+
+    def get_loop(self, loop=None):
+        if loop == None:
+            loop = self.loop
+        return loop
+    
+    def async_run(self, job, loop=None): 
+        if loop == None:
+            loop = self.loop
+        return loop.run_until_complete(job)

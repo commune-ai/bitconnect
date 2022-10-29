@@ -15,8 +15,7 @@ import asyncio
 import aiohttp
 import json
 import os
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
+
 from fsspec.asyn import AsyncFileSystem, sync, sync_wrapper
 
 ##########################
@@ -37,7 +36,8 @@ config.wallet.hotkey = 'Tiberius'
 ##### Setup objects ######
 ##########################
 # Sync graph and load power wallet.
-
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 
 from commune import Module
 # class Sandbox(Module):
@@ -74,17 +74,69 @@ class Dataset():
         self.mountain_hash = 'QmSdDg6V9dgpdAFtActs75Qfc36qJtm9y8a7yrQ1rHm7ZX'
         # Used when current corpus has been exhausted
         self.refresh_corpus = False
-        self.hash_table = asyncio.run(self.build_hash_table())
+        
         
  
-        object_links = loop.run_until_complete(self.ipfs_get_object(self.hash_table[1]))['Links']
+        # object_links = loop.run_until_complete(self.ipfs_get_object(self.hash_table[1]))['Links']
         
-        object_links = loop.run_until_complete(self.ipfs_post('object/get', params={'arg':object_links[5]['Hash']}))
+        st.write(self.datasets)
+
+
+        # object_links = loop.run_until_complete(asyncio.gather(*[await self.get_text(file_meta) for file_meta in self.hash_table]))
         # object_links[0]
         # st.write(object_links)
         # objects = asyncio.run(self.ipfs_object_get(self.hash_table[1], timeout=2))['Links']        
         # objects = asyncio.run(self.ipfs_object_get(objects[0], timeout=2))
         # st.write(objects)
+
+
+    async def async_get_dataset_hashes(self):
+        mountain_meta = {'Name': 'mountain', 'Folder': 'meta_data', 'Hash': self.mountain_hash}
+        response = await self.ipfs_get_object(mountain_meta)
+        response = response.get('Links', None)
+        return response
+
+
+    @property
+    def dataset2size(self):
+        return {k:v['Size'] for k,v in self.dataset2hash.items()}
+
+
+    @property
+    def datasets(self):
+        return list(self.dataset2hash.keys())
+    @property
+    def dataset2hash(self):
+        if not hasattr(self, 'dataset_table'):
+            self.dataset_hashes = self.get_dataset_hashes()
+        return {v['Name'].replace('.txt', '') :v for v in self.dataset_hashes}
+    
+    def get_dataset_hashes(self):
+        hash_list =  asyncio.run(self.async_get_dataset_hashes())
+        return hash_list
+
+    async def get_text(self, file_meta):
+        links = await self.get_links(file_meta)
+        st.write(links)
+        for link in links:
+            res = await self.ipfs_post('object/get', params={'arg':link['Hash']})
+            total_data = b''
+            async for data in res.content.iter_chunked(1024):  
+                total_data += data
+                st.write(data)
+                hashes = data.decode().split('}, {')
+                decoded_hashes = []
+                for i in range(len(hashes)-1):
+                    try:
+                        decoded_hashes += [json.loads(json.loads('"{' + hashes[i+1] +  '}"'))]
+                    except json.JSONDecodeError:
+                        pass
+                    # hashes[i] =bytes('{'+ hashes[i+1] + '}')
+                st.write(decoded_hashes)
+                st.write(b'{"Links":[],' == data[:len(b'{"Links":[],')])
+                break
+
+
         
     async def get_links(self, file_meta, resursive=False, **kwargs):
         response = await self.ipfs_get_object(file_meta)
@@ -150,23 +202,8 @@ class Dataset():
 
         # if folder_get_file_jobs:
         #     return await asyncio.gather(*folder_get_file_jobs)
-    
-        return file_meta_list
+
         
-        
-
-
-
-
-
-    async def build_hash_table(self):
-
-        mountain_meta = {'Name': 'mountain', 'Folder': 'meta_data', 'Hash': self.mountain_hash}
-        response = await self.ipfs_get_object(mountain_meta)
-        response = response.get('Links', None)
-
-        return response
-
     
     async def ipfs_cat(self, file_meta, timeout=10, action='post'):
         address = self.ipfs_url + '/cat'
@@ -245,42 +282,34 @@ class Dataset():
 
     async def ipfs_post(self,endpoint, return_json=False, iter_chunk=1024, **kwargs):
         res = await self.api_post(url=os.path.join(self.ipfs_url, endpoint),**kwargs )
+
+        if return_json:
+            res = await res.json()
         st.write(res)
 
-        if iter_chunk != None:
-            total_data = b''
+        return res
 
-            async for data in res.content.iter_any():
-                
-                
-                total_data += data
-                st.write(data)
-                hashes = data.decode().split('}, {')
-                decoded_hashes = []
-                for i in range(len(hashes)-1):
-                    try:
-                        decoded_hashes += [json.loads(json.loads('"{' + hashes[i+1] +  '}"'))]
-                    except json.JSONDecodeError:
-                        pass
-                    # hashes[i] =bytes('{'+ hashes[i+1] + '}')
-                st.write(decoded_hashes)
-                st.write(b'{"Links":[],' == data[:len(b'{"Links":[],')])
-                break
- 
-        elif return_json:
-            return await res.json()
-
-    async def api_post(self, url, session=None, **kwargs):
+    async def api_post(self, url, return_json = False, **kwargs):
         
+        async with (await self.get_client_session()) as session:
+
+
+            headers = kwargs.pop('headers', {}) 
+            params = kwargs.pop('params', kwargs)
+            res = await session.post(url, params=params,headers=headers)
+
+            if return_json: 
+                res = await res.json()
+        return res
+
+    async def api_get(self, url, session=None, **kwargs):
         if session == None:
             session = await self.get_client_session()
         headers = kwargs.pop('headers', {}) 
         params = kwargs.pop('params', kwargs)
-        res = await session.post(url, params=params,headers=headers)
-        
+        res = await session.get(url, params=params,headers=headers)
         await session.close()
         return res
-
 
 
 
