@@ -236,57 +236,34 @@ class Module:
         return os.path.join(self.tmp_dir, 'cache.json')
 
 
-    def resolve_path(self, path, tmp_dir=None, extension = '.json'):
-        if tmp_dir == None:
-            tmp_dir = self.tmp_dir
-        # resolving base name
-        if path == None:
-            path = tmp_dir
-
-        if self.client.local.isdir(os.path.join(tmp_dir,path)):
-            return os.path.join(tmp_dir,path)
-        elif self.client.local.isdir(path):
-            return path
-
-        # 
-        path_basename, path_ext = os.path.splitext(os.path.basename(path))
-        if path_ext != '.json':
-            path_ext = extension
-        path_basename = path_basename + path_ext
+    def resolve_path(self, path, extension = '.json'):
+        path = path.replace('.', '/')
+        path = os.path.join(self.tmp_dir,path)
         path_dir = os.path.dirname(path)
-
-        # ensure the path has the module cache root
-        if self.tmp_dir!=path_dir[:len(self.tmp_dir)]:
-            path_dir = os.path.join(tmp_dir, path_dir)
-        if self.client.local.isdir(path_dir):
-            self.client.local.makedirs(path_dir, True)
-        path = os.path.join(path_dir, path_basename )
-        if os.path.basename(path) == extension:
-            path = os.path.dirname(path)
+        os.makedirs(path_dir,exist_ok=True)
+        if path[-len(extension):] != extension:
+            path = path + extension
         return path
 
 
     def get_json(self,path, tmp_dir=None, **kwargs):
 
-        path = self.resolve_path(path=path, tmp_dir=tmp_dir)
-        import streamlit as st
+        path = self.resolve_path(path=path)
         data = self.client.local.get_json(path=path, **kwargs)
         return data
 
     def put_json(self, path, data, tmp_dir=None, **kwargs):
-        path = self.resolve_path(path=path, tmp_dir=tmp_dir)
+        path = self.resolve_path(path=path)
         self.client.local.put_json(path=path, data=data, **kwargs)
         return path
-    def ls_json(self, path=None, tmp_dir=None):
-        if tmp_dir == None:
-            tmp_dir = self.tmp_dir
-        path = os.path.join(tmp_dir, path)
+    def ls_json(self, path=None):
+        path = self.resolve_path(path=path)
         if not self.client.local.exists(path):
             return []
         return self.client.local.ls(path)
         
     def exists_json(self, path=None, tmp_dir=None):
-        path = self.resolve_path(path=path, tmp_dir=tmp_dir)
+        path = self.resolve_path(path=path)
         return self.client.local.exists(path)
 
 
@@ -965,8 +942,11 @@ class Module:
         actor_config =  self.config.get('actor', {})
         if actor_config == None:
             actor_config = {}
-        return actor_config.get('name')
+        return actor_config.get('name', self.default_actor_name)
     
+    @property
+    def default_actor_name(self):
+        return self.get_module_path(simple=True)
     @property
     def actor_running(self):
         return self.is_actor_running
@@ -1172,8 +1152,9 @@ class Module:
 
     @classmethod
     def get_default_actor_name(cls):
-
         return cls.get_module_path(simple=True)
+
+    
 
     @staticmethod
     def load_object(module:str, __dict__:dict, **kwargs):
@@ -1238,7 +1219,7 @@ class Module:
 
     @property
     def tmp_dir(self):
-        return f'/tmp/commune/{self.name}'
+        return f'/tmp/{self.root_dir}/{self.name}'
 
     @staticmethod
     def get_actor_id( actor):

@@ -230,7 +230,8 @@ if __name__ == '__main__':
     # st.write(contract.contracts)
 
 
-    contract.deploy_contract()
+    contract.put_json('bro', {'hey': 'bro'})
+    st.write(contract.get_json('bro', {'hey': 'bro'}))
    
 
     # st.write(account.get_balance())   
