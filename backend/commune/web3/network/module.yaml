@@ -1,6 +1,8 @@
 module: NetworkModule
 
-network: local.main.ganache
+# network: local.main.ganache
+
+network: avalanche.test.public
 # client: []
 networks:
   ethereum: 
