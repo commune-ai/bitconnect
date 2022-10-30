@@ -282,7 +282,7 @@ class ContractModule(Module):
 
     @property
     def contract2address(self):
-        return {v:k for self.address2contract}
+        return {v:k for k,v in self.address2contract.items()}
 
     @property
     def address2network(self):
@@ -311,9 +311,10 @@ class ContractModule(Module):
     def network2contract(self):
         network2contract = {}
         for network, address_list in self.network2address.items():
-            network2contract[network] = address2contract[address] for address in address_list
+            network2contract[network] = [address2contract[address] for address in address_list]
         return network2contract
     
+
     def contract2network(self):
         address2contract = self.address2contract
         contract2network ={}
@@ -375,43 +376,22 @@ class ContractModule(Module):
         deserializer = ContractModule
         serialized_data = (self.config)
         return deserializer, serialized_data
+
+
+    @staticmethod
+    def streamlit():
+        contract = ContractModule()
+        network = Module.launch('web3.network')
+        account = Module.launch('web3.account')
+        contract.set_network(network)
+        contract.set_account(account)
+        st.write(contract.deploy_contract(contract='token.ERC20.ERC20'))
+
+
 if __name__ == '__main__':
     import streamlit as st
     import ray
-
-    contract = ContractModule()
-    network = Module.launch('web3.network')
-    account = Module.launch('web3.account')
-    contract.set_network(network)
-    contract.set_account(account)
-
-    st.write(contract.deploy_contract(contract='token.ERC20.ERC20'))
-
-
-
-    # st.write(network)
-    # st.write('FAM')
-    # st.write()
-    # st.write(contract.connected())
-    # contract.set_web3(network.web3)
-    # account.set_web3(network.web3)
-    # contract.set_account(account)
-    # st.write(contract.connected())
-    # st.write(contract.compile())
-    # st.write(contract.deploy_contract())
-    # st.write(contract.contracts)
-
-
-    # contract.put_json('contract', {'hey': 'bro'})
-    # st.write(contract.get_json('bro', {'hey': 'bro'}))
-
-
+    
     st.write()
-   
-
-    # st.write(account.get_balance())   
-    # st.write(ContractModule.get_actor('web3.account'))
-    # st.write(ContractModule.get_actor('web3.network'))
-
 
  

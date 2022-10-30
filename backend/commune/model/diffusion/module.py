@@ -190,19 +190,30 @@ class DiffuserModule(Module):
 
     @staticmethod
     def st_demo():
+        module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_cpus': 2, 'num_gpus': 0.6}}, wrap=True)
 
         with st.form('Prompt'):
             # text = st.input_text('Input Text', 'd')
-            text = st.text_input('Input Prompt','a malibu beach house with a ferarri in the driveway' )
-            submitted = st.form_submit_button("Sync")
+            cols = st.columns([2,3])
+            with cols[0]:
+                text = st.text_area('Input Prompt','a malibu beach house with a ferarri in the driveway' )
+                steps = st.slider('Number of Steps', 0, 200, 20)
+                dims = st.select_slider('height', list(range(256, 4096, 128)), )
+            
+            with cols[1]:
+                submitted = st.form_submit_button("Sync")
 
-            if submitted:
-                img = module.image_to_np(module.predict_txt2img(text,inf_steps=100,  height=512, width=512)[0])
+                if submitted:
+                    img = module.image_to_np(module.predict_txt2img(text,inf_steps=steps,  height=dims, width=dims)[0])
+                else:
+                    img = np.zeros([dims,dims])
+                
                 st.image(img)
     
     
 if __name__ == '__main__':
     import ray
+    DiffuserModule.st_demo()
     # module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_cpus': 2, 'num_gpus': 0.6}}, wrap=True)
     # module = DiffuserModule.deploy(actor={'refresh': False, 
     #                                       'resources': {'num_gpus': 0.5, 'num_cpus': 2}}, wrap=True)

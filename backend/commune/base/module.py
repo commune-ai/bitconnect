@@ -6,6 +6,7 @@ import os
 import subprocess, shlex
 import ray
 import torch
+import socket
 from importlib import import_module
 from munch import Munch
 import types
@@ -921,7 +922,7 @@ class Module:
         actor_config =  self.config.get('actor', {})
         if actor_config == None:
             actor_config = {}
-        return actor_config.get('name', self.default_actor_name)
+        return actor_config.get('name')
     
     @property
     def default_actor_name(self):
@@ -1412,3 +1413,13 @@ class Module:
             loop = self.loop
         return loop.run_until_complete(job)
 
+
+
+    @staticmethod
+    def port_connected( port : int,host:str='0.0.0.0'):
+        """
+            Check if the given param port is already running
+        """
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)       
+        result = s.connect_ex((host, int(port)))
+        return result == 0

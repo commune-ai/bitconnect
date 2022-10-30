@@ -144,8 +144,7 @@ class DiffuserModule(Module, DiffusionPipeline):
         eta: float = 0.0,
         generator: Optional[torch.Generator] = None,
         latents: Optional[torch.FloatTensor] = None,
-        output_type: Optional[str] = "pil",
-        return_dict: bool = True,
+        output_type: str = 'numpy',
         callback: Optional[Callable[[int, int, torch.FloatTensor], None]] = None,
         callback_steps: Optional[int] = 1,
         **kwargs,
@@ -368,13 +367,10 @@ class DiffuserModule(Module, DiffusionPipeline):
         else:
             has_nsfw_concept = None
 
-        if output_type == "pil":
+        if output_type == 'pil':
             image = self.numpy_to_pil(image)
 
-        if not return_dict:
-            return (image, has_nsfw_concept)
-
-        return StableDiffusionPipelineOutput(images=image, nsfw_content_detected=has_nsfw_concept)
+        return {'image': image, 'has_nsfw_concept': has_nsfw_concept}
 
     def load_module(self, module,refresh=None):
        
@@ -474,8 +470,9 @@ class DiffuserModule(Module, DiffusionPipeline):
 if __name__ == '__main__':
     import ray
     st.write(torch.cuda.is_available())
-    module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_gpus': 0.4, 'num_cpus': 2}}, wrap=True)
+    # module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_gpus': 0.4, 'num_cpus': 2}}, wrap=True)
+    module = DiffuserModule.deploy(actor=False, wrap=True)
     # st.write(module)
     # st.write(module.device)
-    # st.image(module.__call__(prompt='yo whadup',num_inference_steps=50 ))
-    st.write(module.__dict__)
+    st.image(module.__call__(prompt='a malibu beach house with a ferarri in the driveway',num_inference_steps=10 , output_type='pil')['image'])
+    # st.write(module.__dict__)

@@ -173,7 +173,6 @@ class GradioModule(Module):
         print("Just putting on the finishing touches... 🔧🧰")
         module_class = self.get_object(module)
         module = module_class()
-
         gradio_functions_schema = self.get_gradio_function_schemas(module)
 
 
@@ -247,36 +246,36 @@ class GradioModule(Module):
         module_schema = get_module_function_schema(module)
         return module_schema
         
+
+    @staticmethod
+    def python2gradio(self, value):
+        v_type =type(value).__name__
+        gradio_type = None
+        if v_type == 'int':
+            gradio_type = 'Number'
+        elif v_type == 'str':
+            gradio_type = 'Textbox'
+        elif v_type == 'bool':
+            gradio_type = 'Checkbox'
+        elif v_type in ['dict']:
+            gradio_type = 'JSON'
+        else:
+            raise NotImplementedError(v_type)
+
+        return getattr(self, gradio_type)
+
     @staticmethod
     def schema2gradio(fn_schema, return_type='dict'):
         gradio_schema = {}
         fn_example = fn_schema['example']
         gradio_schema['example'] = fn_example
-
         for m in ['input', 'output']:
             gradio_schema[m] = []
             for k,v in fn_example[m].items():
-                v_type = type(v).__name__
-                
-                if v_type == 'int':
-                    gradio_schema[m] += [gradio.Number(value=v, label=k)]
-                elif v_type == 'str':
-                    gradio_schema[m] += [gradio.Textbox(value=v, label=k)]
-                elif v_type == 'bool':
-                    gradio_schema[m] += [gradio.Checkbox(value=v, label=k)]
-                elif v_type == 'dict':
-                    gradio_schema[m] += [gradio.JSON(value=v, label=k)]
-                else:
-                    raise NotImplementedError(v_type)
-
-                
-
-
-        # print('GRADIO:', gradio_schema['input'][0].__dict__)
+                gradio_object = self.python2gradio(value=v)
+                gradio_schema[m] += [gradio_object(value=v, label=k)]
         return gradio_schema
                 
-
-
     def get_gradio_function_schemas(self, module, return_type='gradio'):
         if isinstance(module, str):
             module = get_object(module)
@@ -573,3 +572,6 @@ if __name__ == "__main__":
         module.run_app()
     else:
         module.launch(module=args.module, port=args.port)
+
+
+
