@@ -86,18 +86,27 @@ class GradioModule(BaseModule):
         return jsonify({"executed" : True,
                         "ports" : current['port']})
 
-    def find_registered_functions(self, module:str):
+    def find_registered_functions(self, module):
         '''
         find the registered functions
         '''
         fn_keys = []
-        self.get_module
-        for fn_key in self.get_funcs(module):
-            try:
-                if getattr(getattr(getattr(self,fn_key), '__decorator__', None), '__name__', None) == GradioModule.register.__name__:
-                    fn_keys.append(fn_key)
+        
+        for func in dir(module):
+            try: 
+                fn = getattr(module, func, None)  
+                if callable(fn) and not func.startswith("__") and  "__decorator__" in dir(fn) and fn.__decorator__.__name__ == "register":
+                    fn()
+                    fn_keys.append(func)
             except:
                 continue
+        # for fn_key in self.get_funcs(module):
+            
+        #     try:
+        #         if getattr(getattr(getattr(self,fn_key), '__decorator__', None), '__name__', None) == GradioModule.register.__name__:
+        #             fn_keys.append(fn_key)
+        #     except:
+        #         continue
         return fn_keys
 
 
@@ -149,60 +158,135 @@ class GradioModule(BaseModule):
         else:
             return True
         
-    def suggest_port(self, max_trial_count=10):
-        for port in range(*self.port_range):
-            if self.port_available(port):
-                return port
-        
-
+    def suggest_port(self, max_trial_count=100):
+        for trial in range(max_trial_count):
+            for port in range(*self.port_range):
+                if self.port_available(port):
+                    return port
         '''
         TODO: kill a port when they are all full
         '''
         raise Exception(f'There does not exist an open port between {self.port_range}')
         
     def compile(self, module:str, live=False, flagging='never', theme='default', **kwargs):
-        print("Just putting on the finishing touches... 🔧🧰")
+        # print("Just putting on the finishing touches... 🔧🧰")
+        title = module
         module_class = self.get_object(module)
         module = module_class()
+        registered = self.find_registered_functions(module)
+        print()
+        if isinstance(module.__gradio__(), gradio.Interface):
+            demos, names = [module.__gradio__()], [title]
+        
+        elif len(registered) > 0:
 
-        gradio_functions_schema = self.get_gradio_function_schemas(module)
+            demos, names = [], []
+            for func, param in module.registered_gradio_functons.items(): # loop though the registered function and append it to the TabularInterface           
+                names.append(func) 
+                try:
+                    demos.append(gradio.Interface(fn=getattr(module, func, None), **param))
+                except Exception as e :
+                    raise e
+        else:
+            gradio_functions_schema = self.get_gradio_function_schemas(module)
 
 
-        interface_fn_map = {}
+            interface_fn_map = {}
 
-        for fn_key, fn_params in gradio_functions_schema.items():                
-            interface_fn_map[fn_key] = gradio.Interface(fn=getattr(module, fn_key),
-                                        inputs=fn_params['input'],
-                                        outputs=fn_params['output'],
-                                        theme=theme)
-            print(f"{fn_key}....{bcolor.BOLD}{bcolor.OKGREEN} done {bcolor.ENDC}")
+            for fn_key, fn_params in gradio_functions_schema.items():                
+                interface_fn_map[fn_key] = gradio.Interface(fn=getattr(module, fn_key),
+                                            inputs=fn_params['input'],
+                                            outputs=fn_params['output'],
+                                            theme=theme)
+                print(f"{fn_key}....{bcolor.BOLD}{bcolor.OKGREEN} done {bcolor.ENDC}")
 
 
-        print("\nHappy Visualizing... 🚀")
-        demos = list(interface_fn_map.values())
-        names = list(interface_fn_map.keys())
+            print("\nHappy Visualizing... 🚀")
+            demos = list(interface_fn_map.values())
+            names = list(interface_fn_map.keys())
         return gradio.TabbedInterface(demos, names)
 
 
     @staticmethod
-    def register(inputs, outputs):
+    def register(inputs, outputs, examples=None, **kwargs):
+        """
+            Decorator that is appended to a function either within a class or not
+            and output either an interface or inputs and outputs for later processing
+            to launch either to Gradio-Flow or just Gradio
+        """
+        
         def register_gradio(func):
-               
-            def wrap(self, *args, **kwargs):     
-                if not hasattr(self, 'registered_gradio_functons'):
-                    print("✨Initializing Class Functions...✨\n")
-                    self.registered_gradio_functons = dict()
+            def decorator(*args, **wargs): 
+                kwargs_interface = dict(cache_examples=kwargs['cache_examples'] if "cache_examples" in kwargs else None,
+                                        examples_per_page=kwargs['examples_per_page'] if "examples_per_page" in kwargs else 10,
+                                        interpretation=kwargs['interpretation'] if "interpretation" in kwargs else None,
+                                        num_shap=kwargs['num_shap'] if "num_shap" in kwargs else 2.0,
+                                        title=kwargs['title'] if "title" in kwargs else None,
+                                        article=kwargs['article'] if "article" in kwargs else None,
+                                        thumbnail=kwargs['thumbnail'] if "thumbnail" in kwargs else None,
+                                        css=kwargs['css'] if "css" in kwargs else None,
+                                        live=kwargs['live'] if "live" in kwargs else False,
+                                        allow_flagging=kwargs['allow_flagging'] if "allow_flagging" in kwargs else None,
+                                        theme='default',)
+                # if the output is a list then there should be equal or more then 1                   
+                if type(outputs) is list:
+                    assert len(outputs) >= 1, f"❌ {bcolor.BOLD}{bcolor.FAIL}you have no outputs 🤨... {str(type(outputs))} {bcolor.ENDC}"
+                
+                fn_name = func.__name__ # name of the function
 
-                fn_name = func.__name__ 
-                if fn_name in self.registered_gradio_functons: 
-                    result = func(self, *args, **kwargs)
-                    return result
-                else:
-                    self.registered_gradio_functons[fn_name] = dict(inputs=inputs, outputs=outputs)
+                # if there exist the self within the arguments and thats the first argument then this must be a class function
+                if 'self' in func.__code__.co_varnames and func.__code__.co_varnames[0] == 'self' and fn_name in dir(args[0]):     
+                    """
+                    given the decorator is on a class then
+                    initialize a registered_gradio_functons
+                    if not already initialize.
+                    """
+                    
+                    # if the inputs is a list then inputs list should equal the arugments list
+                    if type(inputs) is list:
+                        assert len(inputs) == func.__code__.co_argcount - 1, f"❌ {bcolor.BOLD}{bcolor.FAIL}inputs should have the same length as arguments{bcolor.ENDC}"
+
+                    try:
+                        self = args[0]
+                        self.registered_gradio_functons
+                    except AttributeError:
+                        self.registered_gradio_functons = dict() # if registered_gradio_functons does not exist then create it 
+                    
+                    # if the function name is not within the registered_gradio_functons then register it within the registered_gradio_functons 
+                    if not fn_name in self.registered_gradio_functons:
+                        self.registered_gradio_functons[fn_name] = dict(inputs=inputs,
+                                                                        outputs=outputs, 
+                                                                        examples=examples,
+                                                                        **kwargs_interface)
+
+                    # if the argument are within the function when it's called then give me the output of the function
+                    # giving the user the ability to use the function if necessary 
+                    if len(args[1:]) == (func.__code__.co_argcount - 1):
+                        return func(*args, **wargs) 
+                    
+                    # return nothing if the arguments are not within it cause if the arguments do not exist it will give a error
                     return None
+                else :
+                    """
+                    the function is not a class function
+                    """
 
-            wrap.__decorator__ = GradioModule.register
-            return wrap
+                    # if the inputs is a list then inputs list should equal the arugments list
+                    if type(inputs) is list:    
+                        assert len(inputs) == func.__code__.co_argcount, f"❌ {bcolor.BOLD}{bcolor.FAIL}inputs should have the same length as arguments{bcolor.ENDC}"
+
+                    # if the arguments within the functions are inputed then just return the output
+                    if len(args) == (func.__code__.co_argcount):
+                        return func(*args, **wargs)
+
+                    # if there is nothing in the arugumrnt then return the gradio interface
+                    return gradio.Interface(fn=func,
+                                        inputs=inputs,
+                                        outputs=outputs,
+                                        examples=examples,
+                                        **kwargs_interface)
+            decorator.__decorator__ = GradioModule.register # siginture to tell any function that need to know that function is a registed gradio application
+            return decorator
         return register_gradio
 
 
@@ -239,6 +323,7 @@ class GradioModule(BaseModule):
                     failed_modules.append(root)
 
         return modules
+
     @property
     def module_list(self):
         return self.get_modules()
@@ -351,8 +436,9 @@ class GradioModule(BaseModule):
         return self.subprocess_manager.ls()
 
     def add(self,module:str, port:int, mode:str):
+        print("DEBUG", module)
         module = self.resolve_module_path(module)
-        module = self.get_object(module).get_module_filepath()
+        module = self.get_object(module).get_module_filepath() if mode == "streamlit" else module
         print(module, __file__ , 'DEBUG')
         command_map ={
             'gradio':  f'python {__file__} --module={module} --port={port}',
@@ -360,6 +446,7 @@ class GradioModule(BaseModule):
         }
 
         command  = command_map[mode]
+        print(command)
         process = self.subprocess_manager.add(key=str(port), command=command, add_info= {'module':module })
         return {
             'module': module,
@@ -371,8 +458,12 @@ class GradioModule(BaseModule):
         simple2path = deepcopy(self.simple2path)
         module_list = list(simple2path.values())
 
-        if module in simple2path:
+        print(module, simple2path.keys(), module in simple2path.keys())
+
+        if module in simple2path.keys():
             module = simple2path[module]
+
+        print(module)
     
         assert module in module_list, f'{module} not found in {module_list}'
         return module
@@ -389,9 +480,7 @@ class GradioModule(BaseModule):
             package and send it to the flaks api
         """
         module = self.resolve_module_path(module)
-        
         if interface == None:
-    
             assert isinstance(module, str)
             module_list = self.get_modules()
             assert module in module_list, f'{args.module} is not in {module_list}'
@@ -403,7 +492,6 @@ class GradioModule(BaseModule):
         kwargs['server_name'] = self.host
         
         default_kwargs = dict(
-                    
                         inline= False,
                         share= None,
                         debug=False,
@@ -423,7 +511,6 @@ class GradioModule(BaseModule):
                         ssl_keyfile_password= None,
                         quiet= False
         )
-
         kwargs = {**default_kwargs, **kwargs}
         interface.launch(**kwargs)
 
@@ -550,7 +637,7 @@ async def ls():
 
 
 @app.get("/add")
-async def module_add(module:str=None, mode='streamlit'):
+async def module_add(module:str=None, mode:str="gradio"):
     self = GradioModule.get_instance()
     port = self.suggest_port()
     # self.launch(module=module)
@@ -592,6 +679,5 @@ if __name__ == "__main__":
     if args.api:
         uvicorn.run(f"module:app", host="0.0.0.0", port=8000, reload=True, workers=2)
     else:
-
         module_proxy = GradioModule()
         module_proxy.launch(module=args.module, port=args.port)

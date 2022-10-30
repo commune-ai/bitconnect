@@ -6,7 +6,9 @@ import { random_colour, random_emoji } from "./utils";
 import "../../css/dist/output.css"
 import '../../css/index.css'
 import {BsArrowLeftShort} from 'react-icons/bs';
-// import {ReactComponent as ReactLogo} from '../../images/logo.svg'
+import {ReactComponent as Gradio} from '../../images/gradio.svg'
+import {ReactComponent as Streamlit} from '../../images/streamlit.svg'
+
 
 export default class Navbar extends Component{
     constructor(props){
@@ -21,7 +23,8 @@ export default class Navbar extends Component{
             mode : false,
             modal : false,
             error : false,
-            loading : false
+            loading : false,
+            toggle : 'gradio'
            }
        
     }
@@ -76,7 +79,7 @@ export default class Navbar extends Component{
      */
     onDragStart = (event, nodeType, item, index) => {
         event.dataTransfer.setData('application/reactflow', nodeType);
-        event.dataTransfer.setData('application/style', JSON.stringify({colour : this.state.colour[index], emoji : this.state.emoji[index] }))
+        event.dataTransfer.setData('application/style', JSON.stringify({colour : this.state.colour[index], emoji : this.state.emoji[index], stream : this.state.toggle }))
         event.dataTransfer.setData('application/item',  item)
         event.dataTransfer.effectAllowed = 'move';
       };
@@ -127,6 +130,11 @@ export default class Navbar extends Component{
         this.setState({'open' : !this.state.open})
     }
 
+    handelToggle(){
+        console.log(this.state.toggle)
+        this.setState({'toggle' : this.state.toggle === "gradio" ? "streamlit" : "gradio"})
+    }
+
     /**
      * 
      * @param {*} e : event type to get the target value of the current input
@@ -165,22 +173,27 @@ export default class Navbar extends Component{
 
             <BsArrowLeftShort onClick={this.handelNavbar} className={`  bg-white text-Retro-darl-blue text-3xl rounded-full absolute -right-3 top-9 border border-black cursor-pointer ${!this.state.open && 'rotate-180'} dark:border-white duration-300 dark:text-white dark:bg-stone-900 `}/>
 
-                <div className="inline-flex w-full">
+                <div className="inline-flex w-full pb-3">
                     <h1 className={`font-sans font-bold text-lg ${this.state.open ? "" : "hidden"} duration-500 ml-auto mr-auto`}> {/*<ReactLogo className="w-9 h-9 ml-auto mr-auto"/>*/}Modular Flow 🌊 </h1>
                 </div>
 
-                <div className={`rounded-md text-center ${this.state.open ? "" : "px-0"} py-3`} onClick={() => {}}>
+                {/* <div className={`rounded-md text-center ${this.state.open ? "" : "px-0"} py-3`} onClick={() => {}}>
                     <div className={` text-center bg-transparent w-full h-10 border border-slate-300 hover:border-Retro-purple hover:animate-pulse border-dashed rounded-md py-2 pl-5 ${this.state.open ? "pr-3" : "hidden"} shadow-sm sm:text-sm`}>
                         <Icon className=" block mr-auto ml-auto" name="plus"/>
                     </div>
+                </div> */}
+                    <div className={` md:w-14 md:h-7 w-10 h-6 flex items-center ${this.state.toggle === "gradio" ? 'bg-white' : ' bg-slate-800'}  shadow-xl rounded-full p-1 cursor-pointer float-left duration-300 `} onClick={() => {this.handelToggle()}}>
+                    <Streamlit className=" absolute w-5 h-5"/>
+                    <Gradio className=" absolute w-5 h-5 translate-x-6"/>
+                    <div className={`border-white border-2 md:w-6 md:h-6 h-5 w-5 rounded-full shadow-md transform duration-300 ease-in-out  ${this.state.toggle === "gradio" ? ' bg-orange-400' : " bg-red-700 transform translate-x-6"}`}></div>
                 </div>
-                <Import open={this.state.modal} 
+                {/* <Import open={this.state.modal} 
                         quitHandeler={this.handelModal}
                         textHandler={this.updateText}
                         appendHandler={this.appendStreamNode}
                         handelError={this.handelError}
-                        catch={this.state.error}/>
-                <div id="module-list" className={`relative z-10 w-full h-[90%] overflow-auto ${this.state.loading ? " animate-pulse duration-300 bg-neutral-900 rounded-lg" : ""} `}>
+                        catch={this.state.error}/> */}
+                <div id="module-list" className={` mt-5 relative z-10 w-full h-[93%] overflow-auto ${this.state.loading ? " animate-pulse duration-300 bg-neutral-900 rounded-lg bottom-0" : ""} `}>
                     <ul className="overflow-hidden">
                     {this.state.loading &&<Loader active/>}
                     {this.state.menu.map((item, index) => {return this.subComponents(item, index)})}

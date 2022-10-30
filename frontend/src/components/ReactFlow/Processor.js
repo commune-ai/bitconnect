@@ -164,7 +164,7 @@ export default function Processor() {
             return;
           }
 
-          fetch(`http://localhost:8000/add?${new URLSearchParams({module: item})}`, {method : "GET", mode: 'cors'}).then(
+          fetch(`http://localhost:8000/add?${new URLSearchParams({module: item, mode : style.stream})}`, {method : "GET", mode: 'cors'}).then(
             (res) => res.json()).then( (data) =>{ 
               const position = reactFlowInstance.project({
                 x: event.clientX - reactFlowBounds.left,

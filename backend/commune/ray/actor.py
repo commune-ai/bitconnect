@@ -410,8 +410,7 @@ class ActorModule:
         kwargs = kwargs.get('__dict__', kwargs.get('kwargs', {}))
         return ActorModule.import_object(module)(**kwargs)
 
-
-    @property
+    @staticmethod
     def run_command(command:str):
 
         process = subprocess.run(shlex.split(command), 

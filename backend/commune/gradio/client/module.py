@@ -1,4 +1,6 @@
 import os, sys
+
+# from backend.commune.gradio.api.utils import register
 sys.path.append(os.environ['PWD'])
 import gradio
 from commune import BaseModule
@@ -12,7 +14,8 @@ import time
 class ClientModule(BaseModule):
     default_config_path =  'gradio.client.module'
 
-    def bro(self, bro='bro', sup='sup', nice='nice', output_example={'bro': 'fuck you jesus'}):
+    # @register(inputs=['text', 'text', 'text'], outputs=['json'])
+    def bro(self, bro, sup, nice, output_example={'bro': 'fuck you jesus'}):
         return output_example 
 
 

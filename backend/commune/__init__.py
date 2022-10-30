@@ -107,6 +107,11 @@ class BaseModule(ActorModule):
             submodule_instance = submodule_class(config=submodule_config)
             setattr(self, submodule_name, submodule_instance)
 
+    def __streamlit__(self):
+        return None
+        
+    def __gradio__(self):
+        return None
 
 
     ############ LOCAL CACHE LAND ##############

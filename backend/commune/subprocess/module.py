@@ -8,6 +8,7 @@ from commune import BaseModule
 from commune.utils import *
 import shlex
 import subprocess
+import socket
 
 class SubprocessModule(BaseModule):
     subprocess_map = {}
