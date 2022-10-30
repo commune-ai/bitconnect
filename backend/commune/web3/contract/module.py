@@ -65,6 +65,17 @@ class ContractModule(Module):
     @property
     def contract_paths(self):
         return list(filter(lambda f: f.endswith('.sol'), self.client.local.glob(self.contracts_path+'**')))
+  
+    @property
+    def contracts(self):
+        contracts = []
+        for path in self.contract_paths:
+            contracts += [os.path.splitext(path)[0].replace('/', '.')]
+        return contracts
+    @property
+    def contract2path(self):
+        return dict(zip(self.contracts, self.contract_paths))
+
 
     def get_artifact(self, path):
         available_abis = self.contracts + self.interfaces
@@ -88,6 +99,16 @@ class ContractModule(Module):
     @property
     def interface_paths(self):
         return list(filter(lambda f: f.endswith('.sol'),self.client.local.glob(self.interfaces_path+'**')))
+
+    @property
+    def interfaces(self):
+        interfaces = []
+        for path in self.interface_paths:
+            interfaces += [os.path.splitext(path)[0].replace('/', '.')]
+        return interfaces
+    @property
+    def interface2path(self):
+        return dict(zip(self.interfaces, self.interface_paths))
 
 
     @property
@@ -152,9 +173,10 @@ class ContractModule(Module):
         return self.client.local.get_yaml(network_config_path)
 
     @property
-    def contracts(self):
+    def contract_paths(self):
         contracts = list(filter(lambda f: f.startswith('contracts'), self.artifacts))
         return list(map(lambda f:os.path.dirname(f.replace('contracts/', '')), contracts))
+
     @property
     def interfaces(self):
         interfaces = list(filter(lambda f: f.startswith('interfaces'), self.artifacts))
@@ -174,7 +196,11 @@ class ContractModule(Module):
     def set_account(self, account):
         self.account = account
     
-    def deploy_contract(self, contract = 'token/ERC20/ERC20.sol', args=['AIToken', 'AI'], web3=None, account=None):
+
+    def deploy_contract(self, contract = 'token.ERC20.ERC20', args=['AIToken', 'AI'], web3=None, account=None):
+        
+        contract_path = self.resolve_contract_path(contract)
+        
         web3 = self.resolve_web3(web3)
         account = self.resolve_account(account)
         account.set_web3(web3)
@@ -199,11 +225,20 @@ class ContractModule(Module):
         tx_hash = web3.eth.send_raw_transaction(signed_tx)
         tx_receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
 
-        st.write(f'Contract deployed at address: { tx_receipt.contractAddress }')
+        contract_address = tx_receipt.contractAddress 
+        st.write(contract,network.network)
+        dict_put(self.config, ['deployed_contracts',network.network, contract ], contract_address)
+        return  tx_receipt.contractAddress 
+        # st.write(f'Contract deployed at address: { tx_receipt.contractAddress }')
+
+    
+    def resolve_contract_path(self,  path):
+        contract_path = self.contract2path.get(path, None)
+        assert contract_path in self.contract_paths
+        return contract_path
 
 
-
-
+        
     def __reduce__(self):
         deserializer = ContractModule
         serialized_data = (self.config)
@@ -215,6 +250,8 @@ if __name__ == '__main__':
     contract = ContractModule()
     network = Module.launch_module('web3.network')
     account = Module.launch_module('web3.account')
+    st.write(network.available_networks)
+    st.write(contract.interface2path)
 
 
 
@@ -222,16 +259,20 @@ if __name__ == '__main__':
     # st.write('FAM')
     # st.write()
     # st.write(contract.connected())
-    contract.set_web3(network.web3)
-    account.set_web3(network.web3)
-    contract.set_account(account)
+    # contract.set_web3(network.web3)
+    # account.set_web3(network.web3)
+    # contract.set_account(account)
     # st.write(contract.connected())
-    st.write(contract.compile())
+    # st.write(contract.compile())
+    # st.write(contract.deploy_contract())
     # st.write(contract.contracts)
 
 
-    contract.put_json('bro', {'hey': 'bro'})
-    st.write(contract.get_json('bro', {'hey': 'bro'}))
+    # contract.put_json('contract', {'hey': 'bro'})
+    # st.write(contract.get_json('bro', {'hey': 'bro'}))
+
+
+    st.write()
    
 
     # st.write(account.get_balance())   

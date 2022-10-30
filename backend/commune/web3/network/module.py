@@ -13,20 +13,38 @@ class NetworkModule(Module):
 
     default_config_path = 'web3.network'
 
-    def __init__(self, config=None, **kwargs):
+    def __init__(self, config=None, network=None, **kwargs):
         Module.__init__(self, config=config, **kwargs)
-        self.url = self.set_network(network=kwargs.get('network',self.config['network']))
+        self.set_network(network=network)
+
+    @property
+    def network(self):
+        network = self.config['network']
+        if len(network.split('.')) == 3:
+            network = '.'.join(network.split('.')[:-1])
+        assert len(network.split('.')) == 2
+        return network
+
+    @network.setter
+    def network(self, network):
+        assert network in self.available_networks
+        self.config['network'] = network
+
 
     def set_network(self, network:str):
+        network = network if network != None else self.config['network']
+        
+        
         url = self.get_url(network)
         self.network = network
         self.url = url 
-        self.web3 = self.get_web3(network_url = self.url)
+        self.web3 = self.get_web3(self.url)
         return self.web3
     connect_network = set_network
 
-    def get_web3(self, network_url:str):
-        return get_web3(network_url)
+    def get_web3_from_url(self, url:str):
+        return get_web3(url)
+    get_web3 = get_web3_from_url
 
     @property
     def networks_config(self):
@@ -37,14 +55,15 @@ class NetworkModule(Module):
         return self.get_networks()
 
     def get_networks(self):
+
+        
         return list(self.networks_config.keys())
 
     @property
-    def subnetworks(self):
-        return self.get_subnetworks()
+    def available_networks(self):
+        return self.get_available_networks()
 
-
-    def get_subnetworks(self, network:str='ethereum'):
+    def get_available_networks(self):
         networks_config = self.networks_config
 
         subnetworks = []
