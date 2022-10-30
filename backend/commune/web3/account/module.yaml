@@ -1,6 +1,5 @@
 
-module: AddressModule
+module: AccountModule
 
-# client: {}
-
+private_key: '0xbbfbee4961061d506ffbb11dfea64eba16355cbf1d9c29613126ba7fec0aed5d'
 

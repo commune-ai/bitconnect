@@ -9,16 +9,12 @@ from commune import Module
 
 
 class ContractModule(Module):
+    def __init__(self, config=None, network=None, account=None, **kwargs):
 
-    default_config_path = 'contract.base'
+        Module.__init__(self, config=config, network=None, **kwargs)
 
-    def __init__(self, config=None, **kwargs):
-
-        Module.__init__(self, config=config, **kwargs)
-        
-        
-        self.load_module(**self.config.get('network'))
-        self.web3 = web3
+        self.set_network(network=network)
+        self.set_account(account=account)
 
 
         
@@ -111,10 +107,26 @@ class ContractModule(Module):
             artifacts.append(simple_path)
         return artifacts
 
-    def set_network(self, url='LOCAL_NETWORK_RPC_URL'):
-        url = os.getenv(url, url)
-        self.web3 = Web3(Web3.HTTPProvider(url))
+
+    def connected(self):
+        return bool( self.web3.__class__.__name__ == 'Web3')
+
+    def disconnected(self):
+        return not self.connected()
+
+    def set_web3(self, web3=None):
+        self.web3 = web3
         return self.web3
+    def set_network(self, network = None, web3=None):
+        if network.__class__.__name__ == 'NetworkModule':
+            network = network
+            web3 = network.web3 
+        
+        st.write('network', network)
+        self.network = network
+        self.web3 = web3
+        return network
+
     connect_network = set_network
 
     def set_account(self, private_key):
@@ -147,7 +159,83 @@ class ContractModule(Module):
     def interfaces(self):
         interfaces = list(filter(lambda f: f.startswith('interfaces'), self.artifacts))
         return list(map(lambda f:os.path.dirname(f.replace('interfaces/', '')), interfaces))
+
+
+    def resolve_web3(self, web3):
+        if web3 == None:
+            web3 = self.web3
+        return web3
+
+    def resolve_account(self, account):
+        if account == None:
+            account = self.account
+        return account
+
+    def set_account(self, account):
+        self.account = account
+    
+    def deploy_contract(self, contract = 'token/ERC20/ERC20.sol', args=['AIToken', 'AI'], web3=None, account=None):
+        web3 = self.resolve_web3(web3)
+        account = self.resolve_account(account)
+        account.set_web3(web3)
+        assert contract in self.contracts
+        contract_artifact = self.get_artifact('token/ERC20/ERC20.sol')
+        contract_class = web3.eth.contract(abi=contract_artifact['abi'], 
+                                    bytecode= contract_artifact['bytecode'],)
+        # st.write(contract_artifact['abi'])
+
+        st.write(account.address)
+        nonce = web3.eth.get_transaction_count(account.address) 
+        st.write(nonce, 'NONCE')
+        construct_txn = contract_class.constructor(*args).buildTransaction(
+                            {
+                                    'from': account.address,
+                                    'gasPrice':web3.eth.generate_gas_price(),
+                                    'nonce': nonce
+                            }
+        )
+        # sign the transaction
+        signed_tx = account.sign_tx(construct_txn)
+        tx_hash = web3.eth.send_raw_transaction(signed_tx)
+        tx_receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
+
+        st.write(f'Contract deployed at address: { tx_receipt.contractAddress }')
+
+
+
+
+    def __reduce__(self):
+        deserializer = ContractModule
+        serialized_data = (self.config)
+        return deserializer, serialized_data
 if __name__ == '__main__':
     import streamlit as st
-    module = ContractModule.deploy(actor=False)
+    import ray
+
+    contract = ContractModule()
+    network = Module.launch_module('web3.network')
+    account = Module.launch_module('web3.account')
+
+
+
+    # st.write(network)
+    # st.write('FAM')
+    # st.write()
+    # st.write(contract.connected())
+    contract.set_web3(network.web3)
+    account.set_web3(network.web3)
+    contract.set_account(account)
+    # st.write(contract.connected())
+    st.write(contract.compile())
+    # st.write(contract.contracts)
+
+
+    contract.deploy_contract()
+   
+
+    # st.write(account.get_balance())   
+    # st.write(ContractModule.get_actor('web3.account'))
+    # st.write(ContractModule.get_actor('web3.network'))
+
+
  

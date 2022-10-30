@@ -5,7 +5,7 @@
 import logging
 import os
 from typing import Dict, Optional, Union
-
+import json
 from enforce_typing import enforce_types
 from eth_account.datastructures import SignedMessage
 from eth_account.messages import SignableMessage
@@ -52,26 +52,34 @@ class AccountModule(Module):
     @enforce_types
     def __init__(
         self,
-        private_key: str= 'PRIVATE_KEY',
+        private_key: str= None,
         web3: Web3 = None,
         **kwargs
     ) -> None:
         """Initialises AccountModule object."""
         # assert private_key, "private_key is required."
+        Module.__init__(self, **kwargs)
 
 
         self.account = self.set_account(private_key = private_key)
+        self.web3 = web3
 
     @property
     @enforce_types
     def address(self) -> str:
         return self.account.address
 
+
+    @property
     def private_key(self):
-        return self.account.private_key
+        return self.account._private_key
         
     def set_account(self, private_key=None):
-        private_key = os.getenv(private_key, private_key)
+        private_key = os.getenv(private_key, private_key) if isinstance(private_key, str) else None
+        if private_key == None:
+            private_key = self.config.get('private_key', None)
+        import streamlit as st
+        st.write(private_key, 'PRIVATE_KEY')
         assert isinstance(private_key, str), type(private_key)
         self.account = Account.from_key(private_key)
         return self.account
@@ -116,48 +124,49 @@ class AccountModule(Module):
     def sign_tx(
         self,
         tx: Dict[str, Union[int, str, bytes]],
-        fixed_nonce: Optional[int] = None,
-        gas_price: Optional[int] = None,
     ) -> HexBytes:
-        
-        if fixed_nonce is not None:
-            nonce = fixed_nonce
-            logger.debug(
-                f"Signing transaction using a fixed nonce {fixed_nonce}, tx params are: {tx}"
-            )
-        else:
+        if tx.get('nonce') == None:
             nonce = AccountModule._get_nonce(self.web3, self.address)
-        
-        if not gas_price:
+        if tx.get('gasePrice') == None:
             gas_price = int(self.web3.eth.gas_price * 1.1)
             gas_price = max(gas_price, MIN_GAS_PRICE)
+            max_gas_price = os.getenv(ENV_MAX_GAS_PRICE, None)
+            if gas_price and max_gas_price:
+                gas_price = min(gas_price, max_gas_price)
 
-        max_gas_price = os.getenv(ENV_MAX_GAS_PRICE, None)
-        if gas_price and max_gas_price:
-            gas_price = min(gas_price, max_gas_price)
 
-        logger.debug(
-            f"`AccountModule` signing tx: sender address: {self.account.address} nonce: {nonce}, "
-            f"eth.gasPrice: {self.web3.eth.gas_price}"
-        )
-        tx["gasPrice"] = gas_price
-        tx["nonce"] = nonce
+            tx["gasPrice"] = gas_price
+
         signed_tx = self.web3.eth.account.sign_transaction(tx, self.private_key)
         logger.debug(f"Using gasPrice: {gas_price}")
         logger.debug(f"`AccountModule` signed tx is {signed_tx}")
         return signed_tx.rawTransaction
 
-    @enforce_types
-    def sign(self, msg_hash: Union[SignableMessage,str]) -> SignedMessage:
-        """Sign a transaction."""
+
+
+    def resolve_message(self, message):
+        if type(message) in [dict]:
+            import streamlit as st
+            st.write(message)
+            message = json.dumps(message)
+        elif type(message) in [list, tuple, set]:
+            message = json.dumps(list(message))
+        elif type(message) in [int, float, bool]:
+            message = str(message)
+
         if isinstance(msg_hash, str):
-            msg_hash = encode_defunct(msg_hash)
-        elif isinstance(msg_hash, SignableMessage):
-            pass
+            message = encode_defunct(message)
+        elif isinstance(message, SignableMessage):
+            message = message
         else:
             raise NotImplemented
             
-        return self.account.sign_message(msg_hash)
+
+    @enforce_types
+    def sign(self, message: Union[SignableMessage,str, dict]) -> SignedMessage:
+        """Sign a transaction."""
+        message = self.resolve_message(message)
+        return self.account.sign_message(message)
 
     @property
     def public_key(self):
@@ -196,3 +205,30 @@ class AccountModule(Module):
             raise NotImplementedError(return_type)
         
         return hash_output
+
+    
+    def resolve_web3(self, web3=None):
+        if web3 == None:
+            web3 == self.web3
+        assert web3 != None
+        return web3
+
+    def resolve_address(self, address=None):
+        if address == None:
+            address == self.address
+        assert address != None
+        return address
+
+
+    def get_balance(self, token:str=None, address=None, web3=None):
+        web3 = self.resolve_web3(web3)
+        address = self.resolve_address(address)
+        
+        if token == None:
+            # return native token
+            balance = self.web3.eth.get_balance(self.address)
+        else:
+            raise NotImplemented
+
+        return balance
+        

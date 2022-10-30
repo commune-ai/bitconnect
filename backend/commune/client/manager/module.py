@@ -8,14 +8,12 @@ import datasets
 from copy import deepcopy
 from commune import Module
 class ClientModule(Module):
-    default_config_path = 'client.manager.module'
     registered_clients = {}
 
     def __init__(self, config=None ):
         Module.__init__(self, config=config,get_clients=False)
         # st.write(self.config)
         self.register_clients(clients=self.include_clients)
-        st.write('broo')
     def get_default_clients(self):
         client_path_dict = dict(
         ipfs = 'client.ipfs.module.IPFSModule',
@@ -43,7 +41,9 @@ class ClientModule(Module):
         if isinstance(clients, list):
             assert all([isinstance(c,str)for c in clients]), f'{clients} should be all strings'
             for client in clients:
+                st.write('client', client)
                 self.register_client(client=client)
+                st.write('local')
         elif isinstance(clients, dict):
             for client, client_kwargs in clients.items():
                 self.register_client(client=client, **client_kwargs)
@@ -58,8 +58,6 @@ class ClientModule(Module):
         return self.get_object(self.client_path_dict[client])
 
     def register_client(self, client, **kwargs):
-        if client in self.blocked_clients:
-            return
         assert isinstance(client, str)
         assert client in self.default_clients,f"{client} is not in {self.default_clients}"
 

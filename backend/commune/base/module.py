@@ -3,6 +3,7 @@ import datetime
 from commune.config.loader import ConfigLoader
 import streamlit as st
 import os
+import subprocess, shlex
 import ray
 import torch
 from importlib import import_module
@@ -77,11 +78,15 @@ class Module:
 
 
     def __init__(self, config=None, override={}, client=None , loop=None,**kwargs):
-        self.config = self.resolve_config(config=config)
+        
+
+        self.config = self.resolve_config(config)
         self.override_config(override=override)
         self.start_timestamp =self.current_timestamp
         # for passing down the client to  submodules to avoid replicating a client for every submodule
-        self.client = self.get_clients(client=client) 
+
+        if self.class_name != 'client.manager':
+            self.client = self.get_clients(client=client) 
         self.get_submodules(get_submodules_bool = kwargs.get('get_submodules', True))
 
 
@@ -111,14 +116,19 @@ class Module:
             self.client.local.rm(path=f'{running_actors_dir}/{self.actor_name}/config.json', recursive=True)
 
     def get_clients(self, client=None):
-        client_module_class = self.get_object(self.client_module_class_path)
-        client_config = client_module_class.default_config()
+
+
+
         # st.write(client_config, client)
         if client == False:
             return None
         elif client == True:
             pass
         elif client == None:
+            if self.client_config == None and client == None:
+                return None
+            client_module_class = self.get_object(self.client_module_class_path)
+            client_config = client_module_class.default_config()
             # does the config have clients
             if isinstance(self.client_config, list):
                 client_config['include'] = self.client_config
@@ -417,6 +427,18 @@ class Module:
     def module2simple(self):
         return {v:k for k,v in self.simple2module.items()}
 
+
+    @staticmethod
+    def simple2path( simple):
+        path = deepcopy(simple.replace('.', '/'))
+        if simple[:len(Module.root_dir)] != Module.root_dir:
+            path = os.path.join(Module.root, simple, 'module.yaml')
+        st.write(simple)
+        module_name = Module.load_config(simple).get('module')
+        full_path = '.'.join([Module.root_dir, simple,'module', module_name])
+    
+        return full_path
+
     def get_module_class(self,module:str):
         if module[:len(self.root_dir)] != self.root_dir:
             module = '.'.join([self.root_dir, module])
@@ -535,12 +557,13 @@ class Module:
     get_module =add_actor = launch_actor = launch
     module_tree = module_list
 
-    def launch_module(self, module:str, fn:str=None ,kwargs:dict={}, actor=False, wrap=True, **additional_kwargs):
+    @classmethod
+    def launch_module(cls, module:str, fn:str=None ,kwargs:dict={}, actor=False, wrap=True, **additional_kwargs):
         try:
-            module_class =  self.get_module_class(module)
+            module_class =  cls.import_object(cls.simple2path(module))
         except Exception as e:
-            raise(e)
-            module_class = self.import_object(module)
+            print(e)
+            module_class = cls.import_object(module)
 
         module_init_fn = fn
         module_kwargs = {**kwargs}
@@ -551,22 +574,21 @@ class Module:
                 if actor == True:
                     actor = {}
                 assert isinstance(actor, dict), f'{type(actor)} should be dictionary fam'
-                parents = self.get_parents(module_class)
+                parents = cls.get_parents(module_class)
 
 
                 
-                if self.is_module(module_class):
+                if cls.is_module(module_class):
                     default_actor_name = module_class.get_default_actor_name()
                 else:
                     default_actor_name = module_class.__name__
                 
 
                 actor['name'] = actor.get('name', default_actor_name )
-                module_object = self.create_actor(cls=module_class, cls_kwargs=module_kwargs, **actor)
+                module_object = cls.create_actor(cls=module_class, cls_kwargs=module_kwargs, **actor)
                 
-                st.write(module_object)
                 if wrap == True: 
-                    module_object = self.wrap_actor(module_object)
+                    module_object = cls.wrap_actor(module_object)
             else:
                 module_object =  module_class(**module_kwargs)
 
@@ -574,8 +596,6 @@ class Module:
         else:
             module_init_fn = getattr(module_class,module_init_fn)
             module_object =  module_init_fn(**module_kwargs)
-        
-
 
 
         return module_object
@@ -606,22 +626,29 @@ class Module:
     def get_current_timestamp():
         return  datetime.datetime.utcnow().timestamp()
 
+
+
     @classmethod
     def get_config_path(cls, simple=False):
         config_path = cls.get_module_path(simple=simple)
+        st.write(cls.get_module_path(), config_path)
         if simple == False:
             config_path = config_path.replace('.py', '.yaml')
         return config_path
 
-    @classmethod
-    def resolve_config(cls, config, override={}, recursive=True ,return_munch=False, **kwargs):
+    def resolve_config(self, config, override={}, recursive=True ,return_munch=False, **kwargs):
         
         if config == None:
-            config =  cls.get_config_path(simple=True)
-        assert type(config) in [str, dict, Munch], f'CONFIG type {type(config)} no supported'
-        config = cls.load_config(config=config, 
-                             override=override, 
-                             return_munch=return_munch)
+            config_path =  self.get_config_path()
+            assert type(config_path) in [str, dict, Munch], f'CONFIG type {type(config)} no supported'
+            config = self.load_config(config=config_path, 
+                                override=override, 
+                                return_munch=return_munch)
+        assert isinstance(config, dict), type(config)
+        return config
+        # st.write(config)
+        
+
 
 
         if config == None:
@@ -635,13 +662,15 @@ class Module:
 
         return config
 
-    @staticmethod
-    def load_config(config=None, override={}, recursive=True, return_munch=False):
+    @classmethod
+    def load_config(cls, config=None, override={}, recursive=True, return_munch=False):
         """
         config: 
             Option 1: dictionary config (passes dictionary) 
             Option 2: absolute string path pointing to config
         """
+        if config == None:
+            config = cls.get_config_path()
         return Module.config_loader.load(path=config, 
                                      override=override,
                                      recursive=recursive,
@@ -732,8 +761,9 @@ class Module:
         """
         deploys process as an actor or as a class given the config (config)
         """
+
         config = kwargs.pop('config', None)
-        config = Module.resolve_config(config=config, **kwargs)
+        config = cls.load_config(config=config)
 
         ray_config = config.get('ray', {})
         if not cls.ray_initialized():
@@ -755,7 +785,8 @@ class Module:
                 actor_config['name'] =  actor_config.get('name', cls.get_default_actor_name())                
                 config['actor'] = actor_config
                 kwargs['config'] = config
-                actor = Module.create_actor(cls=cls,  cls_kwargs=kwargs, **actor_config)
+                actor = cls.create_actor(cls=cls,  cls_kwargs=kwargs, **actor_config)
+                
                 actor_id = cls.get_actor_id(actor)  
                 actor =  cls.add_actor_metadata(actor)
             except ray.exceptions.RayActorError:
@@ -1005,7 +1036,6 @@ class Module:
             obj = cls
         
         fn_map = {}
-        st.write(obj.get_functions(obj))
         for fn_key in obj.get_functions(obj):
             # st.write(fn)
             fn = getattr(obj, fn_key)
@@ -1014,6 +1044,10 @@ class Module:
             fn_map[fn_key] = cls.get_function_schema(fn=fn, *args, **kwargs)
         return fn_map
     
+
+    def is_parent(child, parent):
+        return bool(parent in Module.get_parents(child))
+
     @classmethod
     def get_parents(cls, obj=None):
         if obj == None:
@@ -1085,6 +1119,7 @@ class Module:
     @classmethod
     def parents(cls):
         return get_parents(cls)
+
 
     @staticmethod
     def timeit(fn, trials=1, time_type = 'seconds', timer_kwargs={} ,*args,**kwargs):
@@ -1362,9 +1397,15 @@ class Module:
 
         return ray.experimental.state.api.list_tasks(*args, **kwargs)
 
+
+
+
     @classmethod
-    def get_module_path(cls, simple=True):
-        module_path =  inspect.getmodule(cls).__file__
+    def get_module_path(cls, obj=None,  simple=True):
+        if obj == None:
+            obj = cls
+        module_path =  inspect.getmodule(obj).__file__
+        # raise(obj)
         if simple:
             module_path = os.path.dirname(module_path.replace(Module.root, '')).replace('/', '.')[1:]
 

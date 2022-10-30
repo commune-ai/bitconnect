@@ -7,7 +7,7 @@ class SenderModule(Module):
         Module.__init__(self, *args, **kwargs)
         st.write(self.list_actor_names())
         self.queue =  self.load_module('commune.asyncio.queue_server', actor={'refresh': False}, wrap=True  )
-        st.write(self.queue)
+        # st.write(self.queue)
     def put(self, key='bro', value={'bro': [1,3,4,5]}):
         return self.queue.put(key, value)
     def get(self, key='key'):

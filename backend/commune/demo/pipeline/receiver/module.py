@@ -21,10 +21,6 @@ class StreamlitApp:
         self.loop = asyncio.new_event_loop()
         self.loop.run_until_complete(self.main())
 
-
-    async def bro(self):
-        while True:
-            st.write('BRO')
     async def main(self):
         job = self.bro()
 

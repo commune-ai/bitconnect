@@ -157,10 +157,7 @@ if __name__ == '__main__':
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-
-
     server = AsyncQueueServer()
-
     st.write(server.put_batch('key', ['bro']*10, sync=True))
     st.write(server.put_batch('bro', ['bro']*10, sync=True))
 
