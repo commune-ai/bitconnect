@@ -80,9 +80,9 @@ class ContractModule(Module):
     def get_artifact(self, path):
         available_abis = self.contracts + self.interfaces
 
-        if path in self.contracts:
+        if path in self.contract_paths:
             root_dir = os.path.join(self.artifacts_path, 'contracts')
-        elif path in self.interfaces:
+        elif path in self.interface_paths:
             root_dir = os.path.join(self.artifacts_path, 'interfaces')
         else:
             raise Exception(f"{path} not in {available_abis}")
@@ -186,26 +186,35 @@ class ContractModule(Module):
     def resolve_web3(self, web3):
         if web3 == None:
             web3 = self.web3
+        self.set_web3(web3)
         return web3
 
     def resolve_account(self, account):
         if account == None:
             account = self.account
+        self.set_account(account)
         return account
 
     def set_account(self, account):
         self.account = account
+        if account != None:
+            account.set_web3(self.web3)
     
 
-    def deploy_contract(self, contract = 'token.ERC20.ERC20', args=['AIToken', 'AI'], web3=None, account=None):
+    def deploy_contract(self, contract = 'token.ERC20.ERC20', args=['AIToken', 'AI'],tag=None, web3=None, account=None, network=None):
         
-        contract_path = self.resolve_contract_path(contract)
+        simple_contract_path = contract
+        contract_path = self.resolve_contract_path(simple_contract_path)
         
+        network = self.resolve_network(network)
         web3 = self.resolve_web3(web3)
         account = self.resolve_account(account)
-        account.set_web3(web3)
+
+        tag = self.resolve_tag(tag)
+
+
         assert contract in self.contracts
-        contract_artifact = self.get_artifact('token/ERC20/ERC20.sol')
+        contract_artifact = self.get_artifact(contract_path)
         contract_class = web3.eth.contract(abi=contract_artifact['abi'], 
                                     bytecode= contract_artifact['bytecode'],)
         # st.write(contract_artifact['abi'])
@@ -226,11 +235,134 @@ class ContractModule(Module):
         tx_receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
 
         contract_address = tx_receipt.contractAddress 
-        st.write(contract,network.network)
-        dict_put(self.config, ['deployed_contracts',network.network, contract ], contract_address)
+        
+        self.register_contract(contract_path=simple_contract_path, network=network.network, contract_address=contract_address, tag=tag)
+        
+        self.address2contract
         return  tx_receipt.contractAddress 
         # st.write(f'Contract deployed at address: { tx_receipt.contractAddress }')
 
+
+    @property
+    def registered_contracts(self):
+        return self.get_json('registered_contracts', {})
+
+    def get_contract(self, address=None, contract=None, tag=None , web3=None, account=None):
+        web3 = self.resolve_web3(web3)
+        account = self.resolve_account(account)
+    
+        if isinstance(address, str):
+            contract_path = self.address2contract[address]
+        
+        elif isinstance(contract, str):
+            # if contract has tag {contract_name}-{tag}
+            if len(contract.split('-'))==2:
+                tag = contract.split('-')[1] 
+
+            # if the tag is None, default to "default_tag"
+            tag = self.resolve_tag(tag)
+            contract_path = contract
+        else:
+            raise Exception('please specify the contract')
+
+        
+
+    @property
+    def address2contract(self):
+        registered_contracts = self.registered_contracts
+        st.write(registered_contracts)
+        address2contract = {}
+        for network, contract_path_map in registered_contracts.items():
+            for contract_path, contract_tag_map in contract_path_map.items():
+                for tag, contract_address_list in contract_tag_map.items():
+                    for contract_address in contract_address_list:
+                        address2contract[contract_address+'-'+tag] = contract_path
+        return address2contract
+
+
+    @property
+    def contract2address(self):
+        return {v:k for self.address2contract}
+
+    @property
+    def address2network(self):
+        registered_contracts = self.registered_contracts
+        address2network = {}
+        for network, contract_path_map in registered_contracts.items():
+            for contract_path, contract_tag_map in contract_path_map.items():
+                for tag, contract_address_list in contract_tag_map.items():
+                    for contract_address in contract_address_list:
+                        address2network[contract_address] = network
+        
+        return address2network
+
+    @property
+    def network2address(self):
+        network2address = {}
+        for address, network in self.address2network.items():
+            if network in network2address:
+                network2address[network].append(address)
+            else:
+                network2address[network] = [address]
+        return network2address
+
+
+    @property
+    def network2contract(self):
+        network2contract = {}
+        for network, address_list in self.network2address.items():
+            network2contract[network] = address2contract[address] for address in address_list
+        return network2contract
+    
+    def contract2network(self):
+        address2contract = self.address2contract
+        contract2network ={}
+        for address, network in self.address2network.items():
+            contract2network[address2contract[address]] = network
+
+        return contract2network
+
+
+    default_tag = 'v0'
+    def resolve_tag(self, tag=None): 
+        if tag == None:
+            tag = self.default_tag
+        return tag
+
+    def register_contract(self, network:str,
+                            contract_path:str , 
+                            contract_address:str,  
+                            tag=None, 
+                            refresh=True):
+
+        if refresh:
+            self.rm_json('registered_contracts')
+
+        st.write(self.interfaces)
+
+        registered_contracts = self.registered_contracts
+        st.write(registered_contracts, 'contracts')
+        if network not in registered_contracts:
+            registered_contracts[network] = {}
+        if contract_path not in registered_contracts[network]:
+            registered_contracts[network][contract_path] = {}
+        
+        if tag not in registered_contracts[network][contract_path]:
+            registered_contracts[network][contract_path][tag] = []
+
+        assert isinstance(registered_contracts[network][contract_path][tag], list)
+        registered_contracts[network][contract_path][tag].append(contract_address)
+    
+        self.put_json('registered_contracts', registered_contracts)
+
+        return registered_contracts
+
+    def resolve_network(self, network):
+        if network == None:
+            network = self.network
+        self.set_network(network)
+        return network
+    
     
     def resolve_contract_path(self,  path):
         contract_path = self.contract2path.get(path, None)
@@ -248,10 +380,12 @@ if __name__ == '__main__':
     import ray
 
     contract = ContractModule()
-    network = Module.launch_module('web3.network')
-    account = Module.launch_module('web3.account')
-    st.write(network.available_networks)
-    st.write(contract.interface2path)
+    network = Module.launch('web3.network')
+    account = Module.launch('web3.account')
+    contract.set_network(network)
+    contract.set_account(account)
+
+    st.write(contract.deploy_contract(contract='token.ERC20.ERC20'))
 
 
 

@@ -235,7 +235,6 @@ class Module:
     def cache_path(self):
         return os.path.join(self.tmp_dir, 'cache.json')
 
-
     def resolve_path(self, path, extension = '.json'):
         path = path.replace('.', '/')
         path = os.path.join(self.tmp_dir,path)
@@ -245,32 +244,36 @@ class Module:
             path = path + extension
         return path
 
-
-    def get_json(self,path, tmp_dir=None, **kwargs):
-
+    def get_json(self,path, default=None, **kwargs):
         path = self.resolve_path(path=path)
-        data = self.client.local.get_json(path=path, **kwargs)
+        try:
+            data = self.client.local.get_json(path=path, **kwargs)
+        except FileNotFoundError as e:
+            if isinstance(default, dict):
+                data = self.put_json(path, default)
+            else:
+                raise e
+
         return data
 
-    def put_json(self, path, data, tmp_dir=None, **kwargs):
+    def put_json(self, path, data, **kwargs):
         path = self.resolve_path(path=path)
         self.client.local.put_json(path=path, data=data, **kwargs)
-        return path
+        return data
+
     def ls_json(self, path=None):
         path = self.resolve_path(path=path)
         if not self.client.local.exists(path):
             return []
         return self.client.local.ls(path)
         
-    def exists_json(self, path=None, tmp_dir=None):
+    def exists_json(self, path=None):
         path = self.resolve_path(path=path)
         return self.client.local.exists(path)
 
 
-    def rm_json(self, path=None,tmp_dir=None, recursive=True, **kwargs):
-        if tmp_dir == None:
-            tmp_dir = self.tmp_dir
-        path = os.path.join(tmp_dir, path)
+    def rm_json(self, path=None, recursive=True, **kwargs):
+        path = self.resolve_path(path)
         if not self.client.local.exists(path):
             return 
     
@@ -508,30 +511,6 @@ class Module:
             self.queue.put(topic=out_queue,item=output_dict)
 
 
-    def launch(self, module:str,**kwargs):
-        
-        module_class = self.get_module_class(module)
-        default_actor = {
-                'name' : module_class.get_default_actor_name(),
-                'resources':  {'num_gpus':0, 'num_cpus': 1},
-                'max_concurrency' :  100,
-                'refresh' : False, 
-            }
-
-        actor = kwargs.pop('actor', default_actor)
-        if actor == False:            
-            kwargs['actor'] = False
-        elif actor == True:
-            kwargs['actor'] = default_actor
-        elif isinstance(actor, dict):
-            # if the actor
-            kwargs['actor'] = {**default_actor, **actor}
-        else:
-            raise NotImplemented(actor)
-
-        return module_class.deploy(**kwargs)
-
-    get_module =add_actor = launch_actor = launch
     module_tree = module_list
 
     @classmethod
@@ -576,7 +555,7 @@ class Module:
 
 
         return module_object
-    load_module = launch_module
+    load_module = launch = launch_module
     #############
 
     # RAY ACTOR TINGS, TEHE
@@ -1432,5 +1411,4 @@ class Module:
         if loop == None:
             loop = self.loop
         return loop.run_until_complete(job)
-
 
