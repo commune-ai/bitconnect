@@ -49,9 +49,9 @@ class Dock:
 DOCKER_LOCAL_HOST = '0.0.0.0' 
 DOCKER_PORT = Dock() # Determine the best possible port 
 
-// =========================
-// = Decorator             =
-// =========================
+# // =========================
+# // = Decorator             =
+# // =========================
 def register(inputs, outputs, examples=None, **kwargs):
     """
         Decorator that is appended to a function either within a class or not
