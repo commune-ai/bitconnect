@@ -154,13 +154,14 @@ class Sandbox(Module):
         code2name_map =  {k:f'{v}' for k,v in zip(bittensor.proto.ReturnCode.values(),bittensor.proto.ReturnCode.keys())}
         return code2name_map[code]
 
-    def streamlit(self,
+    def sample(self,
             sequence_length = 10,
             batch_size = 2,
             timeout= 4,
             synapse = 'TextLastHiddenState',
             num_endpoints = 200,
-            success_only= True
+            success_only= True,
+            return_type='results'
         ):
 
         # inputs = torch.zeros([batch_size, sequence_length], dtype=torch.int64)
@@ -170,7 +171,7 @@ class Sandbox(Module):
         synapse = getattr(bittensor.synapse, synapse)()
         endpoints = self.get_random_endpoints(num_endpoints)
         
-        # st.write([e.uid for e in endpoints])
+        uids = torch.tensor([e.uid for e in endpoints])
         # st.write(self.receptor_pool.wallet)
         # st.write(receptor_kwargs)
 
@@ -197,6 +198,7 @@ class Sandbox(Module):
         
         
         success_indices = torch.argwhere(results['code']==1).squeeze(1).tolist()
+        
         results['elapsed_time'] = elapsed_time
         results['timeout'] = timeout
         results['num_successes'] = len(success_indices)
@@ -224,43 +226,34 @@ class Sandbox(Module):
                     results[f'latency_{m}'] = getattr(torch, m)(results['latency']).item()
 
 
+
+        result_keys = ['tensor', 'latency', 'code', 'uid']
+
+        # results['code'] = list(map(self.errorcode2name, results['code'].tolist()))
+
+
+        graph_state_dict = self.graph.state_dict()
+        graph_keys = ['trust', 'consensus','stake', 'incentive', 'dividends', 'emission']
+        for k in graph_keys:
+            results[k] =  graph_state_dict[k][results['uid']]
+        
         if success_only:
-            for k in ['tensor', 'latency', 'code']:
+            for k in result_keys + graph_keys:
                 results[k] = results[k][success_indices]
 
 
-        results['code'] = list(map(self.errorcode2name, results['code'].tolist()))
+        if return_type in ['metric', 'metrics']:
+            results = {k:v for k,v  in results.items() if k not in graph_keys+result_keys }
 
-        st.write(results)
+        elif return_type in ['results', 'result']:
+            results = {k:v for k,v  in results.items()\
+                             if k not in (graph_keys+result_keys) }
 
-        # df['code'] = df['code'].map(returnid2code)
-
-        
-        # if return_type in ['metrics', 'metric']:
-        #     metric_dict = {}
-        #     metric_dict['success_count'] = int(df['code'].apply(lambda x: x == 'Success').sum())
-        #     metric_dict['success_rate'] = df['code'].apply(lambda x: x == 'Success').mean()
-        #     metric_dict['num_endpoints'] = num_endpoints
-        #     metric_dict['timeout'] = int(df['timeout'].iloc[0])
-        #     metric_dict['latency'] = df['latency'].iloc[0]
-        #     metric_dict['input_length'] = df['input_length'].iloc[0]
-        #     metric_dict['elapsed_time'] = elasped_time.total_seconds()
-        #     metric_dict['samples_per_second'] = metric_dict['success_count'] / metric_dict['elapsed_time']
-        #     metric_dict['splits'] = splits
-        #     metric_dict['min_success'] = min_success
-        #     metric_dict['num_responses'] = num_responses
-
-        # for k in ['trust', 'consensus','stake', 'incentive', 'dividends', 'emission', 'latency']:
-        #     # for mode in ['mean', 'std', 'max', 'min']:
-        #     metric_dict[k] =  getattr(df[k], 'mean')()
-
-        # metric_dict = {k:float(v)for k,v in metric_dict.items()}
-        # return metric_dict
-        # else:
-        #     return df
-
+        else:
+            raise Exception(f'{return_type} not supported')
+        return results
     def process_results(self, results, ):
-        results_dict = {'tensor':[], 'code':[], 'latency':[], 'endpoint': []}
+        results_dict = {'tensor':[], 'code':[], 'latency':[], 'uid': []}
 
         num_responses = len(results[0])
         for i in range(num_responses):
@@ -272,22 +265,50 @@ class Sandbox(Module):
             results_dict['tensor'].append(tensor)
             results_dict['code'].append(code)
             results_dict['latency'].append(latency)
-            results_dict['endpoint'].append(endpoint)
+            results_dict['uid'].append(endpoint)
 
         if len(results_dict['tensor'])>0:
             results_dict['tensor'] = torch.stack(results_dict['tensor'])
             results_dict['code'] = torch.tensor(results_dict['code'])
             results_dict['latency'] = torch.tensor(results_dict['latency'])
-            results_dict['endpoint'] = torch.tensor(results_dict['endpoint'])
+            results_dict['uid'] = torch.tensor(results_dict['uid'])
         else:
             results_dict['tensor'] = torch.tensor([])
             results_dict['code'] = torch.tensor([])
             results_dict['latency'] = torch.tensor([])
-            results_dict['endpoint'] =  torch.tensor([])
+            results_dict['uid'] =  torch.tensor([])
 
         return results_dict
 
 
+    # def run_experiment()
+
+
+    def run_experiment(self,
+            params = dict(
+                sequence_length=[32,64,128,256],
+                batch_size=[8,16,32,64],
+                num_endpoints=[32,64,128,256,512,1024,2048],
+                timeout=[2,4,6,8,10],
+                synapse=['TextLastHiddenState']
+            )
+            sequence_length=[]):
+    # def streamlit(self):
+    #     for k,v_list in params.items():
+            
+
+    # metrics = self.sample(
+    #     sequence_length = 10,
+    #     batch_size = 2,
+    #     timeout= 2,
+    #     synapse = 'TextLastHiddenState',
+    #     num_endpoints = 200,
+    #     success_only= True,
+    #     return_type='metrics'
+    # )
+    # st.write(self.put_json('experiment_1',metrics))
+
+    st.write(self.get_json('experiment_1'))
 
 
 if __name__ == '__main__':

@@ -1,8 +1,10 @@
+module: Sandbox
+
 wallet: 
     name: const
     hotkey: Tiberius
 
-
+client: [local]
 dataset:
   module: huggingface.dataset
   actor: {'refresh': False}
