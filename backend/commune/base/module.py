@@ -75,7 +75,6 @@ class Module:
     ray_context = None
     config_loader = ConfigLoader(load_config=False)
 
-
     def __init__(self, config=None, override={}, client=None , loop=None,**kwargs):
         
 
@@ -88,10 +87,10 @@ class Module:
             self.client = self.get_clients(client=client) 
         self.get_submodules(get_submodules_bool = kwargs.get('get_submodules', True))
 
-
+        # self.
         self.cache = {}
         # set asyncio loop
-        # self.set_loop(loop=loop)
+        self.set_event_loop(loop=self.get_event_loop())
         # self.loop = self.new_loop()
     @property
     def registered_clients(self):
@@ -118,7 +117,6 @@ class Module:
 
 
 
-        # st.write(client_config, client)
         if client == False:
             return None
         elif client == True:
@@ -414,7 +412,6 @@ class Module:
             path = os.path.join(Module.root, simple, 'module.yaml')
         module_name = Module.load_config(simple).get('module')
         full_path = '.'.join([Module.root_dir, simple,'module', module_name])
-        st.write('DEBUG', full_path)
         return full_path
 
     def get_module_class(self,module:str):
@@ -514,14 +511,12 @@ class Module:
     @classmethod
     def launch_module(cls, module:str, fn:str=None ,kwargs:dict={}, actor=False, wrap=True, **additional_kwargs):
         try:
-            
+            module_class = cls.import_object(module)
+        except Exception as e:
             module_class =  cls.import_object(cls.simple2path(module))
 
-        except Exception as e:
-            print(e)
-            module_class = cls.import_object(module)
+    
 
-        st.write('class',module_class, kwargs)
         module_init_fn = fn
         module_kwargs = {**kwargs}
 
@@ -543,7 +538,6 @@ class Module:
 
                 actor['name'] = actor.get('name', default_actor_name )
                 module_object = cls.create_actor(cls=module_class, cls_kwargs=module_kwargs, **actor)
-                
                 if wrap == True: 
                     module_object = cls.wrap_actor(module_object)
             else:
@@ -588,7 +582,6 @@ class Module:
     @classmethod
     def get_config_path(cls, simple=False):
         config_path = cls.get_module_path(simple=simple)
-        st.write(cls.get_module_path(), config_path)
         if simple == False:
             config_path = config_path.replace('.py', '.yaml')
         return config_path
@@ -801,7 +794,7 @@ class Module:
                  cls_kwargs,
                  detached=True, 
                  resources={'num_cpus': 1.0, 'num_gpus': 0},
-                 max_concurrency=10,
+                 max_concurrency=500,
                  refresh=False,
                  return_actor_handle=False,
                  verbose = True,
@@ -957,7 +950,6 @@ class Module:
     def mapattr(self, from_to_attr_dict={}):
         '''
         from_to_attr_dict: dict(from_key:str->to_key:str)
-
         '''
         for from_key, to_key in from_to_attr_dict.items():
             self.copyattr(from_key=from_key, to_key=to_key)
@@ -969,10 +961,8 @@ class Module:
         attr_obj = getattr(self, from_key)  if hasattr(self, from_key) else None
         setattr(self, to, attr_obj)
 
-
     def dict_keys(self):
         return self.__dict__.keys()
-
 
     @staticmethod
     def is_hidden_function(fn):
@@ -980,7 +970,6 @@ class Module:
             return fn.startswith('__') and fn.endswith('__')
         else:
             raise NotImplemented(f'{fn}')
-
 
     @staticmethod
     def get_functions(object):
@@ -1306,7 +1295,6 @@ class Module:
             pid = os.getpid()
         # return the memory usage in percentage like top
         process = psutil.Process(pid)
-        # st.write(dir(process))
         memory_info = process.memory_full_info()._asdict()
         memory_info['percent'] = process.memory_percent()
         memory_info['ratio'] = memory_info['percent'] / 100
@@ -1397,8 +1385,10 @@ class Module:
         # self._loop = loop
         # return loop
     def set_event_loop(self, loop=None, new=False):
-        self.loop = loop
-    @property
+        if loop == None:
+            loop = self.new_event_loop()
+        return loop
+    set_loop = set_event_loop
     def get_event_loop(self):
         return asyncio.get_event_loop()     
     def async_run(self, job, loop=None): 
@@ -1407,8 +1397,8 @@ class Module:
         return loop.run_until_complete(job)
 
 
-    # async def async_default(self):
-    #     pass
+    async def async_default(self):
+        pass
     @staticmethod
     def port_connected( port : int,host:str='0.0.0.0'):
         """
@@ -1417,3 +1407,19 @@ class Module:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)       
         result = s.connect_ex((host, int(port)))
         return result == 0
+
+
+    #### RAY HELPERS
+
+    @staticmethod
+    def ray_get(self, *jobs):
+        return ray.get(jobs)
+
+    @staticmethod
+    def ray_wait( *jobs):
+        finished_jobs, running_jobs = ray.wait(jobs)
+        return finished_jobs, running_jobs
+
+    @staticmethod
+    def ray_put(*items):
+        return [ray.put(i) for i in items]

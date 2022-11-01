@@ -11,4 +11,10 @@ dataset:
   wrap: True
 
 
+receptor_pool:
+  module: bittensor.receptor_pool
+  actor: {'refresh': False}
+  wrap: False
+  # wrap: True
+
 

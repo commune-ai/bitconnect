@@ -1,6 +1,7 @@
 ##################
 ##### Import #####
 ##################
+import ray
 import torch
 import concurrent.futures
 import time
@@ -12,10 +13,12 @@ import bittensor
 import streamlit as st
 import numpy as np
 import sys
-
+import pandas as pd
 ##########################
 ##### Get args ###########
 ##########################
+from commune.streamlit import StreamlitPlotModule, row_column_bundles
+
 parser = argparse.ArgumentParser( 
     description=f"Bittensor Speed Test ",
     usage="python3 speed.py <command args>",
@@ -40,23 +43,46 @@ class Sandbox(Module):
                 dataset=None, 
                 tokenizer=None,
                 wallet = None,
-                config=None):
+                config=None, 
+                load=False):
         Module.__init__(self, config=config)
 
         # config = bittensor.config()
-        # st.write(config)
-        self.subtensor = self.set_subtensor(subtensor)
-        st.write(self.subtensor.network, 'network')
-        self.wallet = self.set_wallet(wallet)
-        self.dataset = self.set_dataset(dataset)
-        self.tokenizer = self.set_tokenizer(tokenizer)
+        if load:
+            self.subtensor = self.set_subtensor(subtensor)
+            self.wallet = self.set_wallet(wallet)
+            self.receptor_pool =self.set_receptor_pool(receptor_pool=None)
+            self.dataset = self.set_dataset(dataset)
+            self.tokenizer = self.set_tokenizer(tokenizer)
+    
+    def set_receptor_pool(self, receptor_pool=None, refresh=None, max_active_receptors=0):
+        rp_config = self.config['receptor_pool']
+        # if refresh:
+        #     rp_config['actor'] =  rp_config.get('actor',{})
+        #     rp_config['actor']['refresh'] = True
+        rp_config['actor'] = rp_config.get('actor')
+        rp_config['kwargs'] = rp_config.get('kwargs', {})
+        rp_config['kwargs']['wallet']=self.wallet
+        rp_config['kwargs']['max_active_receptors'] = max_active_receptors
+        rp_config['kwargs']['compression'] = None
+    
 
-        self.receptor_pool = bittensor.receptor_pool(wallet=self.wallet)
+
+        if receptor_pool == None:
+            receptor_pool = self.launch_module( **rp_config)  
+        st.write(rp_config)
+        self.receptor_pool = receptor_pool
+        return self.receptor_pool
+
+    
+
+
 
 
     def set_dataset(self, dataset=None):
         if dataset==None:
             dataset = self.launch_module(**self.config['dataset'])
+        
         self.dataset = dataset
         return self.dataset
 
@@ -166,27 +192,25 @@ class Sandbox(Module):
 
         # inputs = torch.zeros([batch_size, sequence_length], dtype=torch.int64)
         inputs = self.dataset.sample( batch_size=batch_size, sequence_length=sequence_length)
-        # st.write(inputs)
 
         synapse = getattr(bittensor.synapse, synapse)()
         endpoints = self.get_random_endpoints(num_endpoints)
         
         uids = torch.tensor([e.uid for e in endpoints])
-        # st.write(self.receptor_pool.wallet)
-        # st.write(receptor_kwargs)
 
         io_1 = psutil.net_io_counters()
         start_bytes_sent, start_bytes_recv = io_1.bytes_sent, io_1.bytes_recv
 
         with self.timer(text='Querying Endpoints: {t}', streamlit=True) as t:
-            results = self.receptor_pool.forward(
+            st.write(self.receptor_pool)
+            results = ray.get(self.receptor_pool.forward.remote(
                                 endpoints=endpoints,
                                 synapses= [synapse],
                                 timeout=timeout,
                                 inputs= [inputs]*len(endpoints),
                                 # return_type='dict',
                                 # graph=self.graph
-                            )
+                            ))
             elapsed_time = t.elapsed_time.total_seconds() 
 
         io_2 = psutil.net_io_counters()
@@ -287,13 +311,13 @@ class Sandbox(Module):
 
     def run_experiment(self,
             params = dict(
-                sequence_length=[32,64,128,256],
-                batch_size=[8,16,32,64],
-                num_endpoints=[32,64,128,256,512,1024,2048],
+                sequence_length=[32,64,128],
+                batch_size=[8,16,32, 64],
+                num_endpoints=[32,64,128, 256, 512],
                 timeout=[2,4,6,8,10],
                 synapse=['TextLastHiddenState']
             ),
-            experiment='experiment',
+            experiment='experiment2',
             sequence_length=[]):
 
         # def flatten_hyperparams(hyperparams, flat_list =[]):
@@ -312,28 +336,47 @@ class Sandbox(Module):
             for num_endpoints in params['num_endpoints']:
                 for timeout in params['timeout']:
                     for synapse in params['synapse']:
-                        sample_kwargs_list += [dict(
-                            sequence_length = sequence_length,
-                            batch_size = batch_size,
-                            timeout= timeout,
-                            synapse = synapse,
-                            num_endpoints = num_endpoints,
-                            success_only= success_only,
-                            return_type=return_type
-                        )]
+                        for batch_size in params['batch_size']:
+                            sample_kwargs_list += [dict(
+                                sequence_length = sequence_length,
+                                batch_size = batch_size,
+                                timeout= timeout,
+                                synapse = synapse,
+                                num_endpoints = num_endpoints,
+                                success_only= False,
+                                return_type='metric'
+                            )]
         random.shuffle(sample_kwargs_list)
         for i,sample_kwargs in enumerate(tqdm(sample_kwargs_list)):
-            trial_metrics_result = self.sample(**kwargs)
+            trial_metrics_result = self.sample(**sample_kwargs)
             self.put_json(f'{experiment}_{i}', trial_metrics_result)
-
+  
     # def streamlit(self):
     #     for k,v_list in params.items():
             
 
 
-    # st.write(self.get_json('experiment_1'))
 
 
+    def load_experiment(self, path='experiments'):
+        df = []
+        
+        for p in self.glob_json(path+'*'):
+            df.append(self.client.local.get_json(p))
+
+        df =  pd.DataFrame(df)
+
+        # df = pd.concat(df)
+        # returnid2code = {k:f'{v}' for k,v in zip(bittensor.proto.ReturnCode.values(),bittensor.proto.ReturnCode.keys())}
+        # df['code'] = df['code'].map(returnid2code)
+        return df
+
+    def streamlit_experiment(experiment= 'experiment'):
+        df = module.load_experiment(path=experiment)
+        from commune.streamlit import StreamlitPlotModule, row_column_bundles
+    
+        StreamlitPlotModule().run(df)
 if __name__ == '__main__':
     # Sandbox.ray_restart()
-    Sandbox.deploy(actor=False).run_experiment()
+    module = Sandbox.deploy(actor=False, wrap=True, load=True)
+    module.run_experiment()

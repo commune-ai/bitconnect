@@ -97,6 +97,8 @@ class DatasetModule (Module, torch.nn.Module ):
         rp_config = self.config['receptor_pool']
         self.receptor_pool = self.import_object(rp_config['module'])(**rp_config['kwargs'])
         st.write(self.receptor_pool)
+    
+    
     def load_queue(self, *args, **kwargs):
         self.queue =  self.load_module(**self.config['queue'])
 

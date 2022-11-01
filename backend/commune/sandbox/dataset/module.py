@@ -5,6 +5,7 @@ import torch
 import concurrent.futures
 import time
 import psutil
+import sys
 import random
 import argparse
 from tqdm import tqdm
@@ -15,6 +16,8 @@ import asyncio
 import aiohttp
 import json
 import os
+
+from commune.utils import Timer
 
 from fsspec.asyn import AsyncFileSystem, sync, sync_wrapper
 
@@ -61,23 +64,36 @@ class Dataset():
         self.mountain_hash = 'QmSdDg6V9dgpdAFtActs75Qfc36qJtm9y8a7yrQ1rHm7ZX'
         # Used when current corpus has been exhausted
         self.refresh_corpus = False
-        st.write(self.datasets)
+        # st.write(self.datasets)
         
-        # self.build_datasets()
+        self.build_dataset()
 
     
 
-    def build_dataset(self, dataset):
+    def build_dataset(self, dataset=None):
+        if dataset == None:
+            dataset = self.datasets[0]
+
         
-        folder_hashes = self.async_run(self.get_folder_hashes(self.dataset_hashes[0]))[:10]
+        folder_hashes = self.async_run(self.get_folder_hashes(self.dataset2hash[dataset]))[:5]
         
         text_hashes = []
         for f in folder_hashes:
-            folder_text_hashes = self.async_run(self.get_text_hashes(f))
-            text_hashes += folder_text_hashes
-        self.async_run(self.get_text(text_hashes))
-    
-        st.write(self.total)
+            with Timer(text='Querying Endpoints: {t}', streamlit=False) as t:
+                self.total = 0
+                folder_text_hashes = self.async_run(self.get_text_hashes(f))
+                text_hashes += folder_text_hashes
+                raw_text = self.async_run(self.get_text(folder_text_hashes))
+                
+                metrics = dict(
+                    dataset=dataset,
+                    folder_hash=f['Hash'],
+                    total_mb=self.total/1000,
+                    elapsed_seconds = t.elapsed_time.total_seconds(),
+                    num_text_hashes = len(text_hashes)
+                )
+                metrics['total_mb_per_second'] = metrics['total_mb'] / metrics['elapsed_seconds']
+                st.write(metrics)
     
     async def get_dataset_hashes(self):
         mountain_meta = {'Name': 'mountain', 'Folder': 'meta_data', 'Hash': self.mountain_hash}
@@ -86,7 +102,7 @@ class Dataset():
         response = response.get('Links', None)
         return response
 
-    async def get_folder_hashes(self, file_meta, num_folders = 10, chunk_size=512):
+    async def get_folder_hashes(self, file_meta, num_folders = 5, chunk_size=512):
         links = await self.get_links(file_meta)
 
         unfinished = [self.loop.create_task(self.api_post(self.ipfs_url+'/object/get', params={'arg':link['Hash']}, return_json=True)) for link in links][:num_folders]
@@ -100,7 +116,7 @@ class Dataset():
         return folder_hashes
 
     def call_back(self, context):
-        self.total += len(context.result())
+        self.total += sys.getsizeof(context.result())
 
     async def get_text_hashes(self, file_meta, chunk_size=1024, num_hashes=50):
 
@@ -252,7 +268,7 @@ class Dataset():
         headers = kwargs.pop('headers', {}) 
         params = kwargs.pop('params', kwargs)
         return_result = None
-        timeout = aiohttp.ClientTimeout(sock_connect=1, sock_read=5)
+        timeout = aiohttp.ClientTimeout(sock_connect=10, sock_read=10)
 
         async with aiohttp.ClientSession( timeout=timeout) as session:
             async with session.post(url,params=params,headers=headers) as res:

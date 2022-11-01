@@ -36,7 +36,7 @@ class StreamlitPlotModule:
         return [fn for fn in dir(self) if fn.startswith('st_')]  
 
 
-    def run(self, data, plots=[], default_plot  ='histogram', ):
+    def run(self, data, plots=[], default_plot  ='histogram', title=None ):
 
         self.cols= st.columns([1,3])
         if len(plots) == 0:

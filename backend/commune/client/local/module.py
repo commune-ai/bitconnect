@@ -14,7 +14,6 @@ class LocalModule(LocalFileSystem):
     def __init__(self, config=None):
         LocalFileSystem.__init__(self)
         self.config= self.resolve_config(config)
-    
     def ensure_path(self, path):
         """
         ensures a dir_path exists, otherwise, it will create it 

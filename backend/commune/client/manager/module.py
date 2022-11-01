@@ -12,7 +12,6 @@ class ClientModule(Module):
 
     def __init__(self, config=None ):
         Module.__init__(self, config=config,get_clients=False)
-        # st.write(self.config)
         self.register_clients(clients=self.include_clients)
     def get_default_clients(self):
         client_path_dict = dict(
@@ -41,9 +40,7 @@ class ClientModule(Module):
         if isinstance(clients, list):
             assert all([isinstance(c,str)for c in clients]), f'{clients} should be all strings'
             for client in clients:
-                st.write('client', client)
                 self.register_client(client=client)
-                st.write('local')
         elif isinstance(clients, dict):
             for client, client_kwargs in clients.items():
                 self.register_client(client=client, **client_kwargs)

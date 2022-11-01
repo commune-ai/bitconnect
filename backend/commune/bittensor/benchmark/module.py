@@ -229,7 +229,6 @@ class BenchmarkModule(BitModule):
             text = [text]
         inputs = torch.tensor(self.tokenizer(text=text, padding=True)['input_ids'])
 
-        st.write(inputs.shape, 'SHAPE')
         elasped_time = 0
         with Timer(text='Querying Endpoints: {t}', streamlit=True) as t:
             results = self.receptor_pool_forward(endpoints=endpoints, synapses=self.synapses, inputs=inputs, timeout=timeout, splits=splits , min_success=min_success)
