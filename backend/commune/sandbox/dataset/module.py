@@ -331,7 +331,7 @@ class Dataset():
         return {k:v['Size'] for k,v in self.dataset2hash.items()}
     @property
     def datasets(self):
-        
+
         return list(self.dataset2hash.keys())
     @property
     def dataset2hash(self):
@@ -349,37 +349,5 @@ class Dataset():
         
         self.tokenizer = tokenizer
         
-
-
-
-
-Dataset()   
-
-
-# import aiohttp
-# import asyncio
-# import time
-
-# start_time = time.time()
-
-
-# async def get_pokemon(session, url):
-#     async with session.get(url) as resp:
-#         pokemon = await resp.json()
-#         return pokemon['name']
-
-
-# async def main():
-
-#     async with bittensor.dataset().get_client_session() as session:
-
-#         tasks = []
-#         for number in range(1, 151):
-#             url = f'https://pokeapi.co/api/v2/pokemon/{number}'
-#             tasks.append(asyncio.ensure_future(get_pokemon(session, url)))
-
-#         original_pokemon = await asyncio.gather(*tasks)
-#         for pokemon in original_pokemon:
-
-# # # asyncio.run(main())
-# # st.write("--- %s seconds ---" % (time.time() - start_time))
+if __name__ == '__main__':
+    Dataset()   

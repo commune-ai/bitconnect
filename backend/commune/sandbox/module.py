@@ -34,22 +34,46 @@ config.wallet.hotkey = 'Tiberius'
 
 from commune import Module
 class Sandbox(Module):
-    def __init__(self, config=None):
+    def __init__(self, 
+                subtensor
+                tokenizer=None, 
+                wallet = None,
+                config=None):
         Module.__init__(self, config=config)
 
         # config = bittensor.config()
         # st.write(config)
-        self.subtensor = bittensor.subtensor( config = config )
-        self.graph = bittensor.metagraph( subtensor = self.subtensor )
-        self.graph.load()
-        st.write(self.sync_delay)
-        self.tokenizer = bittensor.tokenizer()
-        if self.sync_delay > self.config.get('delay_threshold', 100):
-            self.graph.sync()
-            self.graph.save()
-        
-        self.wallet = bittensor.wallet(**self.config.get('wallet'))
+        self.subtensor = self.set_subtensor(subtensor)
+        self.tokenizer = self.set_tokenizer(tokenizer)
         self.receptor_pool = bittensor.receptor_pool(wallet=self.wallet)
+    
+    def set_wallet(self, wallet=None):
+        if wallet == None:
+            wallet = bittensor.wallet(**self.config.get('wallet'))
+
+        self.wallet = wallet
+        return self.wallet
+
+
+    def set_tokenizer(self, tokenizer=None):
+        if tokenizer == None:
+            tokenizer = bittensor.tokenizer()
+        self.tokenizer = tokenizer
+        return tokenizer
+    
+    def set_subtensor(self, subtensor=None):
+        if subtensor == None:
+            bittensor.subtensor( config = config )
+            graph = bittensor.metagraph( subtensor = self.subtensor )
+            graph.load()
+            if self.sync_delay > self.config.get('delay_threshold', 100):
+                graph.sync()
+                graph.save()
+        
+        self.subtensor = subtensor
+        return self.subtensor
+    
+    
     @property
     def current_block(self):
         return self.subtensor.block
