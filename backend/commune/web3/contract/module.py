@@ -8,16 +8,15 @@ from commune.utils import dict_put, get_object, dict_has
 from commune import Module
 
 
-class ContractModule(Module):
-    def __init__(self, config=None, network=None, account=None, **kwargs):
+class ContractManagerModule(Module):
+    def __init__(self, config=None, contract=None, network=None, account=None, **kwargs):
 
         Module.__init__(self, config=config, network=None, **kwargs)
 
         self.set_network(network=network)
         self.set_account(account=account)
+        self.set_contract(contract=contract)
 
-
-        
     @property
     def address(self):
         return self.contract.address
@@ -79,7 +78,7 @@ class ContractModule(Module):
 
     def get_artifact(self, path):
         available_abis = self.contracts + self.interfaces
-
+        path = self.resolve_contract_path(path)
         if path in self.contract_paths:
             root_dir = os.path.join(self.artifacts_path, 'contracts')
         elif path in self.interface_paths:
@@ -201,7 +200,7 @@ class ContractModule(Module):
             account.set_web3(self.web3)
     
 
-    def deploy_contract(self, contract = 'token.ERC20.ERC20', args=['AIToken', 'AI'],tag=None, web3=None, account=None, network=None):
+    def deploy_contract(self, contract = 'token.ERC20.ERC20', args=['AIToken', 'AI'], web3=None, account=None, network=None, refresh=False):
         
         simple_contract_path = contract
         contract_path = self.resolve_contract_path(simple_contract_path)
@@ -209,9 +208,6 @@ class ContractModule(Module):
         network = self.resolve_network(network)
         web3 = self.resolve_web3(web3)
         account = self.resolve_account(account)
-
-        tag = self.resolve_tag(tag)
-
 
         assert contract in self.contracts
         contract_artifact = self.get_artifact(contract_path)
@@ -236,10 +232,10 @@ class ContractModule(Module):
 
         contract_address = tx_receipt.contractAddress 
         
-        self.register_contract(contract_path=simple_contract_path, network=network.network, contract_address=contract_address, tag=tag)
+        self.register_contract(contract_path=simple_contract_path, network=network.network, contract_address=contract_address, refresh=refresh)
         
         self.address2contract
-        return  tx_receipt.contractAddress 
+        return  self.set_contract(address=tx_receipt.contractAddress)
         # st.write(f'Contract deployed at address: { tx_receipt.contractAddress }')
 
 
@@ -247,24 +243,48 @@ class ContractModule(Module):
     def registered_contracts(self):
         return self.get_json('registered_contracts', {})
 
-    def get_contract(self, address=None, contract=None, tag=None , web3=None, account=None):
+    def set_contract(self,contract=None, address=None, web3=None, account=None, version=-1):
+        if isinstance(contract, str) or isinstance(address, str):
+            st.write(address, 'address')
+            contract = self.get_contract(contract=contract, address=address , web3=web3, account=account, version=-1)
+        elif type(contract).__name__ in ['f']:
+            return
+        elif contract == None:
+            pass
+        else:
+            raise NotImplementedError
+
+        self.contract = contract
+        return self.contract
+
+
+    def get_contract(self,contract=None, address=None , web3=None, account=None, version=-1):
         web3 = self.resolve_web3(web3)
         account = self.resolve_account(account)
     
         if isinstance(address, str):
             contract_path = self.address2contract[address]
-        
+            contract_path ,  contract_version = contract_path.split('-v')
+            contract_version = int(contract_version)
+            contract_address = address
         elif isinstance(contract, str):
-            # if contract has tag {contract_name}-{tag}
-            if len(contract.split('-'))==2:
-                tag = contract.split('-')[1] 
+            contract_candidates = []
+            for _contract, _address in  self.contract2address.items():
+                _contract_name, _contract_version = _contract.split('-v')
+                if contract == _contract_name:
+                    contract_candidates += [(_contract_name, int(_contract_version), _address)]
+            
+            if len(contract_candidates) == 0:
+                return None
+            
+            contract_path, contract_version, contract_address = contract_candidates[version]
+            
 
-            # if the tag is None, default to "default_tag"
-            tag = self.resolve_tag(tag)
-            contract_path = contract
         else:
             raise Exception('please specify the contract')
 
+        contract_artifact = self.get_artifact(contract_path)
+        return web3.eth.contract(address=contract_address, abi=contract_artifact['abi'])
         
 
     @property
@@ -273,10 +293,10 @@ class ContractModule(Module):
         st.write(registered_contracts)
         address2contract = {}
         for network, contract_path_map in registered_contracts.items():
-            for contract_path, contract_tag_map in contract_path_map.items():
-                for tag, contract_address_list in contract_tag_map.items():
-                    for contract_address in contract_address_list:
-                        address2contract[contract_address+'-'+tag] = contract_path
+            for contract_path, contract_address_list in contract_path_map.items():
+                for i, contract_address in enumerate(contract_address_list):
+                    address2contract[contract_address] = contract_path+f'-v{i}'
+
         return address2contract
 
 
@@ -284,15 +304,19 @@ class ContractModule(Module):
     def contract2address(self):
         return {v:k for k,v in self.address2contract.items()}
 
+    def deployed_contracts(self):
+        return list(self.contract2address.keys())
+    def deployed_addresses(self):
+        return list(self.contract2address.values())
+
     @property
     def address2network(self):
         registered_contracts = self.registered_contracts
         address2network = {}
         for network, contract_path_map in registered_contracts.items():
-            for contract_path, contract_tag_map in contract_path_map.items():
-                for tag, contract_address_list in contract_tag_map.items():
-                    for contract_address in contract_address_list:
-                        address2network[contract_address] = network
+            for contract_path, contract_address_list in contract_path_map.items():
+                for contract_address in contract_address_list:
+                    address2network[contract_address] = network
         
         return address2network
 
@@ -323,36 +347,21 @@ class ContractModule(Module):
 
         return contract2network
 
-
-    default_tag = 'v0'
-    def resolve_tag(self, tag=None): 
-        if tag == None:
-            tag = self.default_tag
-        return tag
-
     def register_contract(self, network:str,
                             contract_path:str , 
                             contract_address:str,  
-                            tag=None, 
                             refresh=True):
 
-        if refresh:
-            self.rm_json('registered_contracts')
 
-        st.write(self.interfaces)
-
-        registered_contracts = self.registered_contracts
+        registered_contracts = {} if refresh else self.registered_contracts
         st.write(registered_contracts, 'contracts')
         if network not in registered_contracts:
             registered_contracts[network] = {}
         if contract_path not in registered_contracts[network]:
-            registered_contracts[network][contract_path] = {}
-        
-        if tag not in registered_contracts[network][contract_path]:
-            registered_contracts[network][contract_path][tag] = []
+            registered_contracts[network][contract_path] = []
 
-        assert isinstance(registered_contracts[network][contract_path][tag], list)
-        registered_contracts[network][contract_path][tag].append(contract_address)
+        assert isinstance(registered_contracts[network][contract_path], list)
+        registered_contracts[network][contract_path].append(contract_address)
     
         self.put_json('registered_contracts', registered_contracts)
 
@@ -366,32 +375,38 @@ class ContractModule(Module):
     
     
     def resolve_contract_path(self,  path):
-        contract_path = self.contract2path.get(path, None)
+        st.write(path, self.contracts)
+
+        if path in self.contract_paths:
+            contract_path = path
+        else:
+            contract_path = self.contract2path.get(path, None)
+
         assert contract_path in self.contract_paths
         return contract_path
 
 
         
     def __reduce__(self):
-        deserializer = ContractModule
+        deserializer = ContractManagerModule
         serialized_data = (self.config)
         return deserializer, serialized_data
 
 
     @staticmethod
     def streamlit():
-        contract = ContractModule()
         network = Module.launch('web3.network')
         account = Module.launch('web3.account')
-        contract.set_network(network)
-        contract.set_account(account)
-        st.write(contract.deploy_contract(contract='token.ERC20.ERC20'))
+        contract_manager = ContractManagerModule(contract='token.ERC20.ERC20', network=network, account=account)
+        contract = contract_manager.deploy_contract(contract='token.ERC20.ERC20', refresh=False)
+        
+        st.write(contract.functions.balanceOf(account.address).call())
 
-
+        # st.write(contract.get_function_schema(fn=contract.get_contract(contract='token.ERC20.ERC20').functions.balanceOf))
 if __name__ == '__main__':
     import streamlit as st
     import ray
     
-    st.write()
+    ContractManagerModule.streamlit()
 
  

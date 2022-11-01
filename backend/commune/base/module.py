@@ -987,6 +987,7 @@ class Module:
         functions = get_functions(object)
         return functions
 
+    @staticmethod
     def get_function_schema( fn, *args, **kwargs):
         return get_function_schema(fn=fn, *args, **kwargs)
 
