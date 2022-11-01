@@ -90,20 +90,24 @@ class DatasetModule (Module, torch.nn.Module ):
         return self.bitmodule.getattr('available_synapses')
 
     def load_dataset(self, *args, **kwargs):
-        return self.load_module(**self.config['dataset'])
+        self.dataset = self.load_module(**self.config['dataset'])
 
     def load_receptor_pool(self, *args, **kwargs):
-        return self.load_module(**self.config['receptor_pool'])
-
+        # st.write(self.config['receptor_pool'])
+        rp_config = self.config['receptor_pool']
+        self.receptor_pool = self.import_object(rp_config['module'])(**rp_config['kwargs'])
+        st.write(self.receptor_pool)
     def load_queue(self, *args, **kwargs):
-        return self.load_module(**self.config['queue'])
+        self.queue =  self.load_module(**self.config['queue'])
 
 
     def load_bitmodule(self, refresh=False, network=None, wallet = None):
         module_class = Module.get_object('bittensor.base.module.BitModule')
         network = network if network != None else self.config['network']
         wallet = wallet if wallet != None else self.config['wallet']
-        self.bitmodule = module_class.deploy(actor={'refresh': refresh}, override={'network': network, 'wallet': wallet}, load=True, wrap = True)
+        self.bitmodule = module_class.deploy(actor=False, override={'network': network, 'wallet': wallet}, load=True, wrap = True)
+        self.metagraph = self.bitmodule.metagraph
+
         self.sync()
         
         return self.bitmodule
@@ -147,7 +151,7 @@ class DatasetModule (Module, torch.nn.Module ):
         synapse =getattr(bittensor.synapse, synapse_str)
         # st.write(synapse)
         if synapse_str in ['TextCausalLMNext','TextCausalLM']:
-            synapse =synapse(decode_topk=False, *args, **kwargs)
+            synapse =synapse(*args, **kwargs)
         else:
             synapse = synapse(*args, **kwargs)
         
@@ -472,16 +476,17 @@ class DatasetModule (Module, torch.nn.Module ):
 
 
         forward_kwargs = dict(
-                              inputs= [input_tokens] ,
+                              inputs= [input_tokens]*len(endpoints) ,
                               synapses=[synapse],
                               timeout=timeout, 
                               endpoints=endpoints,
-                              min_success=min_success,
-                              return_success_only=success_only
+                            #   min_success=min_success,
+                            #   return_success_only=success_only
                               )
 
         results_dict = {'input': input_tokens}
-        result = self.receptor_pool.forward(**forward_kwargs, ray_get=ray_get)
+        result = self.receptor_pool.forward(**forward_kwargs)
+        result = list(result) + [[e.uid for e in endpoints]]
         if ray_get:
             # result is a response from the receptor_pool
             output_dict = self.process_results(results=result, synapse=synapse)
@@ -500,15 +505,15 @@ class DatasetModule (Module, torch.nn.Module ):
         return results_dict
 
 
-    @staticmethod
-    def streamlit():
+    def streamlit(self):
         import streamlit as st
-        module = DatasetModule.deploy(actor=False, wrap=True)
-        st.write(type(module.dataset))
+        st.write(self.receptor_pool.wallet, 'wallet')
+
+        st.write(self.sample())
 
 
 if __name__ == '__main__':
-    module = DatasetModule()
+     DatasetModule().streamlit()
 
 
 

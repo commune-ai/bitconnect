@@ -177,7 +177,7 @@ class ReceptorPoolModule (Module, torch.nn.Module ):
             uids=[]
         )
 
-        assert min_success > 0, f'{}'
+        assert min_success > 0, f'{min_success}'
         if min_success < 1:
             min_success = int(min_success*len(endpoints))
         elif min_success >= 1:

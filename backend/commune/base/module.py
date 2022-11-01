@@ -17,8 +17,6 @@ import psutil
 import asyncio
 from ray.experimental.state.api import list_actors, list_objects, list_tasks
 
-
-
 def cache(self, **kwargs):
 
     if 'keys' in kwargs:
@@ -94,7 +92,7 @@ class Module:
         self.cache = {}
         # set asyncio loop
         # self.set_loop(loop=loop)
-        self.loop = self.new_loop()
+        # self.loop = self.new_loop()
     @property
     def registered_clients(self):
         return self.clients.registered_clients if self.clients else []
@@ -414,10 +412,9 @@ class Module:
         path = deepcopy(simple.replace('.', '/'))
         if simple[:len(Module.root_dir)] != Module.root_dir:
             path = os.path.join(Module.root, simple, 'module.yaml')
-        st.write(simple)
         module_name = Module.load_config(simple).get('module')
         full_path = '.'.join([Module.root_dir, simple,'module', module_name])
-    
+        st.write('DEBUG', full_path)
         return full_path
 
     def get_module_class(self,module:str):
@@ -517,11 +514,14 @@ class Module:
     @classmethod
     def launch_module(cls, module:str, fn:str=None ,kwargs:dict={}, actor=False, wrap=True, **additional_kwargs):
         try:
+            
             module_class =  cls.import_object(cls.simple2path(module))
+
         except Exception as e:
             print(e)
             module_class = cls.import_object(module)
 
+        st.write('class',module_class, kwargs)
         module_init_fn = fn
         module_kwargs = {**kwargs}
 
@@ -1380,7 +1380,6 @@ class Module:
     ##############
     #   ASYNCIO
     ##############
-
     @staticmethod
     def reset_event_loop(set_loop=True):
         loop = asyncio.new_event_loop()
@@ -1388,34 +1387,28 @@ class Module:
             asyncio.set_event_loop(loop)
         return loop
     new_loop = new_event_loop = reset_event_loop
-
-
-
-    @property
-    def loop(self):
-        return getattr(self, '_loop',asyncio.get_event_loop())
-
-    @loop.setter
-    def loop(self, loop):
-        if loop == None:
-            loop = asyncio.get_event_loop()
-        self._loop = loop
-        return loop
-
+    # @property
+    # def loop(self):
+    #     return getattr(self, '_loop',asyncio.get_event_loop())
+    # @loop.setter
+    # def loop(self, loop):
+        # if loop == None:
+        #     loop = asyncio.get_event_loop()
+        # self._loop = loop
+        # return loop
     def set_event_loop(self, loop=None, new=False):
         self.loop = loop
-
     @property
     def get_event_loop(self):
         return asyncio.get_event_loop()     
-
     def async_run(self, job, loop=None): 
         if loop == None:
             loop = self.loop
         return loop.run_until_complete(job)
 
 
-
+    # async def async_default(self):
+    #     pass
     @staticmethod
     def port_connected( port : int,host:str='0.0.0.0'):
         """

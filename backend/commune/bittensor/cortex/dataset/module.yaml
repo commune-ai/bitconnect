@@ -23,7 +23,7 @@ synapses: ['TextLastHiddenState']
 
 bitmodule:
   module: bittensor.base.module.BitModule
-  actor: {'refresh': False}
+  # actor: {'refresh': False}
   kwargs:
     override:
       wallet: 
@@ -33,10 +33,10 @@ bitmodule:
   wrap: True
 
 receptor_pool:
-  module: bittensor.receptor.pool
+  module: bittensor.receptor_pool
   kwargs:
-    max_worker_threads: 0
-    max_active_receptors: 0
+    wallet: null
+    compression: null
   
   actor: {'refresh': False}
   wrap: True
