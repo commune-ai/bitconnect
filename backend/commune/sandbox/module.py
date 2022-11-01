@@ -284,6 +284,7 @@ class Sandbox(Module):
     # def run_experiment()
 
 
+
     def run_experiment(self,
             params = dict(
                 sequence_length=[32,64,128,256],
@@ -291,25 +292,48 @@ class Sandbox(Module):
                 num_endpoints=[32,64,128,256,512,1024,2048],
                 timeout=[2,4,6,8,10],
                 synapse=['TextLastHiddenState']
-            )
+            ),
+            experiment='experiment',
             sequence_length=[]):
+
+        # def flatten_hyperparams(hyperparams, flat_list =[]):
+        #     for k,v_obj in hyperparams.items():
+        #         tmp_params = deepcopy(hyperparams)
+        #         if isinstance(v_obj, list):
+        #             for v in v_obj:
+        #                 tmp_params[k] = v
+        #                 flat_list += flatten_hyperparams(hyperparams=tmp_params[k], flat_list=flat_list)
+        #         else:
+        #             continue
+
+            
+        sample_kwargs_list = []
+        for sequence_length in params['sequence_length']:
+            for num_endpoints in params['num_endpoints']:
+                for timeout in params['timeout']:
+                    for synapse in params['synapse']:
+                        sample_kwargs_list += [dict(
+                            sequence_length = sequence_length,
+                            batch_size = batch_size,
+                            timeout= timeout,
+                            synapse = synapse,
+                            num_endpoints = num_endpoints,
+                            success_only= success_only,
+                            return_type=return_type
+                        )]
+        random.shuffle(sample_kwargs_list)
+        for i,sample_kwargs in enumerate(tqdm(sample_kwargs_list)):
+            trial_metrics_result = self.sample(**kwargs)
+            self.put_json(f'{experiment}_{i}', trial_metrics_result)
+
     # def streamlit(self):
     #     for k,v_list in params.items():
             
 
-    # metrics = self.sample(
-    #     sequence_length = 10,
-    #     batch_size = 2,
-    #     timeout= 2,
-    #     synapse = 'TextLastHiddenState',
-    #     num_endpoints = 200,
-    #     success_only= True,
-    #     return_type='metrics'
-    # )
-    # st.write(self.put_json('experiment_1',metrics))
 
-    st.write(self.get_json('experiment_1'))
+    # st.write(self.get_json('experiment_1'))
 
 
 if __name__ == '__main__':
-    Sandbox.deploy(actor=False).streamlit()
+    # Sandbox.ray_restart()
+    Sandbox.deploy(actor=False).run_experiment()
