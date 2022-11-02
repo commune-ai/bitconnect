@@ -14,6 +14,8 @@ import streamlit as st
 import numpy as np
 import sys
 import pandas as pd
+import nest_asyncio
+
 ##########################
 ##### Get args ###########
 ##########################
@@ -46,7 +48,7 @@ class Sandbox(Module):
                 config=None, 
                 load=False):
         Module.__init__(self, config=config)
-
+        nest_asyncio.apply()
         # config = bittensor.config()
         if load:
             self.subtensor = self.set_subtensor(subtensor)
@@ -61,16 +63,12 @@ class Sandbox(Module):
         #     rp_config['actor'] =  rp_config.get('actor',{})
         #     rp_config['actor']['refresh'] = True
         rp_config['actor'] = rp_config.get('actor')
-        rp_config['kwargs'] = rp_config.get('kwargs', {})
         rp_config['kwargs']['wallet']=self.wallet
         rp_config['kwargs']['max_active_receptors'] = max_active_receptors
         rp_config['kwargs']['compression'] = None
-    
-
 
         if receptor_pool == None:
             receptor_pool = self.launch_module( **rp_config)  
-        st.write(rp_config)
         self.receptor_pool = receptor_pool
         return self.receptor_pool
 
@@ -98,7 +96,7 @@ class Sandbox(Module):
 
     def set_tokenizer(self, tokenizer=None):
         if tokenizer == None:
-            tokenizer = self.dataset.tokenizer
+            tokenizer = bittensor.tokenizer()
         self.tokenizer = tokenizer
         return tokenizer
     
@@ -182,14 +180,13 @@ class Sandbox(Module):
 
     def sample(self,
             sequence_length = 10,
-            batch_size = 2,
+            batch_size = 10,
             timeout= 4,
             synapse = 'TextLastHiddenState',
-            num_endpoints = 200,
+            num_endpoints = 30,
             success_only= True,
             return_type='results'
         ):
-
         # inputs = torch.zeros([batch_size, sequence_length], dtype=torch.int64)
         inputs = self.dataset.sample( batch_size=batch_size, sequence_length=sequence_length)
 
@@ -202,15 +199,12 @@ class Sandbox(Module):
         start_bytes_sent, start_bytes_recv = io_1.bytes_sent, io_1.bytes_recv
 
         with self.timer(text='Querying Endpoints: {t}', streamlit=True) as t:
-            st.write(self.receptor_pool)
-            results = ray.get(self.receptor_pool.forward.remote(
+            
+            results = self.receptor_pool.forward(
                                 endpoints=endpoints,
                                 synapses= [synapse],
                                 timeout=timeout,
-                                inputs= [inputs]*len(endpoints),
-                                # return_type='dict',
-                                # graph=self.graph
-                            ))
+                                inputs= [inputs]*len(endpoints))
             elapsed_time = t.elapsed_time.total_seconds() 
 
         io_2 = psutil.net_io_counters()
@@ -311,13 +305,13 @@ class Sandbox(Module):
 
     def run_experiment(self,
             params = dict(
-                sequence_length=[32,64,128],
-                batch_size=[8,16,32, 64],
+                sequence_length=[16,32,64],
+                batch_size=[4,8,16,32],
                 num_endpoints=[32,64,128, 256, 512],
-                timeout=[2,4,6,8,10],
+                timeout=[2,4,6,8,10, 12],
                 synapse=['TextLastHiddenState']
             ),
-            experiment='experiment2',
+            experiment='experiment3',
             sequence_length=[]):
 
         # def flatten_hyperparams(hyperparams, flat_list =[]):
@@ -348,12 +342,17 @@ class Sandbox(Module):
                             )]
         random.shuffle(sample_kwargs_list)
         for i,sample_kwargs in enumerate(tqdm(sample_kwargs_list)):
+            self.set_receptor_pool(refresh=True)
             trial_metrics_result = self.sample(**sample_kwargs)
             self.put_json(f'{experiment}_{i}', trial_metrics_result)
   
     # def streamlit(self):
     #     for k,v_list in params.items():
-            
+    def streamlit(self):
+        st.write('fam')
+        st.write(self.run_experiment())
+
+
 
 
 
@@ -378,5 +377,6 @@ class Sandbox(Module):
         StreamlitPlotModule().run(df)
 if __name__ == '__main__':
     # Sandbox.ray_restart()
+    Module.new_event_loop()
     module = Sandbox.deploy(actor=False, wrap=True, load=True)
-    module.run_experiment()
+    module.streamlit()

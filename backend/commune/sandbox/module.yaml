@@ -8,12 +8,14 @@ client: [local]
 dataset:
   module: huggingface.dataset
   actor: {'refresh': False}
+  
   wrap: True
 
 
 receptor_pool:
   module: bittensor.receptor_pool
-  actor: {'refresh': False}
+  kwargs: {}
+  actor: False
   wrap: False
   # wrap: True
 

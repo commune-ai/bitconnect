@@ -63,7 +63,7 @@ def enable_cache(**input_kwargs):
 
 
 import streamlit as st
-
+import nest_asyncio
 class Module:
     client = None
     client_module_class_path = 'client.manager.module.ClientModule'
@@ -76,7 +76,7 @@ class Module:
     config_loader = ConfigLoader(load_config=False)
 
     def __init__(self, config=None, override={}, client=None , loop=None,**kwargs):
-        
+        # nest_asyncio.apply()
 
         self.config = self.resolve_config(config)
         self.override_config(override=override)
@@ -90,8 +90,9 @@ class Module:
         # self.
         self.cache = {}
         # set asyncio loop
-        self.set_event_loop(loop=self.get_event_loop())
-        # self.loop = self.new_loop()
+        # self.loop = self.new_event_loop()
+        # self.set_event_loop(loop=self.get_event_loop())
+        # self.loop = self.new_event_loop()
     @property
     def registered_clients(self):
         return self.clients.registered_clients if self.clients else []
@@ -515,8 +516,6 @@ class Module:
         except Exception as e:
             module_class =  cls.import_object(cls.simple2path(module))
 
-    
-
         module_init_fn = fn
         module_kwargs = {**kwargs}
 
@@ -528,8 +527,6 @@ class Module:
                 assert isinstance(actor, dict), f'{type(actor)} should be dictionary fam'
                 parents = cls.get_parents(module_class)
 
-
-                
                 if cls.is_module(module_class):
                     default_actor_name = module_class.get_default_actor_name()
                 else:
@@ -538,6 +535,7 @@ class Module:
 
                 actor['name'] = actor.get('name', default_actor_name )
                 module_object = cls.create_actor(cls=module_class, cls_kwargs=module_kwargs, **actor)
+                module_object.actor_name = actor['name']
                 if wrap == True: 
                     module_object = cls.wrap_actor(module_object)
             else:
@@ -1369,12 +1367,12 @@ class Module:
     #   ASYNCIO
     ##############
     @staticmethod
-    def reset_event_loop(set_loop=True):
+    def new_event_loop(set_loop=True):
         loop = asyncio.new_event_loop()
         if set_loop:
             asyncio.set_event_loop(loop)
         return loop
-    new_loop = new_event_loop = reset_event_loop
+    new_loop = new_event_loop 
     # @property
     # def loop(self):
     #     return getattr(self, '_loop',asyncio.get_event_loop())
@@ -1397,8 +1395,8 @@ class Module:
         return loop.run_until_complete(job)
 
 
-    async def async_default(self):
-        pass
+    # async def async_default(self):
+    #     pass
     @staticmethod
     def port_connected( port : int,host:str='0.0.0.0'):
         """

@@ -25,7 +25,13 @@ class ClientModule(Module):
             actor = actor
 
 
-        actor_name = ray.get(actor.getattr.remote('actor_name'))
+        st.write(actor)
+        actor_id = actor._ray_actor_id.hex()
+        actor_name = None
+        for a in Module.list_actors():
+            if a['actor_id'] == actor_id:
+                actor_name = a['name']
+        
         self.config['server'] = actor_name
         self.fn_signature_map = {}
 

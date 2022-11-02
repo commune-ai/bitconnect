@@ -95,7 +95,8 @@ class DatasetModule (Module, torch.nn.Module ):
     def load_receptor_pool(self, *args, **kwargs):
         # st.write(self.config['receptor_pool'])
         rp_config = self.config['receptor_pool']
-        self.receptor_pool = self.import_object(rp_config['module'])(**rp_config['kwargs'])
+        rp_config['kwargs']['wallet'] = self.bitmodule.wallet
+        self.receptor_pool = self.launch_module(**rp_config)
         st.write(self.receptor_pool)
     
     

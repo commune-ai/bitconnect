@@ -38,7 +38,7 @@ receptor_pool:
     wallet: null
     compression: null
   
-  actor: {'refresh': False}
+  actor: {'refresh': True}
   wrap: True
   memory_threshold:
     value: 0.1
