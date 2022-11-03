@@ -89,6 +89,9 @@ while :; do
 
         ;;
 
+        --frontend)
+        COMPOSE_FILES+=" -f frontend/frontend.yml"
+        ;;
         --backend)
         COMPOSE_FILES+=" -f backend/backend.yml"
         

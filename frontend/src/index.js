@@ -1,14 +1,15 @@
 import React from 'react';
-import ReactDOM from 'react-dom';
-import './index.css';
+import ReactDOM from 'react-dom/client';
+import './css/index.css';
 import App from './App';
+//import Navbar from './Components/Navagation/navbar';
 import reportWebVitals from './reportWebVitals';
 
-ReactDOM.render(
+const root = ReactDOM.createRoot(document.getElementById('Gradio-Flow'));
+root.render(
   <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-  document.getElementById('root')
+    < App/>
+  </React.StrictMode>
 );
 
 // If you want to start measuring performance in your app, pass a function
