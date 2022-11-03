@@ -49,112 +49,9 @@ class Dock:
 DOCKER_LOCAL_HOST = '0.0.0.0' 
 DOCKER_PORT = Dock() # Determine the best possible port 
 
-def InterLauncher(name, interface, listen=2000, **kwargs):
-    """
-        @params:
-            - name : string
-            - interface : gradio.Interface(...)
-            - listen : int
-            - **kwargs
-        
-        Take any gradio interface object 
-        that is created by the gradio 
-        package and send it to the flaks api
-    """
-    port= kwargs["port"] if "port" in kwargs else DOCKER_PORT.determinePort() # determine the next open port is no port is listed **kwargs
-    
-    try:
-        # (POST) send the information of the gradio to the flask api
-        requests.post(f"http://{DOCKER_LOCAL_HOST}:{listen}/api/append/port", json={"port" : port, "host" : f'http://localhost:{port}', "file" : "Not Applicable", "name" : name, "kwargs" : kwargs})
-    except Exception as e: 
-        # If there is an Exception then notify the user and end the method
-        print(f"**{bcolor.BOLD}{bcolor.FAIL}CONNECTION ERROR{bcolor.ENDC}** 🐛The listening api is either not up or you choose the wrong port.🐛 \n {e}")
-        return
-
-    # Launch the gradio application
-    interface.launch(server_port=port,
-                     server_name=f"{DOCKER_LOCAL_HOST}",
-                     inline= kwargs['inline'] if "inline" in kwargs else False,
-                     share=kwargs['share'] if "share" in kwargs else None,
-                     debug=kwargs['debug'] if "debug" in kwargs else False,
-                     enable_queue=kwargs['enable_queue'] if "enable_queue" in kwargs else None,
-                     max_threads=kwargs['max_threads'] if "max_threads" in kwargs else None,
-                     auth=kwargs['auth'] if "auth" in kwargs else None,
-                     auth_message=kwargs['auth_message'] if "auth_message" in kwargs else None,
-                     prevent_thread_lock=kwargs['prevent_thread_lock'] if "prevent_thread_lock" in kwargs else False,
-                     show_error=kwargs['show_error'] if "show_error" in kwargs else True,
-                     show_tips=kwargs['show_tips'] if "show_tips" in kwargs else False,
-                     height=kwargs['height'] if "height" in kwargs else 500,
-                     width=kwargs['width'] if "width" in kwargs else 900,
-                     encrypt=kwargs['encrypt'] if "encrypt" in kwargs else False,
-                     favicon_path=kwargs['favicon_path'] if "favicon_path" in kwargs else None,
-                     ssl_keyfile=kwargs['ssl_keyfile'] if "ssl_keyfile" in kwargs else None,
-                     ssl_certfile=kwargs['ssl_certfile'] if "ssl_certfile" in kwargs else None,
-                     ssl_keyfile_password=kwargs['ssl_keyfile_password'] if "ssl_keyfile_password" in kwargs else None,
-                     quiet=kwargs['quiet'] if "quiet" in kwargs else False)
-    
-    try:
-        # (POST) stop the interface if user hits ctrl+c 
-        # send the information of the gradio to the flask
-        # api to remove it from the list within the flask api
-        requests.post(f"http://{DOCKER_LOCAL_HOST}:{ listen }/api/remove/port", json={"port" : port, "host" : f'http://localhost:{port}', "file" : 'Not Applicable', "name" : name, "kwargs" : kwargs})
-    except Exception as e:    
-        print(f"**{bcolor.BOLD}{bcolor.FAIL}CONNECTION ERROR{bcolor.ENDC}** 🐛The api either lost connection or was turned off...🐛 \n {e}")
-
-def tabularGradio(funcs, names=[], name="Tabular Temp Name", **kwargs):
-    """
-    takes all gradio Interfaces, and names
-    from input and launch the gradio.
-    """
-
-    fn = [fn() for fn in funcs if not isinstance(fn, gr.Interface) and  fn.__decorator__ == "__gradio__" ]
-    if len(names) == 0:
-        names = [_.__name__ for _ in fn]
-        
-    port= kwargs["port"] if "port" in kwargs else DOCKER_PORT.determinePort()
-    
-    # send this to the backend api for it to be read by the react frontend
-    if 'listen' in kwargs:
-        try:
-            # (POST) send the information of the gradio to the flask api
-            requests.post(f"http://{DOCKER_LOCAL_HOST}:{ kwargs[ 'listen' ] }/api/append/port", json={"port" : port, "host" : f'http://localhost:{port}', "file" : 'Not Applicable', "name" : name, "kwargs" : kwargs})
-        except Exception as e:
-            print(f"**{bcolor.BOLD}{bcolor.FAIL}CONNECTION ERROR{bcolor.ENDC}** 🐛The listening api is either not up or you choose the wrong port.🐛 \n {e}")
-            return
-    
-    # provided by gradio a tabularInterface function that take function and names
-    gr.TabbedInterface(fn, names).launch(server_port=port,
-                                            server_name=f"{DOCKER_LOCAL_HOST}",
-                                            inline= kwargs['inline'] if "inline" in kwargs else True,
-                                            share=kwargs['share'] if "share" in kwargs else None,
-                                            debug=kwargs['debug'] if "debug" in kwargs else False,
-                                            enable_queue=kwargs['enable_queue'] if "enable_queue" in kwargs else None,
-                                            max_threads=kwargs['max_threads'] if "max_threads" in kwargs else None,
-                                            auth=kwargs['auth'] if "auth" in kwargs else None,
-                                            auth_message=kwargs['auth_message'] if "auth_message" in kwargs else None,
-                                            prevent_thread_lock=kwargs['prevent_thread_lock'] if "prevent_thread_lock" in kwargs else False,
-                                            show_error=kwargs['show_error'] if "show_error" in kwargs else True,
-                                            show_tips=kwargs['show_tips'] if "show_tips" in kwargs else False,
-                                            height=kwargs['height'] if "height" in kwargs else 500,
-                                            width=kwargs['width'] if "width" in kwargs else 900,
-                                            encrypt=kwargs['encrypt'] if "encrypt" in kwargs else False,
-                                            favicon_path=kwargs['favicon_path'] if "favicon_path" in kwargs else None,
-                                            ssl_keyfile=kwargs['ssl_keyfile'] if "ssl_keyfile" in kwargs else None,
-                                            ssl_certfile=kwargs['ssl_certfile'] if "ssl_certfile" in kwargs else None,
-                                            ssl_keyfile_password=kwargs['ssl_keyfile_password'] if "ssl_keyfile_password" in kwargs else None,
-                                            quiet=kwargs['quiet'] if "quiet" in kwargs else False)
-    
-    # Ctrl+C that ends the process and then continue the code which will remove from the api
-    if 'listen' in kwargs:
-        try:
-            requests.post(f"http://{DOCKER_LOCAL_HOST}:{ kwargs[ 'listen' ] }/api/remove/port", json={"port" : port, "host" : f'http://localhost:{port}', "file" : 'Not Applicable', "name" : name, "kwargs" : kwargs})
-        except Exception as e:    
-            print(f"**{bcolor.BOLD}{bcolor.FAIL}CONNECTION ERROR{bcolor.ENDC}** 🐛The api either lost connection or was turned off...🐛 \n {e}")
-    
-    return
-
-
-
+# // =========================
+# // = Decorator             =
+# // =========================
 def register(inputs, outputs, examples=None, **kwargs):
     """
         Decorator that is appended to a function either within a class or not
@@ -166,7 +63,7 @@ def register(inputs, outputs, examples=None, **kwargs):
             
             # if the output is a list then there should be equal or more then 1                   
             if type(outputs) is list:
-                assert len(outputs) >= 1, f"❌ {bcolor.BOLD}{bcolor.FAIL}you have no outputs 🤨... {str(type(outputs))} {bcolor.ENDC}"
+                assert len(outputs) >= 1, f"❌ {bcolor.BOLD}{bcolor.FAIL}You have no bitches, and you have no outputs 🤨... {str(type(outputs))} {bcolor.ENDC}"
             
             fn_name = func.__name__ # name of the function
 

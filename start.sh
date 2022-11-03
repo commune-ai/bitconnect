@@ -107,6 +107,7 @@ while :; do
         COMPOSE_FILES+=" -f backend/backend.yml"
         COMPOSE_FILES+=" -f ipfs/ipfs.yml"
         COMPOSE_FILES+=" -f ganache/ganache.yml"
+        COMPOSE_FILES+=" -f frontend/frontend.yml"
         
         ;;
 
@@ -139,7 +140,7 @@ while :; do
         --restart)
             printf $COLOR_R'Doing a deep clean ...\n\n'$COLOR_RESET
             eval docker-compose --project-name=$PROJECT_NAME "$COMPOSE_FILES" down;
-            docker network rm ${PROJECT_NAME}_default || true;
+            # docker network rm ${PROJECT_NAME}_default || true;
 
             # [ ${FORCEPULL} = "true" ] && eval docker-compose  --project-name=$PROJECT_NAME "$COMPOSE_FILES" pull
             # [ ${FORCEPULL} = "true" ] && eval docker-compose  --project-name=$PROJECT_NAME "$COMPOSE_FILES" build

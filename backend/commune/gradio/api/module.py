@@ -8,13 +8,8 @@ from commune import Module
 from inspect import getfile
 import inspect
 import socket
-from multiprocessing import Process
-from commune.utils import SimpleNamespace
 from commune.utils import *
-import socket
-import argparse
-from fastapi import FastAPI
-import uvicorn
+from copy import deepcopy
 # from commune.thread import PriorityThreadPoolExecutor
 import argparse
 import streamlit as st
@@ -31,13 +26,7 @@ class bcolor:
     UNDERLINE = '\033[4m'
     
 
-
-
-    
-
 class GradioModule(Module):
-    default_config_path =  'gradio.api'
-
 
     # without '__reduce__', the instance is unserializable.
     def __reduce__(self):
@@ -47,7 +36,7 @@ class GradioModule(Module):
 
 
     def __init__(self, config=None):
-        Module.__init__(self, config=config)
+        BaseModule.__init__(self, config=config)
         self.subprocess_manager = self.get_object('subprocess.module.SubprocessModule')()
 
         self.host  = self.config.get('host', '0.0.0.0')
@@ -66,8 +55,6 @@ class GradioModule(Module):
     def gradio_modules(self):
         return self._modules
 
-
-
     @property
     def module2port(self):
         module2port = {}
@@ -83,8 +70,6 @@ class GradioModule(Module):
 
         return port2module
 
-
-
     @property
     def port2module(self):
         port2module = {}
@@ -99,18 +84,27 @@ class GradioModule(Module):
         return jsonify({"executed" : True,
                         "ports" : current['port']})
 
-    def find_registered_functions(self, module:str):
+    def find_registered_functions(self, module):
         '''
         find the registered functions
         '''
         fn_keys = []
-        self.get_module
-        for fn_key in self.get_funcs(module):
-            try:
-                if getattr(getattr(getattr(self,fn_key), '__decorator__', None), '__name__', None) == GradioModule.register.__name__:
-                    fn_keys.append(fn_key)
+        
+        for func in dir(module):
+            try: 
+                fn = getattr(module, func, None)  
+                if callable(fn) and not func.startswith("__") and  "__decorator__" in dir(fn) and fn.__decorator__.__name__ == "register":
+                    fn()
+                    fn_keys.append(func)
             except:
                 continue
+        # for fn_key in self.get_funcs(module):
+            
+        #     try:
+        #         if getattr(getattr(getattr(self,fn_key), '__decorator__', None), '__name__', None) == GradioModule.register.__name__:
+        #             fn_keys.append(fn_key)
+        #     except:
+        #         continue
         return fn_keys
 
 
@@ -138,6 +132,9 @@ class GradioModule(Module):
 
 
     def port_connected(self ,port : int):
+        """
+            Check if the given param port is already running
+        """
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)       
         result = s.connect_ex((self.host, int(port)))
         return result == 0
@@ -153,64 +150,154 @@ class GradioModule(Module):
     def port_available(self, port:int):
         subprocess_map = self.subprocess_map
 
-        if str(port) in subprocess_map:
+        
+        if str(port)  in subprocess_map:
             return False
         else:
             return True
         
-    def suggest_port(self, max_trial_count=10):
-        for port in range(*self.port_range):
-            if self.port_available(port):
-                return port
-        
-
+    def suggest_port(self, max_trial_count=100):
+        for trial in range(max_trial_count):
+            for port in range(*self.port_range):
+                if self.port_available(port):
+                    return port
         '''
         TODO: kill a port when they are all full
         '''
         raise Exception(f'There does not exist an open port between {self.port_range}')
         
     def compile(self, module:str, live=False, flagging='never', theme='default', **kwargs):
-        print("Just putting on the finishing touches... 🔧🧰")
+        # print("Just putting on the finishing touches... 🔧🧰")
+        title = module
         module_class = self.get_object(module)
         module = module_class()
-        gradio_functions_schema = self.get_gradio_function_schemas(module)
+        registered = self.find_registered_functions(module)
+        print()
+        if isinstance(module.__gradio__(), gradio.Interface):
+            demos, names = [module.__gradio__()], [title]
+        
+        elif len(registered) > 0:
+
+            demos, names = [], []
+            for func, param in module.registered_gradio_functons.items(): # loop though the registered function and append it to the TabularInterface           
+                names.append(func) 
+                try:
+                    demos.append(gradio.Interface(fn=getattr(module, func, None), **param))
+                except Exception as e :
+                    raise e
+        else:
+            gradio_functions_schema = self.get_gradio_function_schemas(module)
 
 
-        interface_fn_map = {}
+            interface_fn_map = {}
 
-        for fn_key, fn_params in gradio_functions_schema.items():                
-            interface_fn_map[fn_key] = gradio.Interface(fn=getattr(module, fn_key),
-                                        inputs=fn_params['input'],
-                                        outputs=fn_params['output'],
-                                        theme=theme)
-            print(f"{fn_key}....{bcolor.BOLD}{bcolor.OKGREEN} done {bcolor.ENDC}")
+            for fn_key, fn_params in gradio_functions_schema.items():                
+                interface_fn_map[fn_key] = gradio.Interface(fn=getattr(module, fn_key),
+                                            inputs=fn_params['input'],
+                                            outputs=fn_params['output'],
+                                            theme=theme)
+                print(f"{fn_key}....{bcolor.BOLD}{bcolor.OKGREEN} done {bcolor.ENDC}")
 
 
-        print("\nHappy Visualizing... 🚀")
-        demos = list(interface_fn_map.values())
-        names = list(interface_fn_map.keys())
+            print("\nHappy Visualizing... 🚀")
+            demos = list(interface_fn_map.values())
+            names = list(interface_fn_map.keys())
         return gradio.TabbedInterface(demos, names)
 
-    @staticmethod
-    def expose(**kw):
-        "Note that using **kw you can tag the function with any parameters"
-        def wrap(func):
-            name = func.func_name
-            assert not name.startswith('_'), "Only public methods can be exposed"
-
-            meta = func.__meta__ = kw
-            meta['exposed'] = True
-            return func
 
     @staticmethod
-    def register(inputs, outputs):
+    def register(inputs, outputs, examples=None, **kwargs):
+        """
+            Decorator that is appended to a function either within a class or not
+            and output either an interface or inputs and outputs for later processing
+            to launch either to Gradio-Flow or just Gradio
+        """
         
         def register_gradio(func):
-            GradioModule.expose(gradio='True', 
-                                inputs=inputs,
-                                outputs=outputs)(func=func)
-            return func
+            def decorator(*args, **wargs): 
+                kwargs_interface = dict(cache_examples=kwargs['cache_examples'] if "cache_examples" in kwargs else None,
+                                        examples_per_page=kwargs['examples_per_page'] if "examples_per_page" in kwargs else 10,
+                                        interpretation=kwargs['interpretation'] if "interpretation" in kwargs else None,
+                                        num_shap=kwargs['num_shap'] if "num_shap" in kwargs else 2.0,
+                                        title=kwargs['title'] if "title" in kwargs else None,
+                                        article=kwargs['article'] if "article" in kwargs else None,
+                                        thumbnail=kwargs['thumbnail'] if "thumbnail" in kwargs else None,
+                                        css=kwargs['css'] if "css" in kwargs else None,
+                                        live=kwargs['live'] if "live" in kwargs else False,
+                                        allow_flagging=kwargs['allow_flagging'] if "allow_flagging" in kwargs else None,
+                                        theme='default',)
+                # if the output is a list then there should be equal or more then 1                   
+                if type(outputs) is list:
+                    assert len(outputs) >= 1, f"❌ {bcolor.BOLD}{bcolor.FAIL}you have no outputs 🤨... {str(type(outputs))} {bcolor.ENDC}"
+                
+                fn_name = func.__name__ # name of the function
+
+                # if there exist the self within the arguments and thats the first argument then this must be a class function
+                if 'self' in func.__code__.co_varnames and func.__code__.co_varnames[0] == 'self' and fn_name in dir(args[0]):     
+                    """
+                    given the decorator is on a class then
+                    initialize a registered_gradio_functons
+                    if not already initialize.
+                    """
+                    
+                    # if the inputs is a list then inputs list should equal the arugments list
+                    if type(inputs) is list:
+                        assert len(inputs) == func.__code__.co_argcount - 1, f"❌ {bcolor.BOLD}{bcolor.FAIL}inputs should have the same length as arguments{bcolor.ENDC}"
+
+                    try:
+                        self = args[0]
+                        self.registered_gradio_functons
+                    except AttributeError:
+                        self.registered_gradio_functons = dict() # if registered_gradio_functons does not exist then create it 
+                    
+                    # if the function name is not within the registered_gradio_functons then register it within the registered_gradio_functons 
+                    if not fn_name in self.registered_gradio_functons:
+                        self.registered_gradio_functons[fn_name] = dict(inputs=inputs,
+                                                                        outputs=outputs, 
+                                                                        examples=examples,
+                                                                        **kwargs_interface)
+
+                    # if the argument are within the function when it's called then give me the output of the function
+                    # giving the user the ability to use the function if necessary 
+                    if len(args[1:]) == (func.__code__.co_argcount - 1):
+                        return func(*args, **wargs) 
+                    
+                    # return nothing if the arguments are not within it cause if the arguments do not exist it will give a error
+                    return None
+                else :
+                    """
+                    the function is not a class function
+                    """
+
+                    # if the inputs is a list then inputs list should equal the arugments list
+                    if type(inputs) is list:    
+                        assert len(inputs) == func.__code__.co_argcount, f"❌ {bcolor.BOLD}{bcolor.FAIL}inputs should have the same length as arguments{bcolor.ENDC}"
+
+                    # if the arguments within the functions are inputed then just return the output
+                    if len(args) == (func.__code__.co_argcount):
+                        return func(*args, **wargs)
+
+                    # if there is nothing in the arugumrnt then return the gradio interface
+                    return gradio.Interface(fn=func,
+                                        inputs=inputs,
+                                        outputs=outputs,
+                                        examples=examples,
+                                        **kwargs_interface)
+            decorator.__decorator__ = GradioModule.register # siginture to tell any function that need to know that function is a registed gradio application
+            return decorator
         return register_gradio
+
+
+    @property
+    def simple2path(self):
+        module_list = self.module_list
+        simple2path = {}
+        for m in module_list:
+            assert m.split('.')[-2] == 'module', f'{m}'
+            simple_path = '.'.join(m.split('.')[:-2])
+            simple2path[simple_path] = m
+
+        return simple2path
 
 
     def get_modules(self, force_update=True):
@@ -225,7 +312,6 @@ class GradioModule(Module):
                 except Exception as e:
                     cfg = {}
 
-
                 module_path = root.lstrip(os.environ['PWD']).replace('/', '.')
                 module_path = '.'.join(module_path.split('.')[1:])
                 if isinstance(cfg.get('module'), str):
@@ -235,6 +321,10 @@ class GradioModule(Module):
                     failed_modules.append(root)
 
         return modules
+
+    @property
+    def module_list(self):
+        return self.get_modules()
 
     def get_gradio_modules(self):
         return list(self.get_module_schemas().keys())
@@ -246,36 +336,36 @@ class GradioModule(Module):
         module_schema = get_module_function_schema(module)
         return module_schema
         
-
-    @staticmethod
-    def python2gradio(self, value):
-        v_type =type(value).__name__
-        gradio_type = None
-        if v_type == 'int':
-            gradio_type = 'Number'
-        elif v_type == 'str':
-            gradio_type = 'Textbox'
-        elif v_type == 'bool':
-            gradio_type = 'Checkbox'
-        elif v_type in ['dict']:
-            gradio_type = 'JSON'
-        else:
-            raise NotImplementedError(v_type)
-
-        return getattr(self, gradio_type)
-
     @staticmethod
     def schema2gradio(fn_schema, return_type='dict'):
         gradio_schema = {}
         fn_example = fn_schema['example']
         gradio_schema['example'] = fn_example
+
         for m in ['input', 'output']:
             gradio_schema[m] = []
             for k,v in fn_example[m].items():
-                gradio_object = self.python2gradio(value=v)
-                gradio_schema[m] += [gradio_object(value=v, label=k)]
+                v_type = type(v).__name__
+                
+                if v_type == 'int':
+                    gradio_schema[m] += [gradio.Number(value=v, label=k)]
+                elif v_type == 'str':
+                    gradio_schema[m] += [gradio.Textbox(value=v, label=k)]
+                elif v_type == 'bool':
+                    gradio_schema[m] += [gradio.Checkbox(value=v, label=k)]
+                elif v_type == 'dict':
+                    gradio_schema[m] += [gradio.JSON(value=v, label=k)]
+                else:
+                    raise NotImplementedError(v_type)
+
+                
+
+
+        # print('GRADIO:', gradio_schema['input'][0].__dict__)
         return gradio_schema
                 
+
+
     def get_gradio_function_schemas(self, module, return_type='gradio'):
         if isinstance(module, str):
             module = get_object(module)
@@ -343,24 +433,38 @@ class GradioModule(Module):
     def ls_ports(self):
         return self.subprocess_manager.ls()
 
-    def add(self,module:str, port:int, mode='gradio'):
+    def add(self,module:str, port:int, mode:str):
+        print("DEBUG", module)
+        module = self.resolve_module_path(module)
+        module = self.get_object(module).get_module_filepath() if mode == "streamlit" else module
+        print(module, __file__ , 'DEBUG')
+        command_map ={
+            'gradio':  f'python {__file__} --module={module} --port={port}',
+            'streamlit': f'streamlit run {module} --server.port={port}'
+        }
 
-        module_list = self.get_modules()
-        assert module in module_list, f'{module} is not in {module_list}'
-
-        if mode == 'gradio':
-        commands  = dict(
-            gradio= f'python {self.__file__} --module={module} --port={port}'
-
-        )
-        
+        command  = command_map[mode]
+        print(command)
         process = self.subprocess_manager.add(key=str(port), command=command, add_info= {'module':module })
-        
         return {
             'module': module,
             'port': port,
         }
     submit = add
+
+    def resolve_module_path(self, module):
+        simple2path = deepcopy(self.simple2path)
+        module_list = list(simple2path.values())
+
+        print(module, simple2path.keys(), module in simple2path.keys())
+
+        if module in simple2path.keys():
+            module = simple2path[module]
+
+        print(module)
+    
+        assert module in module_list, f'{module} not found in {module_list}'
+        return module
 
     def launch(self, interface:gradio.Interface=None, module:str=None, **kwargs):
         """
@@ -371,12 +475,10 @@ class GradioModule(Module):
             
             Take any gradio interface object 
             that is created by the gradio 
-            package and send it to the backend api
+            package and send it to the flaks api
         """
-        
-
+        module = self.resolve_module_path(module)
         if interface == None:
-    
             assert isinstance(module, str)
             module_list = self.get_modules()
             assert module in module_list, f'{args.module} is not in {module_list}'
@@ -388,7 +490,6 @@ class GradioModule(Module):
         kwargs['server_name'] = self.host
         
         default_kwargs = dict(
-                    
                         inline= False,
                         share= None,
                         debug=False,
@@ -408,7 +509,6 @@ class GradioModule(Module):
                         ssl_keyfile_password= None,
                         quiet= False
         )
-
         kwargs = {**default_kwargs, **kwargs}
         interface.launch(**kwargs)
 
@@ -436,142 +536,146 @@ class GradioModule(Module):
         
         return parser.parse_args()
 
-    default_uvicorn_kwargs =  dict(path=f"module:app", 
-                                 host="0.0.0.0", port=8000, 
-                                reload=True, 
-                                workers=2)
+    def run_command(command:str):
 
-    @property
-    def api_config(self):
-        default_api_config = dict(
-                app="module:app",
-                root= None,
-                host="0.0.0.0", port=8000, 
-                reload=True, 
-                workers=2
-                )
-
-        api_config = self.config.get('api', {})
-        assert isinstance(api_config, dict)
-        api_config = {**default_api_config, **api_config}
-        return api_config
-
-
-    def run_app(self,app=None, **kwargs):
-
-        '''
-        expample 
-        dict(
-            root= None,
-            path=f"module:app", 
-            host="0.0.0.0", port=8000, 
-            reload=True, 
-            workers=2
-            )
-        '''
-        kwargs = {**self.api_config, **kwargs}
-        root = kwargs.pop('root', None)
-        app = self.get_app(app=app, root=root)
-        uvicorn.run(**kwargs)
-
-    @classmethod
-    def get_app(cls, root=None, app=None, config={}, **kwargs):
-
-        if app == None:
-            app = FastAPI(**kwargs)
-        assert isinstance(app, FastAPI)
-
-        if root == None:
-            root = ''
-        elif isinstance(root, str):
-            root = root
-        else:
-            raise NotImplementedError(root)
+        process = subprocess.run(shlex.split(command), 
+                            stdout=subprocess.PIPE, 
+                            universal_newlines=True)
         
-        assert isinstance(root, str), f'"{root}" should be a str but is {type(root)}'
-        
-        @app.get(f"{root}/")
-        async def root_endpoint():
-            self = cls.get_instance()
-            module = self.get_instance()
-            return {"message": "GradioFlow MothaFucka"}
-        @app.get(f"{root}/list")
-        async def module_list(path_map:bool=False):
-            self = cls.get_instance()
-            module_list = self.get_modules()
-            if path_map:
-                module_path_map = {}
-                for module in module_list:
-                    dict_put(module_path_map ,module.split('.')[:-1], module.split('.')[-1])
-                return module_path_map
-            else:
-                return module_list
+        return process
 
-        @app.get(f"{root}/schemas")
-        async def module_schemas():
-            self = cls.get_instance()
-            modules = self.get_module_schemas()
-            return modules
-        @app.get(f"{root}/schema")
-        async def module_schema(module:str, gradio:bool=True):
+import socket
+import argparse
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 
-            self = cls.get_instance()  
-            if gradio:
-                module_schema = self.get_gradio_function_schemas(module, return_type='dict')
-            else:
-                module_schema = self.get_module_function_schema(module)
-            return module_schema
-        @app.get(f"{root}/ls_ports")
-        async def ls():
+app = FastAPI()
 
-            self = cls.get_instance()
-            return self.ls_ports()
+origins = [
+    "http://localhost:3000",
+]
 
-        @app.get(f"{root}/add")
-        async def module_add(module:str=None):
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-            self = cls.get_instance()
-            port = self.suggest_port()
-            # self.launch(module=module)
-            return self.add(port=port, module=module)
-        @app.get(f"{root}/rm")
-        async def module_rm(module:str=None, port:str=None ):
-            self = cls.get_instance()
-            return self.rm(port=port, module=module)
-        @app.get(f"{root}/rm_all")
-        async def module_rm_all(module:str=None, ):
-            self = cls.get_instance()
-            return self.rm_all()
-        @app.get(f"{root}/getattr")
-        async def module_getattr(key:str='subprocess_map', ):
-            self = cls.get_instance()
-            return getattr(self,key)
-        @app.get(f"{root}/port2module")
-        async def port2module(key:str='subprocess_map' ):
-            self = cls.get_instance()
-            return self.port2module
-        @app.get(f"{root}/module2port")
-        async def module2port( key:str='subprocess_map'):
-            self = cls.get_instance()
-            return self.module2port  
+args = GradioModule.argparse()
 
+@app.get("/")
+async def root():
+    module = GradioModule.get_instance()
+    return {"message": "GradioFlow MothaFucka"}
 
-        return app      
 
 register = GradioModule.register
-app = GradioModule.get_app()
 
+
+@app.get("/list")
+async def module_list(path_map:bool=False, mode='simple'):
+    module = GradioModule.get_instance()
+    if mode == 'full':
+        module_list = module.module_list
+    elif mode == 'simple':
+        module_list = list(module.simple2path.keys()) 
+    elif mode == 'gradio':
+        module_list = []
+        for path in module.simple2path.keys():
+            try:
+                mod = module.resolve_module_path(path)
+                schema = module.get_gradio_function_schemas(mod, return_type='dict')
+                module_list.append(dict(path=path, read=True)) if schema else module_list.append(dict(path=path, read=False))
+            except Exception:   
+                module_list.append(dict(path=path, read=False))
+                continue
+    else:
+        raise NotImplementedError()
+    if path_map:
+        module_path_map = {}
+        for module in module_list:
+            dict_put(module_path_map ,module.split('.')[:-1], module.split('.')[-1])
+        return module_path_map
+    else:
+        return module_list
+
+@app.get("/simple2path")
+async def module_list(path_map:bool=False):
+    module = GradioModule.get_instance()
+
+    return module.simple2path
+
+@app.get("/schemas")
+async def module_schemas():
+    module = GradioModule.get_instance()
+    modules = module.get_module_schemas()
+    return modules
+
+
+@app.get("/schema")
+async def module_schema(module:str, gradio:bool=True):
+
+
+    if gradio:
+        self = GradioModule.get_instance()
+        module_schema = self.get_gradio_function_schemas(module, return_type='dict')
+    else:
+        module_schema = GradioModule.get_module_function_schema(module)
+    return module_schema
+
+
+@app.get("/ls_ports")
+async def ls():
+    self = GradioModule.get_instance()
+    # self.launch(module=module)
+    return self.ls_ports()
+
+
+@app.get("/add")
+async def module_add(module:str=None, mode:str="gradio"):
+    self = GradioModule.get_instance()
+    port = self.suggest_port()
+    # self.launch(module=module)
+    return self.add(port=port, module=module, mode=mode)
+
+
+@app.get("/rm")
+async def module_rm(module:str=None, port:str=None ):
+    self = GradioModule.get_instance()
+    return self.rm(port=port, module=module)
+
+@app.get("/rm_all")
+async def module_rm_all(module:str=None, ):
+    self = GradioModule.get_instance()
+    return self.rm_all()
+
+
+@app.get("/getattr")
+async def module_getattr(key:str='subprocess_map', ):
+    self = GradioModule.get_instance()
+    return getattr(self,key)
+
+
+@app.get("/port2module")
+async def port2module(key:str='subprocess_map' ):
+    self = GradioModule.get_instance()
+    return self.port2module
+
+
+@app.get("/module2port")
+async def module2port( key:str='subprocess_map'):
+    self = GradioModule.get_instance()
+
+    return self.module2port
 
 
 if __name__ == "__main__":
     
-    args = GradioModule.argparse()
-    module = GradioModule()
-
     if args.api:
-        module.run_app()
+        uvicorn.run(f"module:app", host="0.0.0.0", port=8000, reload=True, workers=2)
     else:
-        module.launch(module=args.module, port=args.port)
-
-
-
+        module_proxy = GradioModule()
+        module_proxy.launch(module=args.module, port=args.port)
