@@ -1,4 +1,3 @@
-
 ##################
 ##### Import #####
 ##################
@@ -16,35 +15,11 @@ import numpy as np
 import sys
 import pandas as pd
 import nest_asyncio
-from commune.utils import chunk
 
 ##########################
 ##### Get args ###########
 ##########################
 from commune.streamlit import StreamlitPlotModule, row_column_bundles
-
-# The MIT License (MIT)
-# Copyright © 2021 Yuma Rao
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-# documentation files (the “Software”), to deal in the Software without restriction, including without limitation
-# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all copies or substantial portions of
-# the Software.
-
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-# THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-# DEALINGS IN THE SOFTWARE.
-
-import threading
-import time
-import queue
-from loguru import logger
-
 
 parser = argparse.ArgumentParser( 
     description=f"Bittensor Speed Test ",
@@ -61,9 +36,6 @@ config.wallet.hotkey = 'Tiberius'
 ##### Setup objects ######
 ##########################
 # Sync graph and load power wallet.
-
-
-
 
 
 from commune import Module
@@ -84,7 +56,6 @@ class Sandbox(Module):
             self.receptor_pool =self.set_receptor_pool(receptor_pool=None)
             self.dataset = self.set_dataset(dataset)
             self.tokenizer = self.set_tokenizer(tokenizer)
-            
     
     def set_receptor_pool(self, receptor_pool=None, refresh=None, max_active_receptors=0):
         rp_config = self.config['receptor_pool']
@@ -101,12 +72,19 @@ class Sandbox(Module):
         self.receptor_pool = receptor_pool
         return self.receptor_pool
 
+    
+
+
+
+
     def set_dataset(self, dataset=None):
         if dataset==None:
             dataset = self.launch_module(**self.config['dataset'])
         
         self.dataset = dataset
         return self.dataset
+
+
 
     def set_wallet(self, wallet=None):
         if wallet == None:
@@ -115,13 +93,6 @@ class Sandbox(Module):
         self.wallet = wallet
         return self.wallet
 
-
-    def set_tokenizer(self, tokenizer=None):
-        if tokenizer == None:
-            tokenizer = bittensor.tokenizer()
-        self.tokenizer = tokenizer
-        return tokenizer
-    
     def set_subtensor(self, subtensor=None):
         if subtensor == None:
             subtensor = bittensor.subtensor( config = config )
@@ -200,38 +171,14 @@ class Sandbox(Module):
         code2name_map =  {k:f'{v}' for k,v in zip(bittensor.proto.ReturnCode.values(),bittensor.proto.ReturnCode.keys())}
         return code2name_map[code]
 
-        
-    def receptor_pool_forward(self, endpoints, inputs, synapses , timeout, splits=5):
-        if synapses == None:
-            synapses = self.synapses
-
-        endpoints_split_list = self.chunk(endpoints, num_chunks=splits)
-
-        kwargs_list = []
-
-        for endpoints_split in endpoints_split_list:
-            kwargs_list.append(dict(endpoints=endpoints_split, inputs=inputs, synapses=synapses , timeout=timeout))
-
-
-        jobs = [self.receptor_pool.async_forward.remote(**kwargs) for kwargs in kwargs_list]
-       
-        agg_results = [[],[],[]]
-        for results in ray.get(jobs):
-            for i,result in enumerate(results):
-                agg_results[i].extend(result)
-        # st.write(len(results[0]), len(results[1]),  len(results[2]))
-        # st.write([(len(result), type(result)) for result in results])
-        return agg_results
-      
     def sample(self,
             sequence_length = 10,
             batch_size = 10,
             timeout= 4,
             synapse = 'TextLastHiddenState',
-            num_endpoints = 20,
+            num_endpoints = 30,
             success_only= True,
-            return_type='results',
-            splits=1
+            return_type='results'
         ):
         # inputs = torch.zeros([batch_size, sequence_length], dtype=torch.int64)
         inputs = self.dataset.sample( batch_size=batch_size, sequence_length=sequence_length)
@@ -246,13 +193,11 @@ class Sandbox(Module):
 
         with self.timer(text='Querying Endpoints: {t}', streamlit=True) as t:
             
-            results = self.receptor_pool_forward(
+            results = self.receptor_pool.forward(
                                 endpoints=endpoints,
                                 synapses= [synapse],
                                 timeout=timeout,
-                                inputs= [inputs]*len(endpoints),
-                                splits=splits)
-
+                                inputs= [inputs]*len(endpoints))
             elapsed_time = t.elapsed_time.total_seconds() 
 
         io_2 = psutil.net_io_counters()
@@ -278,7 +223,7 @@ class Sandbox(Module):
         results['download_rate_mb'] =results['download_bytes_mb']/elapsed_time
         results['num_endpoints'] = num_endpoints
         results['success_rate'] = results['num_successes']/results['num_endpoints']
-        results['splits'] = splits
+
         # results['output_size'] = sys.getsizeof( results.pop['tensor'])
         results['batch_size'] = batch_size
         results['sequence_length'] = sequence_length
@@ -328,7 +273,7 @@ class Sandbox(Module):
             latency = results[2][i][0]
             endpoint = results[3][i]
 
-            results_dict['tensor'].append(tensor[...,:2])
+            results_dict['tensor'].append(tensor)
             results_dict['code'].append(code)
             results_dict['latency'].append(latency)
             results_dict['uid'].append(endpoint)
@@ -353,12 +298,11 @@ class Sandbox(Module):
 
     def run_experiment(self,
             params = dict(
-                sequence_length=[16,32,64, 128, 256 ],
-                batch_size=[4,8,16,32, 64],
-                num_endpoints=[32,64,128, 256],
-                timeout=[4,8,12],
-                synapse=['TextCausalLMNext'],
-                splits=[1,2,4,8]
+                sequence_length=[16,32,64],
+                batch_size=[4,8,16,32],
+                num_endpoints=[32,64,128, 256, 512],
+                timeout=[2,4,6,8,10, 12],
+                synapse=['TextLastHiddenState']
             ),
             experiment='experiment3',
             sequence_length=[]):
@@ -380,28 +324,30 @@ class Sandbox(Module):
                 for timeout in params['timeout']:
                     for synapse in params['synapse']:
                         for batch_size in params['batch_size']:
-                            for splits in params['splits']:
-                                sample_kwargs_list += [dict(
-                                    sequence_length = sequence_length,
-                                    batch_size = batch_size,
-                                    timeout= timeout,
-                                    synapse = synapse,
-                                    num_endpoints = num_endpoints,
-                                    success_only= False,
-                                    return_type='metric',
-                                    splits=splits
-                                )]
+                            sample_kwargs_list += [dict(
+                                sequence_length = sequence_length,
+                                batch_size = batch_size,
+                                timeout= timeout,
+                                synapse = synapse,
+                                num_endpoints = num_endpoints,
+                                success_only= False,
+                                return_type='metric'
+                            )]
         random.shuffle(sample_kwargs_list)
         for i,sample_kwargs in enumerate(tqdm(sample_kwargs_list)):
-            self.set_receptor_pool(refresh=True)         
+            self.set_receptor_pool(refresh=True)
             trial_metrics_result = self.sample(**sample_kwargs)
-            self.put_json(f'{experiment}/{i}', trial_metrics_result)
+            self.put_json(f'{experiment}_{i}', trial_metrics_result)
   
     # def streamlit(self):
     #     for k,v_list in params.items():
     def streamlit(self):
         st.write('fam')
-        st.write(self.load_experiment('experiment3'))
+        st.write(self.run_experiment())
+
+
+
+
 
 
     def load_experiment(self, path='experiments'):
@@ -417,54 +363,13 @@ class Sandbox(Module):
         # df['code'] = df['code'].map(returnid2code)
         return df
 
-    def streamlit_experiment(self, experiment= 'experiment3'):
-        df = self.load_experiment(path=experiment)
+    def streamlit_experiment(experiment= 'experiment'):
+        df = module.load_experiment(path=experiment)
         from commune.streamlit import StreamlitPlotModule, row_column_bundles
-
-        st.write(df)
-
-        df['tokens_per_second'] = df['num_tokens']*df['num_successes'] / df['elapsed_time']
-        df['samples_per_second'] = df['batch_size']*df['num_successes'] / df['elapsed_time']
     
         StreamlitPlotModule().run(df)
-
-
-    @staticmethod
-    def chunk(sequence,
-            chunk_size=None,
-            append_remainder=False,
-            distribute_remainder=True,
-            num_chunks= None):
-        # Chunks of 1000 documents at a time.
-
-        if chunk_size is None:
-            assert (type(num_chunks) == int)
-            chunk_size = len(sequence) // num_chunks
-
-        if chunk_size >= len(sequence):
-            return [sequence]
-        remainder_chunk_len = len(sequence) % chunk_size
-        remainder_chunk = sequence[:remainder_chunk_len]
-        sequence = sequence[remainder_chunk_len:]
-        sequence_chunks = [sequence[j:j + chunk_size] for j in range(0, len(sequence), chunk_size)]
-
-        if append_remainder:
-            # append the remainder to the sequence
-            sequence_chunks.append(remainder_chunk)
-        else:
-            if distribute_remainder:
-                # distributes teh remainder round robin to each of the chunks
-                for i, remainder_val in enumerate(remainder_chunk):
-                    chunk_idx = i % len(sequence_chunks)
-                    sequence_chunks[chunk_idx].append(remainder_val)
-
-        return sequence_chunks
-
-
 if __name__ == '__main__':
     # Sandbox.ray_restart()
     Module.new_event_loop()
     module = Sandbox.deploy(actor=False, wrap=True, load=True)
-    
-    st.write(module.available_synapses)
-    st.write(module.run_experiment())
+    module.streamlit()
