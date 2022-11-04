@@ -8,13 +8,11 @@ from functools import partial
 import ray
 
 class ClientModule(Module):
-    default_config_path = 'ray.client.module'
     override_attributes = False
-    def __init__(self, config=None, **kwargs):
+    def __init__(self, actor=None, config=None, **kwargs):
         Module.__init__(self, config=config)
         
-        actor = kwargs.get('server', kwargs.get('actor'))
-        st.write(actor)
+        actor = kwargs.get('server', actor)
         if actor == False:
             actor = self.config['server']
         if isinstance(actor, str):
@@ -24,14 +22,13 @@ class ClientModule(Module):
         elif isinstance(actor, ray.actor.ActorHandle):
             actor = actor
 
-
-        st.write(actor)
         actor_id = actor._ray_actor_id.hex()
         actor_name = None
         for a in Module.list_actors():
-            st.write(a['actor_id'], actor_id)
             if a['actor_id'] == actor_id:
                 actor_name = a['name']
+
+        self._actor_name = actor_name
 
         self.config['server'] = actor_name
         self.fn_signature_map = {}
@@ -48,10 +45,7 @@ class ClientModule(Module):
 
     @property
     def actor_name(self):
-        return self.getattr('actor_name')
-
-
-
+        return self._actor_name
 
     def getattr(self, ray_get=True, *args,**kwargs):
         object_id = self.actor.getattr.remote(*args,**kwargs)
@@ -141,7 +135,15 @@ class ClientModule(Module):
     def __setattr__(self, *args, **kwargs):
         Module.__setattr__(self,*args, **kwargs)
 
+    def __reduce__(self):
+        deserializer = ClientModule
+        serialized_data = (self.actor, self.config)
+        return deserializer, serialized_data
 
+    def __repr__(self):
+        return 'ClientWrapped'+elf.actor.__repr__()
+    def __str__(self):
+        return 'ClientWrapped'+self.actor.__str__()
 if __name__ == '__main__':
     module = ClientModule.deploy(actor=True)
     # st.write(module.get_functions(module))

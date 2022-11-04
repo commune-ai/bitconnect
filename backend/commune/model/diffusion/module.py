@@ -18,6 +18,7 @@ import uuid
 import pandas as pd
 from PIL import Image
 import torch
+import ray
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, LMSDiscreteScheduler
 
 
@@ -205,7 +206,8 @@ class DiffuserModule(Module):
         return byte_im
 
     @staticmethod
-    def st_demo():
+    def streamlit():
+        
         module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_cpus': 2, 'num_gpus': 0.6}}, wrap=True)
 
 
@@ -229,30 +231,6 @@ class DiffuserModule(Module):
     
     
 if __name__ == '__main__':
-    import ray
-    DiffuserModule.st_demo()
-    # module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_cpus': 2, 'num_gpus': 0.6}}, wrap=True)
-    # module = DiffuserModule.deploy(actor={'refresh': False, 
-    #                                       'resources': {'num_gpus': 0.5, 'num_cpus': 2}}, wrap=True)
+
+    DiffuserModule.streamlit()
     
-    # st.write(module.list_actors(detail=True))
-    # st.write(st.write(ray.get_actor('model.diffusion').getattr.remote('config')))
-    # module.getattr('')
-    # st.write(module.getattr('config'))
-    # st.write(module.pipeline.to('cuda'))
-    # st.write('fam')
-    # st.write('fram')
-    # st.write(module.kill_actor('model.diffusion.2'))
-    # st.write(ray.get_actor('model.diffusion'))
-    # # st.write(module.kill_actor('model.diffusion.2'))
-    # st.write(module.list_actors())
-    # # st.write(module.pipeline)
-    # ray.kill(ray.get_actor('actor'))
-
-    # st.write(module.forward('whadup fam, what are you sayin'))
-    # DiffuserModule.ray_restart()
-
-    # from ray.experimental.state.api import list_actors
-    # # ray.kill(ray.get_actor('actor'))
-    # st.write(list_actors(filters=[("state", "=", "ALIVE")]))
-

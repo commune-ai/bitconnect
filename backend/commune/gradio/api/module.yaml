@@ -1,7 +1,7 @@
 module: GradioModule
 name: GradioModule
 
-client: {}
+client: [local]
 
 num_ports: 10
 port_range: [7865, 7870]

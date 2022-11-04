@@ -11,7 +11,7 @@ from eth_account.datastructures import SignedMessage
 from eth_account.messages import SignableMessage
 from hexbytes.main import HexBytes
 from web3.main import Web3
-
+import streamlit as st
 from commune import Module
 from eth_account.messages import encode_defunct
 from ocean_lib.integer import Integer
@@ -167,7 +167,6 @@ class AccountModule(Module):
             raise NotImplemented
             
 
-    @enforce_types
     def sign(self, message: Union[SignableMessage,str, dict]) -> SignedMessage:
         """Sign a transaction."""
         message = self.resolve_message(message)
@@ -239,4 +238,17 @@ class AccountModule(Module):
 
         return balance
         
-    
+
+    @classmethod
+    def streamlit(cls):
+        st.write(f'### {cls.__name__}')
+        self = cls.deploy(actor={'refresh': False}, wrap=True)
+        st.write(self.hash({'bro'}))
+
+        st.write(self.account)
+
+        # st.write(self)
+
+if __name__ == '__main__':
+    AccountModule.streamlit()
+     

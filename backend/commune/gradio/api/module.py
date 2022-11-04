@@ -25,18 +25,12 @@ class bcolor:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
     
+import commune
 
-class GradioModule(Module):
+class GradioModule(commune.Module):
+    def __init__(self, **kwargs):
+        commune.Module.__init__(self, **kwargs)
 
-    # without '__reduce__', the instance is unserializable.
-    def __reduce__(self):
-        deserializer = GradioModule
-        serialized_data = (self.config,)
-        return deserializer, serialized_data
-
-
-    def __init__(self, config=None):
-        BaseModule.__init__(self, config=config)
         self.subprocess_manager = self.get_object('subprocess.module.SubprocessModule')()
 
         self.host  = self.config.get('host', '0.0.0.0')
@@ -46,6 +40,13 @@ class GradioModule(Module):
         
         # self.thread_manager = PriorityThreadPoolExecutor()
         # self.process_manager = self.get_object('cliProcessManager()
+
+    # without '__reduce__', the instance is unserializable.
+    def __reduce__(self):
+        deserializer = GradioModule
+        serialized_data = (self.config,)
+        return deserializer, serialized_data
+
 
     @property
     def active_modules(self):
@@ -303,7 +304,7 @@ class GradioModule(Module):
     def get_modules(self, force_update=True):
         modules = []
         failed_modules = []
-        for root, dirs, files in self.client.local.walk('/app/commune'):
+        for root, dirs, files in os.walk('/app/commune'):
             if all([f in files for f in ['module.py', 'module.yaml']]):
                 try:
                     cfg = self.config_loader.load(root)   
@@ -675,7 +676,10 @@ async def module2port( key:str='subprocess_map'):
 if __name__ == "__main__":
     
     if args.api:
-        uvicorn.run(f"module:app", host="0.0.0.0", port=8000, reload=True, workers=2)
+        print(app)
+        uvicorn.run(app, host="0.0.0.0", port=8000, reload=True, workers=2)
     else:
         module_proxy = GradioModule()
         module_proxy.launch(module=args.module, port=args.port)
+    # module_proxy = GradioModule.deploy(actor=True, wrap=False)
+    # st.write(module_proxy.module_path)

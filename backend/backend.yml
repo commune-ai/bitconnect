@@ -14,8 +14,8 @@ services:
       - 8501-8505:8501-8505
       - 8080:8080 # 
       - 8266:8265 # ray dashboard 
-      # - 7865-7870:7865-7870 # gradio ports
-      - 8001:8000 # api
+      - 7865-7870:7865-7870 # gradio ports
+      - 8000:8000 # api
       - 8889:8888 # jupyterlab
     
     # run_options: ["-v", "/home/ubuntu/efs:/efs", "--shm-size=16.89gb"]

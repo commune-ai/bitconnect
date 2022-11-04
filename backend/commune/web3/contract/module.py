@@ -6,11 +6,13 @@ from copy import deepcopy
 sys.path.append(os.environ['PWD'])
 from commune.utils import dict_put, get_object, dict_has
 from commune import Module
+import streamlit as st
 
 
 class ContractManagerModule(Module):
     def __init__(self, config=None, contract=None, network=None, account=None, **kwargs):
 
+        st.write('bro')
         Module.__init__(self, config=config, network=None, **kwargs)
 
         self.set_network(network=network)
@@ -137,23 +139,29 @@ class ContractManagerModule(Module):
     def set_web3(self, web3=None):
         self.web3 = web3
         return self.web3
-    def set_network(self, network = None, web3=None):
-        if network.__class__.__name__ == 'NetworkModule':
-            network = network
-            web3 = network.web3 
+    def set_network(self, network = None):
+        # if network.__class__.__name__ == 'NetworkModule':
+        #     network = network
+        #     web3 = network.web3 
         
-        # st.write('network', network)
-        self.network = network
-        self.web3 = web3
-        return network
+        # # st.write('network', network)
+        # self.network = network
+        # self.web3 = web3
+        # return network
+        if network == None:
+            network = self.config['network']
+
+
+        st.write(network)
+        self.network = self.launch(**network)
+        self.web3 = self.network.web3
+        # if network.__class__.__name__ == 'NetworkModule':
+        #     network = network
+        #     web3 = network.web3 
 
     connect_network = set_network
 
-    def set_account(self, private_key):
-        private_key = os.getenv(private_key, private_key)
-        self.account = AccountModule(private_key=private_key)
-        return self.account
-    
+
     def compile(self):
         # compile smart contracts in compile
         return self.run_command('npx hardhat compile')
@@ -185,19 +193,19 @@ class ContractManagerModule(Module):
     def resolve_web3(self, web3):
         if web3 == None:
             web3 = self.web3
-        self.set_web3(web3)
         return web3
 
     def resolve_account(self, account):
         if account == None:
             account = self.account
-        self.set_account(account)
         return account
 
     def set_account(self, account):
-        self.account = account
-        if account != None:
-            account.set_web3(self.web3)
+        if account == None:
+            account = self.config['account']
+        self.account = self.launch(**account)
+        if self.account != None:
+            self.account.set_web3(self.web3)
     
 
     def deploy_contract(self, contract = 'token.ERC20.ERC20', args=['AIToken', 'AI'], web3=None, account=None, network=None, refresh=False):
@@ -363,12 +371,10 @@ class ContractManagerModule(Module):
     def resolve_network(self, network):
         if network == None:
             network = self.network
-        self.set_network(network)
         return network
     
     
     def resolve_contract_path(self,  path):
-        st.write(path, self.contracts)
 
         if path in self.contract_paths:
             contract_path = path
@@ -386,25 +392,30 @@ class ContractManagerModule(Module):
         return deserializer, serialized_data
 
 
-    @staticmethod
-    def streamlit():
-        network = Module.launch('web3.network')
-        account = Module.launch('web3.account')
-        import torch
-        st.write(account.hash(torch.tensor([0,2,4,4]))) 
-        # contract_manager = ContractManagerModule(contract='token.ERC20.ERC20', network=network, account=account)
-        # contract_manager.compile()
-        # contract = contract_manager.deploy_contract(contract='token.ERC20.ERC20', refresh=True)
-   
-        # st.write(contract.functions.balanceOf(account.address).call())
+    @classmethod
+    def streamlit(cls):
+        import ray
+        st.write("## "+cls.__name__)
+        # cls.init_ray()
+        cls.ray_initialized()
 
-        # st.write(contract.get_function_schema(fn=contract.get_contract(contract='token.ERC20.ERC20').functions.balanceOf))
+
+        network = dict(module='web3.network', actor=True, wrap=True)
+        account = dict(module='web3.account', actor=True, wrap=True)
+
+
+        # # st.write(Module.list_modules())
+
+
+        # import torch
+
+        manager =  ContractManagerModule(network=None, account=None)
+        manager.compile()
+        contract = manager.deploy_contract(contract='token.ERC20.ERC20',refresh=True)
+
+        st.write(contract.__dict__)
+        st.write(contract.functions.balanceOf(contract.address).call())
 if __name__ == '__main__':
-    import streamlit as st
-    import ray
-
-
-    
     ContractManagerModule.streamlit()
 
  

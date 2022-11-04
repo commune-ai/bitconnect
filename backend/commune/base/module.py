@@ -1,4 +1,4 @@
-from commune.utils import get_object, dict_any, dict_put, dict_get, dict_has, dict_pop, deep2flat, Timer, dict_override, get_functions, get_function_schema
+from commune.utils import get_object, dict_any, dict_put, dict_get, dict_has, dict_pop, deep2flat, Timer, dict_override, get_functions, get_function_schema, kill_pid
 import datetime
 from commune.config.loader import ConfigLoader
 import streamlit as st
@@ -437,7 +437,7 @@ class Module:
     def full_module_list(self):
         modules = []
         failed_modules = []
-        for root, dirs, files in self.client.local.walk(self.root_path):
+        for root, dirs, files in os.walk(self.root_path):
             if all([f in files for f in ['module.py', 'module.yaml']]):
                 try:
                     cfg = self.config_loader.load(root)   
@@ -512,9 +512,10 @@ class Module:
     @classmethod
     def launch_module(cls, module:str, fn:str=None ,kwargs:dict={}, actor=False, wrap=True, **additional_kwargs):
         try:
-            module_class = cls.import_object(module)
-        except Exception as e:
             module_class =  cls.import_object(cls.simple2path(module))
+        except Exception as e:
+            module_class = cls.import_object(module)
+
 
         module_init_fn = fn
         module_kwargs = {**kwargs}
@@ -756,7 +757,7 @@ class Module:
 
     default_ray_env = {'address':'auto', 'namespace': 'default'}
     @classmethod
-    def get_ray_context(cls,init_kwargs=None, reinit=True):
+    def get_ray_context(cls,init_kwargs={}, reinit=True):
         
         # if cls.ray_initialized():
         #     return
@@ -764,11 +765,7 @@ class Module:
             init_kwargs = cls.default_ray_env
   
         if isinstance(init_kwargs, dict): 
-            for k in cls.default_ray_env.keys():
-                default_value= cls.default_ray_env.get(k)
-                init_kwargs[k] = init_kwargs.get(k,default_value)
-                assert isinstance(init_kwargs[k], str), f'{k} is not in args'
-            
+            init_kwargs =  {**cls.default_ray_env, **init_k}
             if Module.ray_initialized() and reinit == True:
                 ray.shutdown()
 
@@ -1002,6 +999,7 @@ class Module:
     def get_parents(cls, obj=None):
         if obj == None:
             obj = cls
+
         return list(obj.__mro__[1:-1])
 
     @classmethod

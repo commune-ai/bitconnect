@@ -1,9 +1,9 @@
 down:
-	./start.sh --backend --ganache --ipfs --down
+	./start.sh --light
 stop:
 	make down
 up:
-	./start.sh --backend --ganache --ipfs
+	./start.sh --light
 start:
 	make up
 
