@@ -785,7 +785,9 @@ class Module:
             raise NotImplementedError(f'{init_kwargs} is not supported')
 
  
+    init_ray = get_ray_context
 
+    
     @staticmethod
     def create_actor(cls,
                  name, 

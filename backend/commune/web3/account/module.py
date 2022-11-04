@@ -143,16 +143,21 @@ class AccountModule(Module):
         return signed_tx.rawTransaction
 
 
-
-    def resolve_message(self, message):
+    @staticmethod
+    def python2str(message):
         if type(message) in [dict]:
-            import streamlit as st
-            st.write(message)
             message = json.dumps(message)
         elif type(message) in [list, tuple, set]:
             message = json.dumps(list(message))
         elif type(message) in [int, float, bool]:
             message = str(message)
+
+        return message
+
+
+    def resolve_message(self, message):
+        message = self.python2str(message)
+
 
         if isinstance(msg_hash, str):
             message = encode_defunct(message)
@@ -196,7 +201,9 @@ class AccountModule(Module):
     def hash(input, hash_type='keccak',return_type='str',*args,**kwargs):
         
         hash_fn = AccountModule.resolve_hash_function(hash_type)
-        hash_output = Web3.keccak(input, *args, **kwargs)
+
+        input = AccountModule.python2str(input)
+        hash_output = Web3.keccak(text=input, *args, **kwargs)
         if return_type in ['str', str, 'string']:
             hash_output = Web3.toHex(hash_output)
         elif return_type in ['hex', 'hexbytes']:

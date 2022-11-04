@@ -313,7 +313,9 @@ class Sandbox(Module):
 
         elif return_type in ['results', 'result']:
             results = {k:v for k,v  in results.items()\
-                             if k not in (graph_keys+result_keys) }
+                             if k in (graph_keys+result_keys) }
+
+            results['input'] = inputs
 
         else:
             raise Exception(f'{return_type} not supported')
@@ -404,10 +406,10 @@ class Sandbox(Module):
         st.write(self.load_experiment('experiment3'))
 
 
-    def load_experiment(self, path='experiments'):
+    def load_experiment(self, path='experiment3'):
         df = []
         
-        for p in self.glob_json(path+'*'):
+        for p in self.glob_json(path+'/*'):
             df.append(self.client.local.get_json(p))
 
         df =  pd.DataFrame(df)
@@ -460,11 +462,16 @@ class Sandbox(Module):
 
         return sequence_chunks
 
-
 if __name__ == '__main__':
-    Sandbox.ray_restart()
-    Module.new_event_loop()
+    # Sandbox.ray_restart()
+    # Module.new_event_loop()
     module = Sandbox.deploy(actor=False, wrap=True, load=True)
+    # st.write(module)
+    # st.write(Module.list_actors())
+    # st.write(ray.get(module.list_actors.remote()))
     
-    st.write(module.available_synapses)
-    st.write(module.run_experiment())
+    # st.write(module.available_synapses)
+    # st.write(module.graph)
+    # st.write(module.subtensor.neuron_for_uid(uid=1))
+    st.write(module.sample())
+    # st.write(module.streamlit_experiment())

@@ -1,7 +1,7 @@
 module: 'DiffuserModule'
 
 pipeline:
-  path: CompVis/stable-diffusion-v1-4
+  path: runwayml/stable-diffusion-v1-5
   revision: fp16
   enable_attention_slicing: True
 

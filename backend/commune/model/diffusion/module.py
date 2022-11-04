@@ -92,6 +92,7 @@ class DiffuserModule(Module):
                       mode=default_mode, 
                       device=None, 
                       enable_attention_slicing=False,
+                      memory_efficient_attention = True,
                       **params):
         # check if there is already the pipe in pipes
         # if yes and the selected model is same return
@@ -120,11 +121,26 @@ class DiffuserModule(Module):
 
         if enable_attention_slicing:
             self.pipeline.enable_attention_slicing()
-        self.pipeline.safety_checker = lambda images, clip_input: (images, False)
+
+        # if memory_efficient_attention:
+        #     self.pipeline.enable_xformers_memory_efficient_attention()
+        
+        # self.pipeline.safety_checker = lambda images, clip_input: (images, False)
+        
         return self.pipeline
 
 
-    def predict(self, mode='txt2img', *args, **kwargs):
+    def predict(self, enable_attention_slicing=False, memory_efficient_attention=True, mode='txt2img', *args, **kwargs):
+        if enable_attention_slicing:
+            self.pipeline.enable_attention_slicing()
+        else:
+            self.pipeline.disable_attention_slicing()
+
+        # if memory_efficient_attention:
+        #     self.pipeline.enable_xformers_memory_efficient_attention()
+        # else:
+        #     self.pipeline.disable_xformers_memory_efficient_attention()
+
         return getattr(self, f'predict_{mode}', *args, **kwargs)
 
     def predict_txt2img(self, 
@@ -191,6 +207,7 @@ class DiffuserModule(Module):
     @staticmethod
     def st_demo():
         module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_cpus': 2, 'num_gpus': 0.6}}, wrap=True)
+
 
         with st.form('Prompt'):
             # text = st.input_text('Input Text', 'd')

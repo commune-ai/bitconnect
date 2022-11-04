@@ -142,7 +142,7 @@ class ContractManagerModule(Module):
             network = network
             web3 = network.web3 
         
-        st.write('network', network)
+        # st.write('network', network)
         self.network = network
         self.web3 = web3
         return network
@@ -213,11 +213,8 @@ class ContractManagerModule(Module):
         contract_artifact = self.get_artifact(contract_path)
         contract_class = web3.eth.contract(abi=contract_artifact['abi'], 
                                     bytecode= contract_artifact['bytecode'],)
-        # st.write(contract_artifact['abi'])
 
-        st.write(account.address)
         nonce = web3.eth.get_transaction_count(account.address) 
-        st.write(nonce, 'NONCE')
         construct_txn = contract_class.constructor(*args).buildTransaction(
                             {
                                     'from': account.address,
@@ -236,7 +233,6 @@ class ContractManagerModule(Module):
         
         self.address2contract
         return  self.set_contract(address=tx_receipt.contractAddress)
-        # st.write(f'Contract deployed at address: { tx_receipt.contractAddress }')
 
 
     @property
@@ -245,7 +241,6 @@ class ContractManagerModule(Module):
 
     def set_contract(self,contract=None, address=None, web3=None, account=None, version=-1):
         if isinstance(contract, str) or isinstance(address, str):
-            st.write(address, 'address')
             contract = self.get_contract(contract=contract, address=address , web3=web3, account=account, version=-1)
         elif type(contract).__name__ in ['f']:
             return
@@ -290,7 +285,6 @@ class ContractManagerModule(Module):
     @property
     def address2contract(self):
         registered_contracts = self.registered_contracts
-        st.write(registered_contracts)
         address2contract = {}
         for network, contract_path_map in registered_contracts.items():
             for contract_path, contract_address_list in contract_path_map.items():
@@ -354,7 +348,6 @@ class ContractManagerModule(Module):
 
 
         registered_contracts = {} if refresh else self.registered_contracts
-        st.write(registered_contracts, 'contracts')
         if network not in registered_contracts:
             registered_contracts[network] = {}
         if contract_path not in registered_contracts[network]:
@@ -397,15 +390,20 @@ class ContractManagerModule(Module):
     def streamlit():
         network = Module.launch('web3.network')
         account = Module.launch('web3.account')
-        contract_manager = ContractManagerModule(contract='token.ERC20.ERC20', network=network, account=account)
-        contract = contract_manager.deploy_contract(contract='token.ERC20.ERC20', refresh=False)
-        
-        st.write(contract.functions.balanceOf(account.address).call())
+        import torch
+        st.write(account.hash(torch.tensor([0,2,4,4]))) 
+        # contract_manager = ContractManagerModule(contract='token.ERC20.ERC20', network=network, account=account)
+        # contract_manager.compile()
+        # contract = contract_manager.deploy_contract(contract='token.ERC20.ERC20', refresh=True)
+   
+        # st.write(contract.functions.balanceOf(account.address).call())
 
         # st.write(contract.get_function_schema(fn=contract.get_contract(contract='token.ERC20.ERC20').functions.balanceOf))
 if __name__ == '__main__':
     import streamlit as st
     import ray
+
+
     
     ContractManagerModule.streamlit()
 

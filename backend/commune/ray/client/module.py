@@ -29,15 +29,17 @@ class ClientModule(Module):
         actor_id = actor._ray_actor_id.hex()
         actor_name = None
         for a in Module.list_actors():
+            st.write(a['actor_id'], actor_id)
             if a['actor_id'] == actor_id:
                 actor_name = a['name']
-        
+
         self.config['server'] = actor_name
         self.fn_signature_map = {}
 
         self.actor = actor
         
         self.parse()
+        st.write(actor_name)
 
 
     @property
