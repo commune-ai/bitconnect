@@ -1,6 +1,6 @@
 import React, { Component } from "react";
-import { Icon, Loader } from 'semantic-ui-react'
-import Import from '../Modal/importer'
+import { Loader } from 'semantic-ui-react'
+// import Import from '../Modal/importer'
 import { random_colour, random_emoji } from "./utils";
 
 import "../../css/dist/output.css"
@@ -182,10 +182,12 @@ export default class Navbar extends Component{
                         <Icon className=" block mr-auto ml-auto" name="plus"/>
                     </div>
                 </div> */}
-                    <div className={` md:w-14 md:h-7 w-10 h-6 flex items-center ${this.state.toggle === "gradio" ? 'bg-white' : ' bg-slate-800'}  shadow-xl rounded-full p-1 cursor-pointer float-left duration-300 `} onClick={() => {this.handelToggle()}}>
-                    <Streamlit className=" absolute w-5 h-5"/>
-                    <Gradio className=" absolute w-5 h-5 translate-x-6"/>
-                    <div className={`border-white border-2 md:w-6 md:h-6 h-5 w-5 rounded-full shadow-md transform duration-300 ease-in-out  ${this.state.toggle === "gradio" ? ' bg-orange-400' : " bg-red-700 transform translate-x-6"}`}></div>
+                <div className={`${this.state.open ? 'mb-10' : 'hidden'} `}>
+                    <div className={` md:w-14 md:h-7 w-10 h-6 flex items-center border-2 ${this.state.toggle === "gradio" ? 'bg-white border-orange-400' : ' bg-slate-800'}  shadow-xl rounded-full p-1 cursor-pointer float-left duration-300 `} onClick={() => {this.handelToggle()}}>
+                        <Streamlit className=" absolute w-5 h-5"/>
+                        <Gradio className=" absolute w-5 h-5 translate-x-6"/>
+                    <div className={`border-2 md:w-6 md:h-6 h-[1.35rem] w-[1.35rem] rounded-full shadow-md transform duration-300 ease-in-out  ${this.state.toggle === "gradio" ? ' bg-orange-400 transform -translate-x-[0.2rem]' : " bg-red-700 transform translate-x-[1.45rem] "}`}></div>
+                    </div>
                 </div>
                 {/* <Import open={this.state.modal} 
                         quitHandeler={this.handelModal}
@@ -193,8 +195,8 @@ export default class Navbar extends Component{
                         appendHandler={this.appendStreamNode}
                         handelError={this.handelError}
                         catch={this.state.error}/> */}
-                <div id="module-list" className={` mt-5 relative z-10 w-full h-[93%] overflow-auto ${this.state.loading ? " animate-pulse duration-300 bg-neutral-900 rounded-lg bottom-0" : ""} `}>
-                    <ul className="overflow-hidden">
+                <div id="module-list" className={` mt-5 relative z-10 w-full h-[92%] overflow-auto ${this.state.loading ? " animate-pulse duration-300 bg-neutral-900 rounded-lg bottom-0" : ""} `}>
+                    <ul className="overflow-hidden rounded-lg">
                     {this.state.loading &&<Loader active/>}
                     {this.state.menu.map((item, index) => {return this.subComponents(item, index)})}
                     </ul>

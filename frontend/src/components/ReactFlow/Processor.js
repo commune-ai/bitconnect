@@ -9,9 +9,11 @@ import ReactFlow, { Background,
                     } from 'react-flow-renderer';
 
 import React ,{ useState, 
+                useMemo,
                 useCallback,
                 useRef,
-                useEffect } from 'react';
+                useEffect,
+                MouseEvent } from 'react';
 
 import Navbar from '../Navagation/navbar';
 import CustomEdge from '../Edges/Custom'
@@ -24,8 +26,13 @@ import { FaRegSave } from 'react-icons/fa'
 
 import { useThemeDetector } from './utils'
 
+import { useTransition } from '@react-spring/web'
+import { animated } from '@react-spring/web'
+
+
 import '../../css/dist/output.css'
 import '../../css/index.css'
+import '../../css/log.css'
 
 const NODE = {
   custom : CustomNodeIframe,
@@ -34,6 +41,8 @@ const NODE = {
 const EDGE = {
   custom : CustomEdge
 }
+
+let id = 0
 
 export default function Processor() {
 
@@ -46,7 +55,12 @@ export default function Processor() {
     const [reactFlowInstance, setReactFlowInstance] = useState(null);
     const reactFlowWrapper = useRef(null);
     const [tool, setTool] = useState(false)
+    const ref = useRef(null)
 
+
+    const handleClick = () => {
+      ref.current?.("The Backend is currently setting up the application")
+    }
     // =======================
     // Changes
     // =======================
@@ -181,7 +195,8 @@ export default function Processor() {
                           host : `http://localhost:${data.port}`,
                           colour : `${style.colour}`,
                           emoji : `${style.emoji}`,
-                          delete : deleteNode },};
+                          delete : deleteNode,
+                          notification : handleClick},};
                   setNodes((nds) => nds.concat(newNode));
                   console.log(nodes)
                 })    
@@ -194,7 +209,7 @@ export default function Processor() {
       <div className={`${theme ? "dark" : ""}`}>          
         
         <div className={` absolute text-center ${tool ? "h-[203.3333px]" : "h-[41px]"} overflow-hidden w-[41px] text-4xl top-4 right-5 z-50 cursor-default select-none bg-white dark:bg-stone-900 rounded-full border border-black dark:border-white duration-500`}  >
-          <CgMoreVerticalAlt className={` text-black dark:text-white ${tool ? "-rotate-0 mr-auto ml-auto mt-1" : " rotate-180 mr-auto ml-auto mt-1"} duration-300`} onClick={() => setTool(!tool)}/>
+          <CgMoreVerticalAlt className={` text-black dark:text-white ${tool ? "-rotate-0 mr-auto ml-auto mt-1" : " rotate-180 mr-auto ml-auto mt-1"} duration-300`} onClick={() => {setTool(!tool);} }/>
           <h1 title={theme ? 'Dark Mode' : 'Light Mode'} className={`p-4 px-1 pb-0 ${tool ? "visible" : "invisible"} text-3xl`} onClick={() => setTheme(!theme)} >{theme  ? '🌙' : '☀️'}</h1> 
           <FaRegSave title="Save" className={`mt-6 text-black dark:text-white ${tool ? "visible" : " invisible"} ml-auto mr-auto `} onClick={() => onSave()}/> 
           <BsFillEraserFill title="Erase" className={`mt-6 text-black dark:text-white ml-auto mr-auto ${tool ? "visible" : " invisible"} `} onClick={() => onErase()}/>
@@ -223,6 +238,7 @@ export default function Processor() {
                 <Background variant='dots' size={1} className=" bg-white dark:bg-neutral-800"/>
                 <Controls/>
               </ReactFlow>
+              <MessageHub children={(add) => {ref.current = add}}/>
             </div>
           </ReactFlowProvider>
         </div>
@@ -230,3 +246,61 @@ export default function Processor() {
     );
   }
 
+
+
+function MessageHub({
+  config = { tension: 125, friction: 20, precision: 0.1 },
+  timeout = 1500,
+  children,
+}) {
+  const refMap = useMemo(() => new WeakMap(), [])
+  const cancelMap = useMemo(() => new WeakMap(), [])
+  const [items, setItems] = useState([])
+
+  const transitions = useTransition(items, {
+    from: { opacity: 0, height: 0, life: '100%' },
+    keys: item => item.key,
+    enter: item => async (next, cancel) => {
+      cancelMap.set(item, cancel)
+      await next({ opacity: 1, height: refMap.get(item).offsetHeight })
+      await next({ life: '0%' })
+    },
+    leave: [{ opacity: 0 }, { height: 0 }],
+    onRest: (result, ctrl, item) => {
+      setItems(state =>
+        state.filter(i => {
+          return i.key !== item.key
+        })
+      )
+    },
+    config: (item, index, phase) => key => phase === 'enter' && key === 'life' ? { duration: timeout } : config,
+  })
+
+  useEffect(() => {
+    children((msg) => {
+      setItems(state => [...state, { key: id++, msg }])
+    })
+  }, [])
+
+  return (
+    <div className='fixed z-[1000] w-auto bottom-7 m-auto right-[30px] flex flex-col '>
+      {transitions(({ life, ...style }, item) => (
+        
+        <animated.div className=" relative overflow-hidden box-border w-[40ch] py-2 rounded-xl" style={style}>
+          <div className=' text-black dark:bg-stone-900 dark:text-white bg-slate-100 opacity-[0.9] py-12 px-22 font-sans grid rounded-xl shadow-2xl shadow-blue-600 border-black dark:border-white border-2 ' ref={(ref) => ref && refMap.set(item, ref)}>
+            <animated.div className=" absolute bottom-0 left-0 w-auto h-[5px] dark:bg-gradient-to-bl dark:from-Retro-light-pink dark:to-Vapor-Blue bg-gradient-to-bl from-blue-400  to-blue-900 " style={{ right: life }} />
+            <div className=' bg-slate-200 dark:bg-stone-800 dark:text-white rounded-t-xl absolute top-0 right-0 h-10 w-full border-3 border-black dark:border-b-white border-2'><h3 className='px-3 py-2 font-bold'>Setting Up Localhost</h3></div>
+            <p className='px-3 py-2 font-sans font-semibold'>{item.msg}</p>
+            {/* <Button
+              onClick={(e) => {
+                e.stopPropagation()
+                if (cancelMap.has(item) && life.get() !== '0%') cancelMap.get(item)()
+              }}>
+              <X size={18} /> 
+            </Button> */}
+          </div>
+        </animated.div>
+      ))}
+    </div>
+  )
+}

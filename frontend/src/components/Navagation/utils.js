@@ -17,7 +17,14 @@ const colour_map = [
      'bg-gradient-to-bl from-Peach-Red to-Peach-Yellow',
      'bg-gradient-to-bl from-Peach-Yellow to-Peach-Red',
      'bg-gradient-to-bl from-Deep-Space-Black to-Deep-Space-Gray dark:bg-gradient-to-bl dark:from-Entrepreneurial-Lies-Gray dark:to-Entrepreneurial-Lies-White ',
-     'bg-gradient-to-bl from-Sunshine-Red to-Sunshine-Blue'
+     'bg-gradient-to-bl from-Sunshine-Red to-Sunshine-Blue',
+     'bg-gradient-to-bl from-[#654ea3] to-[#93291E]',
+     'bg-gradient-to-bl from-[#4e54c8] to-[#8f94fb]',
+     'bg-gradient-to-bl from-[#c94b4b] to-[#4b134f]',
+     'bg-gradient-to-bl from-[#000000] to-[#0f9b0f]',
+     'bg-gradient-to-bl from-[#FFEFBA] to-[#FFFFFF]',
+     'bg-gradient-to-bl from-[#34e89e] to-[#0f3443]',
+     
 ]
 
 /**

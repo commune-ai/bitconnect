@@ -44,7 +44,7 @@ class GradioModule(BaseModule):
         self.host  = self.config.get('host', '0.0.0.0')
         self.port  = self.config.get('port', 8000)
         self.num_ports = self.config.get('num_ports', 10)
-        self.port_range = self.config.get('port_range', [7865, 7870])
+        self.port_range = self.config.get('port_range', [7860, 7870])
         
         # self.thread_manager = PriorityThreadPoolExecutor()
         # self.process_manager = self.get_object('cliProcessManager()
