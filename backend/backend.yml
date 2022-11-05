@@ -31,7 +31,6 @@ services:
       - ./scripts:/app/scripts
       - /tmp/wholetensor:/tmp
       - /home/ubuntu/efs:/efs
-
     deploy:
       resources:
         reservations:

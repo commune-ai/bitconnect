@@ -765,7 +765,7 @@ class Module:
             init_kwargs = cls.default_ray_env
   
         if isinstance(init_kwargs, dict): 
-            init_kwargs =  {**cls.default_ray_env, **init_k}
+            init_kwargs =  {**cls.default_ray_env, **init_kwargs}
             if Module.ray_initialized() and reinit == True:
                 ray.shutdown()
 

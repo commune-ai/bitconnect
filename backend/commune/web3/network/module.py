@@ -25,16 +25,14 @@ class NetworkModule(Module):
         assert len(network.split('.')) == 2
         return network
 
+
     @network.setter
     def network(self, network):
         assert network in self.available_networks
         self.config['network'] = network
 
-
-    def set_network(self, network:str):
+    def set_network(self, network:str='local'):
         network = network if network != None else self.config['network']
-        
-        
         url = self.get_url(network)
         self.network = network
         self.url = url 
@@ -63,9 +61,9 @@ class NetworkModule(Module):
     def available_networks(self):
         return self.get_available_networks()
 
+
     def get_available_networks(self):
         networks_config = self.networks_config
-
         subnetworks = []
         for network in self.networks:
             for subnetwork in networks_config[network].keys():
@@ -90,10 +88,13 @@ class NetworkModule(Module):
 
 if __name__ == '__main__':
     import streamlit as st
-    module = NetworkModule.deploy(actor=False)
+    module = NetworkModule.deploy(actor={'name': 'network'}, wrap=True)
+    st.write(module.actor_name)
+
+
     
-    st.write(module.get_url('local.main'))
-    st.write(module.set_network('local.main').eth.get_block_number())
+    # st.write(module.get_url('local.main'))
+    # st.write(module.set_network('local.main').eth.get_block_number())
     
     # with st.expander('Select Network', True):
     #     network_mode_options = module.network_modes

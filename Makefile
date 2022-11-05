@@ -1,5 +1,5 @@
 down:
-	./start.sh --light
+	./start.sh --down
 stop:
 	make down
 up:

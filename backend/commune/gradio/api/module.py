@@ -675,9 +675,10 @@ async def module2port( key:str='subprocess_map'):
 
 if __name__ == "__main__":
     
+    
     if args.api:
         print(app)
-        uvicorn.run(app, host="0.0.0.0", port=8000, reload=True, workers=2)
+        uvicorn.run(f"module:app", host="0.0.0.0", port=8000, reload=True, workers=2)
     else:
         module_proxy = GradioModule()
         module_proxy.launch(module=args.module, port=args.port)

@@ -24,7 +24,6 @@ from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, L
 
 class DiffuserModule(Module):
 
-    default_config_path = 'model.diffusion'
     default_mode = 'txt2img'
     default_device = 'cuda'
 

@@ -10,10 +10,12 @@ import streamlit as st
 
 
 class ContractManagerModule(Module):
-    def __init__(self, config=None, contract=None, network=None, account=None, **kwargs):
+    def __init__(self, config=None, contract=None, network=None, account=None, compile=True, **kwargs):
 
-        st.write('bro')
         Module.__init__(self, config=config, network=None, **kwargs)
+
+        if compile:
+            self.compile()
 
         self.set_network(network=network)
         self.set_account(account=account)
@@ -140,44 +142,30 @@ class ContractManagerModule(Module):
         self.web3 = web3
         return self.web3
     def set_network(self, network = None):
-        # if network.__class__.__name__ == 'NetworkModule':
-        #     network = network
-        #     web3 = network.web3 
+        if hasattr(self, 'network'):
+            assert isinstance(network, str ), f'{network}'
+            self.network.set_network(network)
+        else:
+            if network == None:
+                network = self.config['network']
+            self.network = self.launch(**network)
         
-        # # st.write('network', network)
-        # self.network = network
-        # self.web3 = web3
-        # return network
-        if network == None:
-            network = self.config['network']
 
-
-        st.write(network)
-        self.network = self.launch(**network)
         self.web3 = self.network.web3
-        # if network.__class__.__name__ == 'NetworkModule':
-        #     network = network
-        #     web3 = network.web3 
 
     connect_network = set_network
-
 
     def compile(self):
         # compile smart contracts in compile
         return self.run_command('npx hardhat compile')
         
     @property
-    def network_modes(self):
-        return list(self.network_config.keys())
-
-    @property
     def available_networks(self):
-        return ['local', 'ethereum']
+        return self.network.available_networks
 
     @property
-    def network_config(self):
-        network_config_path = f'{self.root}/web3/data/network-config.yaml'
-        return self.client.local.get_yaml(network_config_path)
+    def network_name(self):
+        return self.network.network
 
     @property
     def contract_paths(self):
@@ -207,45 +195,61 @@ class ContractManagerModule(Module):
         if self.account != None:
             self.account.set_web3(self.web3)
     
+    def get_contract_address(self, contract, version=-1):
+        return self.contract2addresses[self.network_name].get(contract,[None])[version]
+        
 
-    def deploy_contract(self, contract = 'token.ERC20.ERC20', args=['AIToken', 'AI'], web3=None, account=None, network=None, refresh=False):
+
+    def deploy_contract(self, contract = 'token.ERC20.ERC20', args=['AIToken', 'AI'],  new=True, refresh=False, **kwargs):
         
         simple_contract_path = contract
         contract_path = self.resolve_contract_path(simple_contract_path)
+        contract_address =  self.get_contract_address(contract)
+
+
+        network = self.resolve_network(kwargs.get('network'))
+        web3 = self.resolve_web3(kwargs.get('web3'))
+        account = self.resolve_account(kwargs.get('account'))
         
-        network = self.resolve_network(network)
-        web3 = self.resolve_web3(web3)
-        account = self.resolve_account(account)
+        if contract_address == None or new == True:
 
-        assert contract in self.contracts
-        contract_artifact = self.get_artifact(contract_path)
-        contract_class = web3.eth.contract(abi=contract_artifact['abi'], 
-                                    bytecode= contract_artifact['bytecode'],)
+            assert contract in self.contracts
+            contract_artifact = self.get_artifact(contract_path)
+            contract_class = web3.eth.contract(abi=contract_artifact['abi'], 
+                                        bytecode= contract_artifact['bytecode'],)
 
-        nonce = web3.eth.get_transaction_count(account.address) 
-        construct_txn = contract_class.constructor(*args).buildTransaction(
-                            {
-                                    'from': account.address,
-                                    'gasPrice':web3.eth.generate_gas_price(),
-                                    'nonce': nonce
-                            }
-        )
-        # sign the transaction
-        signed_tx = account.sign_tx(construct_txn)
-        tx_hash = web3.eth.send_raw_transaction(signed_tx)
-        tx_receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
-
-        contract_address = tx_receipt.contractAddress 
-        
-        self.register_contract(contract_path=simple_contract_path, network=network.network, contract_address=contract_address, refresh=refresh)
-        
-        self.address2contract
-        return  self.set_contract(address=tx_receipt.contractAddress)
+            nonce = web3.eth.get_transaction_count(account.address) 
+            construct_txn = contract_class.constructor(*args).buildTransaction(
+                                {
+                                        'from': account.address,
+                                        'gasPrice':web3.eth.generate_gas_price(),
+                                        'nonce': nonce
+                                }
+            )
+            
+            # sign the transaction
+            signed_tx = account.sign_tx(construct_txn)
+            tx_hash = web3.eth.send_raw_transaction(signed_tx)
 
 
+            tx_receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
+
+            contract_address = tx_receipt.contractAddress 
+            
+            self.register_contract(contract_path=simple_contract_path, network=network.network, contract_address=contract_address, refresh=refresh)
+
+        # ensure the contract exists
+        assert self.contract_exists(contract_address)
+        return contract_address
     @property
     def registered_contracts(self):
         return self.get_json('registered_contracts', {})
+
+    @property
+    def contract2addresses(self):
+        return self.registered_contracts
+
+
 
     def set_contract(self,contract=None, address=None, web3=None, account=None, version=-1):
         if isinstance(contract, str) or isinstance(address, str):
@@ -261,30 +265,33 @@ class ContractManagerModule(Module):
         return self.contract
 
 
-    def get_contract(self,contract=None, address=None , web3=None, account=None, version=-1):
+
+    def contract_exists(self, contract=''):
+        is_address = isinstance(self.address2contract.get(contract), str)
+        is_contract = isinstance(self.contract2address.get(contract), str)
+        return bool(is_address or is_contract)
+
+    def get_contract(self,contract=None , web3=None, account=None, version=-1):
         web3 = self.resolve_web3(web3)
         account = self.resolve_account(account)
-    
-        if isinstance(address, str):
-            contract_path = self.address2contract[address]
+        
+
+        # assume theres an address
+        address = contract
+        contract_path = self.address2contract.get(address)
+        if isinstance(contract_path, str):
             contract_path ,  contract_version = contract_path.split('-v')
             contract_version = int(contract_version)
             contract_address = address
-        elif isinstance(contract, str):
-            contract_candidates = []
-            for _contract, _address in  self.contract2address.items():
-                _contract_name, _contract_version = _contract.split('-v')
-                if contract == _contract_name:
-                    contract_candidates += [(_contract_name, int(_contract_version), _address)]
-            
-            if len(contract_candidates) == 0:
-                return None
-            
-            contract_path, contract_version, contract_address = contract_candidates[version]
-            
+
 
         else:
-            raise Exception('please specify the contract')
+            contract_version_addresses = self.contract2addresses.get(contract, [])
+            if len(contract_version_addresses) > 0:
+                contract_address = contract_version_addresses[version]
+            else:
+                raise NotImplemented(contract_address)
+      
 
         contract_artifact = self.get_artifact(contract_path)
         return web3.eth.contract(address=contract_address, abi=contract_artifact['abi'])
@@ -397,8 +404,7 @@ class ContractManagerModule(Module):
         import ray
         st.write("## "+cls.__name__)
         # cls.init_ray()
-        cls.ray_initialized()
-
+        # cls.ray_initialized()
 
         network = dict(module='web3.network', actor=True, wrap=True)
         account = dict(module='web3.account', actor=True, wrap=True)
@@ -409,12 +415,13 @@ class ContractManagerModule(Module):
 
         # import torch
 
-        manager =  ContractManagerModule(network=None, account=None)
-        manager.compile()
-        contract = manager.deploy_contract(contract='token.ERC20.ERC20',refresh=True)
+        self =  ContractManagerModule.deploy(actor=False, wrap=True)
+        
+        self.set_network('local.main')
 
-        st.write(contract.__dict__)
-        st.write(contract.functions.balanceOf(contract.address).call())
+        contract_address = self.deploy_contract(contract='token.ERC20.ModelToken',new=True)
+        contract = self.get_contract(contract_address)
+        st.write(contract.functions.balanceOf(self.account.address).call())
 if __name__ == '__main__':
     ContractManagerModule.streamlit()
 
