@@ -24,7 +24,7 @@ export default class Navbar extends Component{
             modal : false,
             error : false,
             loading : false,
-            toggle : 'gradio'
+            toggle : 'streamlit'
            }
        
     }

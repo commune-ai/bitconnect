@@ -21,7 +21,6 @@ export default function CustomNodeIframe({id, data}){
     const [reachable ,setReachable] = useState(false)
     const [refresh, setRefresh] = useState(0)
     const dragElement = useRef()
-    const ref = useRef(null)
 
     const bind = useDrag((state) => {
       const isResizing = (state?.event.target === dragElement.current);
@@ -71,23 +70,23 @@ export default function CustomNodeIframe({id, data}){
     },[])
 
 
-    return (
+        return (
     <div className="w-10 h-10">
       
-      <div className=" flex w-full h-10 top-0 cursor-pointer" onClick={() => {}}>
-      <div title={!collapsed ? "Collaspse Node" : "Expand Node"} className=" flex-none duration-300 cursor-pointer shadow-xl border-2 border-white h-10 w-10 mr-2 -mt-3 bg-Green-Emerald rounded-xl" onClick={ async () => { handelServerRender() }}><CgLayoutGridSmall className="h-full w-full text-white p-1"/></div>
-      <div id={'draggable'} title="Drag Node" className={` ${collapsed ? 'hidden' : ''} flex-none duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Blue  rounded-xl `} onClick={() => {}}><RiDragMove2Fill className="h-full w-full text-white p-1"/></div>
+      <div id={'draggable'}className=" flex w-full h-10 top-0 cursor-pointer" onClick={() => {}}>
+      <div id={'draggable'} title={collapsed ? "Collaspse Node" : "Expand Node"} className=" flex-none duration-300 cursor-pointer shadow-xl border-2 border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Blue rounded-xl" onClick={() => {handelServerRender()}}><CgLayoutGridSmall className="h-full w-full text-white p-1"/></div>
 
-      <div className={`flex ${!collapsed ? '' : 'w-0 hidden'}`}>
+
+      <div className={` flex ${!collapsed ? '' : 'w-0 hidden'}`}>
                       <div title="Adjust Node Size" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Violet rounded-xl" onClick={() => {setSizeAdjuster((size) => !size)}}><TbResize className="h-full w-full text-white p-1"/></div>
                       <a href={data.host} target="_blank" rel="noopener noreferrer"><div title="Gradio Host Site" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Pink rounded-xl"><BiCube className="h-full w-full text-white p-1"/></div></a>
                       <div title="Delete Node" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Red rounded-xl" onClick={() => data.delete([{id : id}])}><BsTrash className="h-full w-full text-white p-1"/></div>
-                      <div title="Refresh Node" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Orange rounded-xl" onClick={() => {}}><BiRefresh className="h-full w-full text-white p-1"/></div>
+                      <div title="Refresh Node" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Orange rounded-xl" onClick={() => {setRefresh((old) => old++)}}><BiRefresh className="h-full w-full text-white p-1"/></div>
         </div>
       </div>
 
       { !collapsed && reachable && <>
-          <animated.div className={`border-dashed ${sizeAdjuster ? 'border-4 border-black dark:border-white' : ''} relative top-0 left-0 z-[1000] touch-none shadow-lg rounded-xl duration-300`} style={{width, height }} {...bind()}>
+          <animated.div className={`border-dashed  ${sizeAdjuster ? 'border-4 border-white' : ''} relative top-0 left-0 z-[1000] touch-none shadow-lg rounded-xl`} style={{width, height }} {...bind()}>
             <div id="draggable" className={`absolute h-full w-full ${data.colour} shadow-2xl rounded-xl -z-20`}></div>
             <iframe id="iframe" 
                         key={refresh}
