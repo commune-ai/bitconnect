@@ -1,6 +1,5 @@
 import React, { Component } from "react";
-import { Icon, Loader } from 'semantic-ui-react'
-import Import from '../Modal/importer'
+import { Loader } from 'semantic-ui-react'
 import { random_colour, random_emoji } from "./utils";
 
 import "../../css/dist/output.css"
@@ -17,14 +16,11 @@ export default class Navbar extends Component{
             open : true,
             menu : [],
             colour : props.colour || [],
-            text : "",
-            name : "",
             emoji : props.emoji || [],
             mode : false,
-            modal : false,
-            error : false,
             loading : false,
-            toggle : 'gradio'
+            toggle : 'gradio',
+            search : ""
            }
        
     }
@@ -49,26 +45,6 @@ export default class Navbar extends Component{
                 }).catch(error => {console.log(error)}) 
     }
 
-    /**
-     * Append new node from the user 
-     */
-    appendStreamNode = async (type) => {
-        // const pattern = {
-        //     local : /^https?:\/\/(localhost)*(:[0-9]+)?(\/)?$/,
-        //     share : /^https?:\/\/*([0-9]{5})*(-gradio)*(.app)?(\/)?$/,
-        //     hugginFace : /^https?:\/\/*(hf.space)\/*(embed)\/*([a-zA-Z0-9+_-]+)\/*([a-zA-Z0-9+_-]+)\/*([+])?(\/)?$/
-        // } 
-        return
-    }
-
-    /**
-     * error check the user input
-     * @param {*} bool boolean of the current state of the modal  
-     */
-    handelModal = (bool) => {
-        this.setState({'error' : !bool ? false : this.state.error ,
-                       'modal' : bool})
-    }
 
     /**
      * when dragged get all the information needed
@@ -119,10 +95,6 @@ export default class Navbar extends Component{
         }
     }
 
-    handelError = (boolean) => {
-        this.setState({'error' : boolean})
-    }
-
     /**
      * handel navagation open and close function
      */
@@ -140,9 +112,7 @@ export default class Navbar extends Component{
      * @param {*} e : event type to get the target value of the current input
      * @param {*} type : text | name string that set the changed value of the input to the current value 
      */
-    updateText = (e, type) => {
-        this.setState({[`${type}`] : e.target.value })
-    }
+    updateText = (e, {name, value}) => this.setState({[`${name}`] : value }) 
 
     /**
      * 
@@ -169,7 +139,7 @@ export default class Navbar extends Component{
         
         return (<div>
         
-            <div className={`z-10 flex-1 float-left bg-white dark:bg-stone-900 h-screen p-5 pt-8 ${this.state.open ? "lg:w-72 md:64 sm:w-60" : "w-10"} duration-300 absolute shadow-2xl border-black border-r-[1px] dark:border-white dark:text-white`} >
+            <div className={`z-10 flex-1 float-left bg-white dark:bg-stone-900 h-screen p-5 pt-8 ${this.state.open ? "w-80 " : "w-10"} duration-300 absolute shadow-2xl border-black border-r-[1px] dark:border-white dark:text-white`} >
 
             <BsArrowLeftShort onClick={this.handelNavbar} className={`  bg-white text-Retro-darl-blue text-3xl rounded-full absolute -right-3 top-9 border border-black cursor-pointer ${!this.state.open && 'rotate-180'} dark:border-white duration-300 dark:text-white dark:bg-stone-900 `}/>
 
@@ -177,26 +147,31 @@ export default class Navbar extends Component{
                     <h1 className={`font-sans font-bold text-lg ${this.state.open ? "" : "hidden"} duration-500 ml-auto mr-auto`}> {/*<ReactLogo className="w-9 h-9 ml-auto mr-auto"/>*/}Modular Flow 🌊 </h1>
                 </div>
 
-                {/* <div className={`rounded-md text-center ${this.state.open ? "" : "px-0"} py-3`} onClick={() => {}}>
-                    <div className={` text-center bg-transparent w-full h-10 border border-slate-300 hover:border-Retro-purple hover:animate-pulse border-dashed rounded-md py-2 pl-5 ${this.state.open ? "pr-3" : "hidden"} shadow-sm sm:text-sm`}>
-                        <Icon className=" block mr-auto ml-auto" name="plus"/>
+                <div className={`${this.state.open ? 'mb-5' : 'hidden'} flex`}>
+                    <div className={` md:w-14 md:h-7 w-10 h-6 flex items-center border-2 ${this.state.toggle === "gradio" ? 'bg-white border-orange-400' : ' bg-slate-800'}  shadow-xl rounded-full p-1 cursor-pointer float-left duration-300 `} onClick={() => {this.handelToggle()}}>
+                        <Streamlit className=" absolute w-5 h-5"/>
+                        <Gradio className=" absolute w-5 h-5 translate-x-6"/>
+                    <div className={`border-2 h-[1.42rem] w-[1.42rem] rounded-full shadow-md transform duration-300 ease-in-out  ${this.state.toggle === "gradio" ? ' bg-orange-400 transform -translate-x-[0.2rem]' : " bg-red-700 transform translate-x-[1.45rem] "}`}></div>
                     </div>
-                </div> */}
-                    <div className={` md:w-14 md:h-7 w-10 h-6 flex items-center ${this.state.toggle === "gradio" ? 'bg-white' : ' bg-slate-800'}  shadow-xl rounded-full p-1 cursor-pointer float-left duration-300 `} onClick={() => {this.handelToggle()}}>
-                    <Streamlit className=" absolute w-5 h-5"/>
-                    <Gradio className=" absolute w-5 h-5 translate-x-6"/>
-                    <div className={`border-white border-2 md:w-6 md:h-6 h-5 w-5 rounded-full shadow-md transform duration-300 ease-in-out  ${this.state.toggle === "gradio" ? ' bg-orange-400' : " bg-red-700 transform translate-x-6"}`}></div>
+                    
+                    <form>
+                        <div class="relative ml-2">
+                            <div class="flex absolute inset-y-0 left-0 items-center pl-3 pointer-events-none">
+                                <svg aria-hidden="true" class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            </div>
+                            <input type="search" name="search" id="default-search" value={this.state.search} className="block p-1 pl-10 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500 focus:shadow-xl" onChange={(e) => this.updateText(e , {name : 'search', value : e.target.value})} placeholder="Search Module..." required/>
+                        </div>
+                    </form>
+
                 </div>
-                {/* <Import open={this.state.modal} 
-                        quitHandeler={this.handelModal}
-                        textHandler={this.updateText}
-                        appendHandler={this.appendStreamNode}
-                        handelError={this.handelError}
-                        catch={this.state.error}/> */}
-                <div id="module-list" className={` mt-5 relative z-10 w-full h-[93%] overflow-auto ${this.state.loading ? " animate-pulse duration-300 bg-neutral-900 rounded-lg bottom-0" : ""} `}>
-                    <ul className="overflow-hidden">
+  
+                <div id="module-list" className={` relative z-10 w-full h-[92%] overflow-auto ${this.state.loading ? " animate-pulse duration-300 bg-neutral-900 rounded-lg bottom-0" : ""} `}>
+                    <ul className="overflow-hidden rounded-lg">
                     {this.state.loading &&<Loader active/>}
-                    {this.state.menu.map((item, index) => {return this.subComponents(item, index)})}
+                    {this.state.menu.filter((value) => {
+                        if (this.state.search.replace(/\s+/g, '') === "") return value
+                        else if (value.includes(this.state.search.replace(/\s+/g, ''))) return value
+                    }).map((item, index) => {return this.subComponents(item, index)})}
                     </ul>
                 </div>
 

@@ -7,7 +7,7 @@ import ReactFlow, { Background,
     useEdgesState,
     ReactFlowInstance
     } from 'react-flow-renderer';
-import {getLayoutedElements, bfs, root} from './utils'
+import {getLayoutedElements, bfs, root} from '../utils'
 
 
 
