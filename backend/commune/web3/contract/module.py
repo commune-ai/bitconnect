@@ -7,6 +7,7 @@ sys.path.append(os.environ['PWD'])
 from commune.utils import dict_put, get_object, dict_has
 from commune import Module
 import streamlit as st
+from commune.web3.contract.pythonic_contract_wrapper import PythonicContractWrapper
 
 
 class ContractManagerModule(Module):
@@ -271,7 +272,7 @@ class ContractManagerModule(Module):
         is_contract = isinstance(self.contract2address.get(contract), str)
         return bool(is_address or is_contract)
 
-    def get_contract(self,contract=None , web3=None, account=None, version=-1):
+    def get_contract(self,contract=None , web3=None, account=None, version=-1, pythonic=True):
         web3 = self.resolve_web3(web3)
         account = self.resolve_account(account)
         
@@ -294,7 +295,11 @@ class ContractManagerModule(Module):
       
 
         contract_artifact = self.get_artifact(contract_path)
-        return web3.eth.contract(address=contract_address, abi=contract_artifact['abi'])
+        contract = web3.eth.contract(address=contract_address, abi=contract_artifact['abi'])
+        if pythonic:
+            contract = PythonicContractWrapper(contract=contract, account = self.account)
+        
+        return contract
         
 
     @property
@@ -419,9 +424,17 @@ class ContractManagerModule(Module):
         
         self.set_network('local.main')
 
-        contract_address = self.deploy_contract(contract='token.ERC20.ModelToken',new=True)
-        contract = self.get_contract(contract_address)
-        st.write(contract.functions.balanceOf(self.account.address).call())
+        contract_address = self.deploy_contract(contract='token.ERC20.ModelToken',new=False)
+        st.write(contract_address)
+        import web3
+
+        contract = PythonicContractWrapper(self.get_contract(contract_address), account=self.account)
+        st.write(contract.add_stake(value=1000))
+        # st.write(self.account.send_contract_tx(fn = contract.functions.add_stake(), value=10000))
+
+
+    
+
 if __name__ == '__main__':
     ContractManagerModule.streamlit()
 

@@ -109,7 +109,7 @@ class AccountModule(Module):
         # update the transaction count for the self.account address in time.
         # So we have to manage this internally per self.account address.
         if address not in AccountModule._last_tx_count:
-            AccountModule._last_tx_count[address] = web3.eth.get_transaction_count(address)
+            AccountModule._last_tx_count[address] = self.web3.eth.get_transaction_count(address)
         else:
             AccountModule._last_tx_count[address] += 1
 
@@ -137,11 +137,42 @@ class AccountModule(Module):
 
             tx["gasPrice"] = gas_price
 
+
         signed_tx = self.web3.eth.account.sign_transaction(tx, self.private_key)
         logger.debug(f"Using gasPrice: {gas_price}")
         logger.debug(f"`AccountModule` signed tx is {signed_tx}")
         return signed_tx.rawTransaction
 
+    @property
+    def nonce(self):
+        return self.web3.eth.get_transaction_count(self.address)
+
+    @property
+    def tx_metadata(self):
+        return {
+        'from': self.address,
+        'nonce': self.nonce,
+        'gasPrice':self.web3.eth.generate_gas_price(),
+        }
+    def send_contract_tx(self, fn, value=0):
+        tx_metadata = self.tx_metadata
+        tx_metadata['value'] = value
+
+        st.write('bro')
+        st.write(dir(fn))
+
+        tx = fn.buildTransaction(
+            tx_metadata
+        )
+        st.write(tx)
+        return self.send_tx(tx)
+    def send_tx(self, tx):
+        
+        st.write(tx, 'tx bro')
+        rawTransaction = self.sign_tx(tx=tx)        
+        # 7. Send tx and wait for receipt
+        tx_hash = self.web3.eth.send_raw_transaction(rawTransaction)
+        tx_receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
 
     @staticmethod
     def python2str(message):
