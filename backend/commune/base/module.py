@@ -6,6 +6,7 @@ import os
 import subprocess, shlex
 import ray
 import torch
+import gradio as gr
 import socket
 import json
 from importlib import import_module
@@ -1076,7 +1077,59 @@ class Module:
     @classmethod
     def run_streamlit(cls, port=8501):
         filepath = cls.get_module_filepath(include_pwd=False)
-        cls.run_command(f'streamlit run {filepath} --server.port={port} -- -fn=streamlit_2')
+        cls.run_command(f'streamlit run {filepath} --server.port={port} -- -fn=streamlit')
+
+
+    @classmethod
+    def gradio(cls):
+        functions, names = [], []
+
+        fn_map = {
+            'fn1': lambda x :  int(x),
+            'fn2': lambda x :  int(x) 
+        }
+
+        for fn_name, fn in fn_map.items():
+            inputs = [gr.Textbox(label='input', lines=3, placeholder=f"Enter here...")]
+            outputs = [gr.Number(label='output', precision=None)]
+            names.append(fn_name)
+            functions.append(gr.Interface(fn=fn, inputs=inputs, outputs=outputs))
+        
+        return gr.TabbedInterface(functions, names)
+
+
+
+
+    @classmethod
+    def run_gradio(cls, port=8501, host='0.0.0.0'):
+        filepath = cls.get_module_filepath(include_pwd=False)
+        interface = cls.gradio()
+ 
+        interface.launch(server_port=port,
+                        server_name=host,
+                        inline= False,
+                        share= None,
+                        debug=False,
+                        enable_queue= None,
+                        max_threads=10,
+                        auth= None,
+                        auth_message= None,
+                        prevent_thread_lock= False,
+                        show_error= True,
+                        show_tips= False,
+                        height= 500,
+                        width= 900,
+                        encrypt= False,
+                        favicon_path= None,
+                        ssl_keyfile= None,
+                        ssl_certfile= None,
+                        ssl_keyfile_password= None,
+                        quiet= False)
+        
+
+
+
+
 
     @classmethod
     def run_python(cls):
@@ -1457,13 +1510,7 @@ class Module:
     def streamlit(cls):
         st.write(f'HELLO from {cls.__name__}')
 
-    @classmethod
-    def streamlit_2(cls):
-        st.write(f'HELLO from {cls.__name__} 2 BROO')
-    @classmethod
-    def gradio(cls):
-        raise NotImplemented('Please Implement Gradio')
-        
+
     @classmethod
     def run(cls): 
         input_args = cls.argparse()
