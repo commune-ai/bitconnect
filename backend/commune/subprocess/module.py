@@ -17,6 +17,9 @@ class SubprocessModule(BaseModule):
         BaseModule.__init__(self, config=config)
         self.subprocess_map_path = self.cache_path
 
+        self.cache = self.get_json('cache', default={})
+        
+
 
 
     def __reduce__(self):
@@ -24,12 +27,15 @@ class SubprocessModule(BaseModule):
         serialized_data = (self.config,)
         return deserializer, serialized_data
 
-    def submit(command):
+    def submit(self,command):
         return self.run_command(command)
     
     @property
     def subprocess_map(self):
-        self.load_cache()
+        self.cache = self.get_json('cache')
+        
+        # for k in self.cache.keys():
+        #     print(k)
         return self.cache
 
     def rm_subprocess(self, key):
@@ -40,7 +46,6 @@ class SubprocessModule(BaseModule):
         except ProcessLookupError:
             pass
         self.pop_cache(key)
-        
         return pid
 
     rm = rm_subprocess
@@ -73,7 +78,6 @@ class SubprocessModule(BaseModule):
     submit = add = add_subprocess  
     
     def ls(self):
-        self.load_state()
         return list(self.subprocess_map.keys())
 
     ls_keys = list_keys = list = ls
