@@ -487,8 +487,8 @@ class GradioModule(commune.Module):
         kwargs["port"] = kwargs.pop('port', self.suggest_port()) 
         if kwargs["port"] == None:
             return {'error': 'Ports might be full'}
-        kwargs["server_port"] = kwargs.pop('port')
-        kwargs['server_name'] = self.host
+        kwargs["server_port"] = 7865
+        kwargs['server_name'] = '0.0.0.0'
         
         default_kwargs = dict(
                         inline= False,
