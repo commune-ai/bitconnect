@@ -75,12 +75,22 @@ class AccountModule(Module):
         return self.account._private_key
         
     def set_account(self, private_key=None):
-        private_key = os.getenv(private_key, private_key) if isinstance(private_key, str) else None
-        if private_key == None:
-            private_key = self.config.get('private_key', None)
-        import streamlit as st
-        st.write(private_key, 'PRIVATE_KEY')
-        assert isinstance(private_key, str), type(private_key)
+        if isinstance(private_key, int):
+            index = private_key
+            private_key = list(self.accounts.keys())[i]
+        elif isinstance(private_key, str):
+            if isinstance(self.accounts, dict) \
+                and private_key in self.accounts.keys():
+                private_key = self.accounts[private_key]
+            else:
+                private_key = os.getenv(private_key, private_key) if isinstance(private_key, str) else None
+                if private_key == None:
+                    private_key = self.config.get('private_key', None)
+
+        
+        assert isinstance(private_key, str), f'private key should be string but is {type(private_key)}'
+
+
         self.account = Account.from_key(private_key)
         return self.account
 
@@ -134,7 +144,6 @@ class AccountModule(Module):
             if gas_price and max_gas_price:
                 gas_price = min(gas_price, max_gas_price)
 
-
             tx["gasPrice"] = gas_price
 
 
@@ -154,18 +163,16 @@ class AccountModule(Module):
         'nonce': self.nonce,
         'gasPrice':self.web3.eth.generate_gas_price(),
         }
-    def send_contract_tx(self, fn, value=0):
+    def send_contract_tx(self, fn , value=0):
         tx_metadata = self.tx_metadata
         tx_metadata['value'] = value
-
-        st.write('bro')
-        st.write(dir(fn))
 
         tx = fn.buildTransaction(
             tx_metadata
         )
-        st.write(tx)
-        return self.send_tx(tx)
+
+        tx =  self.send_tx(tx)
+        return tx
     def send_tx(self, tx):
         
         st.write(tx, 'tx bro')
@@ -173,6 +180,8 @@ class AccountModule(Module):
         # 7. Send tx and wait for receipt
         tx_hash = self.web3.eth.send_raw_transaction(rawTransaction)
         tx_receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+
+        return tx_receipt.__dict__
 
     @staticmethod
     def python2str(message):
@@ -268,6 +277,10 @@ class AccountModule(Module):
             raise NotImplemented
 
         return balance
+
+    @property
+    def accounts(self):
+        return self.config.get('accounts', [])
         
 
     @classmethod
@@ -275,11 +288,17 @@ class AccountModule(Module):
         st.write(f'### {cls.__name__}')
         self = cls.deploy(actor={'refresh': False}, wrap=True)
         st.write(self.hash({'bro'}))
-
         st.write(self.account)
 
+        
+    def gradio(self):
+        pass
         # st.write(self)
+    # def app_run(self):
+
 
 if __name__ == '__main__':
     AccountModule.streamlit()
-     
+    # module.gradio()
+
+

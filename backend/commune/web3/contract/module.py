@@ -26,7 +26,6 @@ class ContractManagerModule(Module):
     def address(self):
         return self.contract.address
 
-
     @property
     def function_abi_map(self):
         return {f_abi['name']:f_abi for f_abi in self.abi}
@@ -34,6 +33,10 @@ class ContractManagerModule(Module):
     def function_names(self):
         return list(self.function_abi_map.keys())
 
+
+    @property
+    def accounts(self):
+        return self.account.accounts
 
     def call(self, function, args=[]):
         if len(args) == 0:
@@ -408,32 +411,24 @@ class ContractManagerModule(Module):
     def streamlit(cls):
         import ray
         st.write("## "+cls.__name__)
-        # cls.init_ray()
-        # cls.ray_initialized()
+        ContractManagerModule.run_python()
 
-        network = dict(module='web3.network', actor=True, wrap=True)
-        account = dict(module='web3.account', actor=True, wrap=True)
+        # self =  ContractManagerModule.deploy(actor=False, wrap=True)
+        # self.set_network('local.main')
+        # contract_address = self.deploy_contract(contract='token.ERC20.ModelToken',new=True)
+        # st.write(contract_address)
+        # contract = PythonicContractWrapper(self.get_contract(contract_address), account=self.account)
+        # demo_accounts = [Module.launch('web3.account', args=[a]) for a in ['a', 'b', 'c', 'd']]
+        # contract.add_stake(tx={'value': 100000})
+        # contract.remove_stake(10000)
+
+        # st.write(contract.set_votes([100]*len(demo_accounts), [a.address for a in demo_accounts]))
+        # st.write(contract.dev2state(self.account.address))
+        # st.write(self.accounts)
 
 
-        # # st.write(Module.list_modules())
-
-
-        # import torch
-
-        self =  ContractManagerModule.deploy(actor=False, wrap=True)
-        
-        self.set_network('local.main')
-
-        contract_address = self.deploy_contract(contract='token.ERC20.ModelToken',new=False)
-        st.write(contract_address)
-        import web3
-
-        contract = PythonicContractWrapper(self.get_contract(contract_address), account=self.account)
-        st.write(contract.add_stake(value=1000))
         # st.write(self.account.send_contract_tx(fn = contract.functions.add_stake(), value=10000))
 
-
-    
 
 if __name__ == '__main__':
     ContractManagerModule.streamlit()

@@ -107,18 +107,18 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
 
 
     function remove_stake(uint256 stake) public  returns (uint256){
-        if (stake  >= dev2state[msg.sender].stake) {
-            stake = dev2state[msg.sender].stake;
-        }
-        (bool success, ) = msg.sender.call{value: stake}("");
-        dev2state[msg.sender].stake = dev2state[msg.sender].stake - stake;
-        require(success, "transaction failed");
+        // if (stake  >= dev2state[msg.sender].stake) {
+        //     stake = dev2state[msg.sender].stake;
+        // }
+        // (bool success, ) = msg.sender.call{value: stake}("");
+        // dev2state[msg.sender].stake = dev2state[msg.sender].stake - stake;
+        // require(success, "transaction failed");
 
-        if (dev2state[msg.sender].stake == 0) {
-            delete dev2state[msg.sender].stake;
-        } 
+        // if (dev2state[msg.sender].stake == 0) {
+        //     delete dev2state[msg.sender].stake;
+        // } 
  
-        return msg.sender.balance;
+        return dev2state[msg.sender].stake;
         
     }
 
@@ -136,7 +136,7 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
     function set_votes(uint256[] memory votes,  address[] memory to_devs) public {
         
         require(votes.length == to_devs.length, 'votes and devs have to be same length bro');
-        require(votes.length>PERCENT_BASE, 'the size of you voters is too big fam');
+        require(votes.length<PERCENT_BASE, 'the size of you voters is too big fam');
         require(dev2state[msg.sender].stake>0, 'you need to stake greater than 0');
 
         uint256 total_votes = 0;
