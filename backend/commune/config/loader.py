@@ -83,9 +83,11 @@ class ConfigLoader:
             config_path = config_path.replace(f'.{file_type}', '')
         config_path = config_path.replace(".", "/")
 
+
+        print('DEBUG', config_path)
         if self.root != config_path[:len(self.root)]:
             config_path =  os.path.join(self.root,config_path)
-        
+            
         if os.path.isdir(config_path):
             config_path = os.path.join(config_path,'module.yaml')
 

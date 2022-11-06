@@ -1,0 +1,18 @@
+module: 'DatasetModule'
+
+client: {}
+
+dataset:
+  path: datasets.load_dataset
+  params:
+    path: wikitext
+    name: wikitext-103-v1
+    split: [test, 'train']
+  text_field: text
+  min_token_length: 10
+
+actor:
+  name: local_copy(module)
+  refresh: False
+  resources: {num_cpus: 1.0}
+

@@ -151,13 +151,13 @@ networks:
         infura: https://polygon-mumbai.infura.io/v3/$WEB3_INFURA_PROJECT_ID
       explorer: https://api-testnet.polygonscan.com/api
       multicall2: "0x6842E0412AC1c00464dc48961330156a07268d14"
-  # local:
-  #   main:
-  #     chainid: 1337
-  #     url:
-  #       ganache: http://ganache:8545
-  #     explorer: null
-  #     multicall2: null
+  local:
+    main:
+      chainid: 1337
+      url:
+        ganache: http://ganache:8545
+      explorer: null
+      multicall2: null
   skale:
     test:
       url:

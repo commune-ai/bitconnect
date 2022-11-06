@@ -8,7 +8,7 @@ from commune.utils import dict_put, get_object, dict_has
 from commune import Module
 import streamlit as st
 from commune.web3.contract.pythonic_contract_wrapper import PythonicContractWrapper
-
+import gradio
 
 class ContractManagerModule(Module):
     def __init__(self, config=None, contract=None, network=None, account=None, compile=True, **kwargs):
@@ -400,8 +400,6 @@ class ContractManagerModule(Module):
             contract_path = path
         else:
             contract_path = self.contract2path.get(path, None)
-
-        st.write(path)
         assert contract_path in self.contract_paths
         return contract_path
 
@@ -414,25 +412,28 @@ class ContractManagerModule(Module):
 
 
     @classmethod
+    def gradio(cls):
+        self =  ContractManagerModule.deploy(actor=False, wrap=True)
+        self.set_network('local.main')
+        self.set_account('bob')
+        contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=False)
+        return contract.gradio()
+
+
+    @classmethod
     def streamlit(cls):
         import ray
         st.write("## "+cls.__name__)
+        ContractManagerModule.new_event_loop()
 
         self =  ContractManagerModule.deploy(actor=False, wrap=True)
-        self.set_network('skale.test')
-        st.write(self.network.url)
-        self.set_account('alice')
+        self.set_network('local.main')
+        self.set_account('bob')
         contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=True)
-        
-        demo_accounts = {a:Module.launch('web3.account', args=[a]) for a in ['a', 'b', 'c', 'd']}
-        contract.mint(self.account.address, 1000000)
-        contract.approve( contract.address, 1000000)
-        contract.add_stake(100000)
-        contract.remove_stake(10000)
-        st.write(contract.set_votes([100]*len(demo_accounts), [a.address for a in demo_accounts.values()]))
-        st.write(contract.dev2state(self.account.address))
-        st.write(self.accounts)
-        # st.write(self.account.send_contract_tx(fn = contract.functions.add_stake(), value=10000))
+        gradio_inferface  = self.contract2gradio(contract)
+
+        st.write(gradio_inferface)
+
 
 if __name__ == '__main__':
     ContractManagerModule.run()

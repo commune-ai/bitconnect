@@ -62,3 +62,7 @@ gradio_client:
 
 sync:
 	git submodule sync --recursive
+
+
+gradio:
+	docker exec -it backend bash -c "python commune/${arg}/module.py -fn=run_gradio "

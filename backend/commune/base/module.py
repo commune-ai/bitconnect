@@ -518,6 +518,8 @@ class Module:
         try:
             module_class =  cls.import_object(cls.simple2path(module))
         except Exception as e:
+            module_class =  cls.import_object(cls.simple2path(module))
+
             module_class = cls.import_object(module)
 
 
@@ -585,15 +587,19 @@ class Module:
 
     @classmethod
     def get_config_path(cls, simple=False):
-        config_path = cls.get_module_path(simple=simple)
+        config_path = os.path.join(os.getenv('PWD'), cls.get_module_path(simple=simple))
+
         if simple == False:
             config_path = config_path.replace('.py', '.yaml')
         return config_path
 
     def resolve_config(self, config, override={}, recursive=True ,return_munch=False, **kwargs):
         
+
+
         if config == None:
-            config_path =  self.get_config_path()
+            config_path =  os.path.join(os.getenv('PWD'), self.get_config_path())
+            print(config_path, 'CONFIG')
             assert type(config_path) in [str, dict, Munch], f'CONFIG type {type(config)} no supported'
             config = self.load_config(config=config_path, 
                                 override=override, 
@@ -643,7 +649,7 @@ class Module:
                                       cfg=config)
     @classmethod
     def default_cfg(cls, *args,**kwargs):
-        return cls.config_loader.load(path=cls.get_config_path(),*args, **kwargs)
+        return cls.config_loader.load(path=os.path.join(os.getenv('PWD'), cls.get_config_path()),*args, **kwargs)
 
     default_config = default_cfg
     config_template = default_cfg

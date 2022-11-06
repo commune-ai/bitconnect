@@ -170,7 +170,7 @@ class DiffuserModule(Module):
                 image.save(f'{base_save_path}_{i}{ext}')
 
                 
-        return images
+        return images[0]
 
     def predict_img2img(self, 
         prompt,
@@ -196,7 +196,7 @@ class DiffuserModule(Module):
                 base_save_path, ext = os.path.splittext(save_path)
                 image.save(f'{base_save_path}_{i}{ext}')
 
-        return images
+        return self.image_to_np(images)
 
     def image_to_np(self, image: Image) -> bytes:
         buf = io.BytesIO()
@@ -204,11 +204,37 @@ class DiffuserModule(Module):
         byte_im = buf.getvalue()
         return byte_im
 
+    @classmethod
+    def gradio(cls):
+        self = cls.deploy(actor={'refresh': False, 'resources': {'num_cpus': 2, 'num_gpus': 0.3}}, wrap=True)
+
+        import gradio 
+        functions, names = [], []
+
+        fn_map = {}
+
+        img_dims = 256
+        fn_map['txt2image'] = {'fn': lambda text, steps : self.predict_txt2img(text, inf_steps=steps, height=img_dims, width=img_dims)[0], 
+                        'inputs':[gradio.Textbox(label=f'Text', lines=3, placeholder=f"Elon Musk"),
+                                  gradio.Slider(label='Steps', minimum=1, maximum=1000 )],
+                        'outputs':[gradio.Pil(label='output', shape=(img_dims, img_dims))]}
+
+
+        for fn_name, fn_obj in fn_map.items():
+            inputs = fn_obj.get('inputs', [])
+            outputs = fn_obj.get('outputs',[])
+            fn = fn_obj['fn']
+            names.append(fn_name)
+            functions.append(gradio.Interface(fn=fn, inputs=inputs, outputs=outputs))
+        
+        return gradio.TabbedInterface(functions, names)
+
+
+
     @staticmethod
     def streamlit():
         
-        module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_cpus': 2, 'num_gpus': 0.6}}, wrap=True)
-
+        module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_cpus': 2, 'num_gpus': 0.4}}, wrap=True)
 
         with st.form('Prompt'):
             # text = st.input_text('Input Text', 'd')
@@ -222,14 +248,17 @@ class DiffuserModule(Module):
                 submitted = st.form_submit_button("Sync")
 
                 if submitted:
-                    img = module.image_to_np(module.predict_txt2img(text,inf_steps=steps,  height=dims, width=dims)[0])
+                    img = module.image_to_np(module.predict_txt2img(text,inf_steps=steps,  height=dims, width=dims))
                 else:
                     img = np.zeros([dims,dims])
                 
                 st.image(img)
+
+
+    
     
     
 if __name__ == '__main__':
 
-    DiffuserModule.streamlit()
+    DiffuserModule.run()
     

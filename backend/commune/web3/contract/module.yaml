@@ -5,11 +5,9 @@ module: ContractManagerModule
 network:
   module: web3.network
   kwargs:
-
     network: skale.test
   actor: False
   wrap: False
-
 
 account:
   module: web3.account
@@ -18,9 +16,6 @@ account:
   actor:  False
   wrap: False
 
-
 client: [local]
-
-
 
 

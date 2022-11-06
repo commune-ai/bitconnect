@@ -1,5 +1,9 @@
 module: ModelContract
 
+network: skale.test 
+
+account: alice
+
 clients: [local]
 
 

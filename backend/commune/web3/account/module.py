@@ -175,7 +175,6 @@ class AccountModule(Module):
         return tx
     def send_tx(self, tx):
         
-        st.write(tx, 'tx bro')
         rawTransaction = self.sign_tx(tx=tx)        
         # 7. Send tx and wait for receipt
         tx_hash = self.web3.eth.send_raw_transaction(rawTransaction)
@@ -287,14 +286,13 @@ class AccountModule(Module):
     def streamlit(cls):
         st.write(f'### {cls.__name__}')
         self = cls.deploy(actor={'refresh': False}, wrap=True)
-        st.write(self.hash({'bro'}))
-        st.write(self.account)
 
+
+    def replicate(self, private_key, web3=None):
+        return AccountModule(private_key=private_key, web3=self.web3)
         
-    def gradio(self):
-        pass
-        # st.write(self)
-    # def app_run(self):
+
+
 
 
 if __name__ == '__main__':

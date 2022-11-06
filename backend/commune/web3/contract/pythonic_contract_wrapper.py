@@ -1,6 +1,7 @@
 from functools import partial
 import web3 
 import streamlit as st
+import gradio
 
 class PythonicContractWrapper:
     def __init__(self, contract, account=None):
@@ -8,7 +9,6 @@ class PythonicContractWrapper:
         for k,v in contract.__dict__.items():
             setattr(self, k, v)
         self.set_account(account)
-        # st.write(self.account)
         self.parse()
     
     def set_account(self, account=None):
@@ -27,7 +27,6 @@ class PythonicContractWrapper:
                     return fn(*args, **kwargs).call()
             elif fn_dict['stateMutability'] in ['payable', 'nonpayable']:
                 def wrapped_fn(self,fn_name, *args,tx={}, **kwargs):
-                    st.write(args, kwargs, 'FACK')
                     value = tx.pop('value', 0)
                     fn  = getattr(self.functions, fn_name)
                     return self.account.send_contract_tx(fn(*args, **kwargs), value=value)
@@ -63,6 +62,47 @@ class PythonicContractWrapper:
     @property
     def function_names(self):
         return list(self.function_schema.keys())
+
+
+    def parser(self,  type=None, label=None):
+        assert not type == None, "there should be a type to infer a gradio component"
+        return {
+            'string' : gradio.Textbox(label=label, lines=3, placeholder=f"Enter {label} here..."),
+            'address': gradio.Textbox(label=label, lines=1, placeholder="0x0000000000000000000000000000000000000000"),
+            'bytes'  : gradio.Textbox(label=label, lines=1, placeholder="bytes"),
+            'uint256': gradio.Number(label=label, precision=None),
+            'uint8'  : gradio.Number(label=label, precision=int),
+            'bool'   : gradio.Checkbox(label=label)
+        }[type]
+
+    def package(self, inputs=[], outputs=[]):
+        
+        return ([self.parser(input['type'], "input" if input['name'] == "" else input['name']) for input in inputs], gradio.JSON(label="output") if outputs.__len__() > 0 else outputs)
+
+
+
+
+    def gradio(self):
+        import gradio
+
+        
+        fn, names = [], []
+        abi = self.functions.abi
+        for fn_name, fn_obj in self.function_schema.items():
+            if fn_obj['type'] != 'function':
+                continue 
+
+            try:
+                st.write(fn_obj)
+                inp, out = self.package(fn_obj["inputs"], fn_obj["outputs"] if "outputs" in fn_obj else [])
+            except KeyError:
+                continue
+            names.append(fn_name )
+            fn.append(gradio.Interface(fn=getattr(self,fn_name), inputs=inp, outputs=out,))
+
+        interface = gradio.TabbedInterface(fn, names)
+
+        return interface
 
 
             

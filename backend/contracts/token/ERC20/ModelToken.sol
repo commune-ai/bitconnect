@@ -50,7 +50,7 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
     constructor(string memory name_, string memory symbol_) {
         _name = name_;
         _symbol = symbol_;
-        _mint(msg.sender, 1000000000 );
+        // _mint(msg.sender, 1000000000 );
     }
 
     /**
@@ -60,9 +60,10 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
         return _name;
     }
 
+
     // addes stake to model
 
-    function  has_dev(address dev) public view returns(bool){
+    function  is_dev(address dev) public view returns(bool){
         bool has_dev_bool;
         for (uint i=0; i<devs.length; i++) {
             if (devs[i] == dev) {
@@ -84,7 +85,7 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
 
     function _ensure_dev(address dev) internal {
         // push dev to devs if it doesnt exist
-        if (!has_dev(dev)) {
+        if (!is_dev(dev)) {
             devs.push(dev);
         }
     }
@@ -97,9 +98,32 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
         _ensure_dev(msg.sender);
     }
 
+    uint256 public  TOKENS_PER_CALL = 1
+    mapping(address=>uint256) public users2calls;
+
+    function set_tokens_per_call(uint256 ratio) returns (uint256){
+        
+        TOKENS_PER_CALL = ratio
+        return TOKENS_PER_CALL 
+    }
+
+    function bill_user_per_call(address user ) {
+        requre(_balances[user] > TOKENS_PER_CALL)
+        transferFrom(msg.sender, address(this), TOKENS_PER_CALL)
+        users2call_allowance[msg.sender] += num_calls
+    }
+
+    
     function get_stake(address user) public view returns(uint256){
         return dev2state[user].stake;
     }
+
+    function get_score(address user) public view returns(uint256){
+        return dev2state[user].score;
+    }
+
+
+
 
     // function get_votes(address user) public view returns(uint256){
     //     return dev2state[user].vote;
@@ -144,27 +168,37 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
         require(votes.length<PERCENT_BASE, 'the size of you voters is too big fam');
         require(dev2state[msg.sender].stake>0, 'you need to stake greater than 0');
 
-        uint256 total_votes = 0;
-        for (uint i; i<votes.length; i++) {
-            total_votes = total_votes + votes[i];
-        }
-
+        uint256 total_score = 0;
         uint256 current_score;
         uint256 previous_score;
         address voter = msg.sender;
         address dev;
+
+        uint256 adjusted_total_score = 0;
         for (uint i; i<votes.length; i++) {
             dev = to_devs[i];
             previous_score = dev2state[dev].score;
-            current_score = (votes[i] * dev2state[msg.sender].stake * PERCENT_BASE / total_votes) ;
+            current_score = (votes[i] * dev2state[msg.sender].stake * PERCENT_BASE) ;
 
             // moving average from previous score
             dev2state[dev].score += ((current_score * ALPHA + previous_score * (PERCENT_BASE - ALPHA) ) / PERCENT_BASE);
             dev2state[dev].block_number =  block.number;
+            total_score += dev2state[dev].score;
+
+        }
+        for (uint i; i<votes.length; i++) {
+            dev = to_devs[i];
+            dev2state[dev].score = (dev2state[dev].score*PERCENT_BASE)/(total_score);
             voter2dev_vote_map[voter][dev] = VoteState({block_number: block.number, 
                                                         score: dev2state[dev].score });
+
+
+            
+
+            
             _ensure_dev(dev);
         }
+
     }
     /**
      * @dev Returns the symbol of the token, usually a shorter version of the
@@ -264,7 +298,7 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
         uint256 amount
     ) public virtual override returns (bool) {
         address spender = _msgSender();
-        _spendAllowance(from, spender, amount);
+        // _spendAllowance(from, spender, amount);
         _transfer(from, to, amount);
         return true;
     }
@@ -446,7 +480,7 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
         address owner,
         address spender,
         uint256 amount
-    ) internal virtual {
+    ) public virtual {
         uint256 currentAllowance = allowance(owner, spender);
         if (currentAllowance != type(uint256).max) {
             require(currentAllowance >= amount, "ERC20: insufficient allowance");
