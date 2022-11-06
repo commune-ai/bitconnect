@@ -10,7 +10,7 @@ class BaseContract(Module):
     def setup_web3_env(self):
         self.contract_manager = self.launch('web3.contract', kwargs=dict(network=self.config['network']))
         self.contract_manager.set_account(self.config['account'])
-        self.contract = self.contract_manager.deploy_contract(self.config['contract']['name'], new=True)
+        self.contract = self.contract_manager.deploy_contract(self.config['contract']['name'], new=False)
         self.account = self.contract.account
         self.web3 = self.contract.web3
 
@@ -26,6 +26,11 @@ class BaseContract(Module):
     @property
     def address(self):
         return self.account.address
+
+    def set_account(self, account):
+        self.account.set_account(account)
+        return self.account.address
+
 
     def add_stake(self, amount, account = None):
         account = self.resolve_account(account)
@@ -153,9 +158,9 @@ class BaseContract(Module):
                         'outputs':[gradio.Label(label='peer scores', value={}, show_label=True)]}
         
 
-        fn_map['fn2'] = {'fn': lambda x : int(x), 
-                        'inputs':[gradio.Textbox(label=f'input_{i}', lines=3, placeholder=f"Enter here...") for i in range(2)],
-                        'outputs':[gradio.Textbox(label='output', lines=3, placeholder=f"Enter here...")]}
+        fn_map['Set Account'] = {'fn': self.set_account, 
+                        'inputs':[gradio.Dropdown(label=f'Account Name', choices=list(self.peers.keys()), value='alice')],
+                        'outputs':[gradio.Textbox(label='Account Address', lines=1, placeholder=self.account.address)]}
 
 
 
