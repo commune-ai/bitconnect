@@ -1,10 +1,12 @@
 
 module: ContractManagerModule
 
+
 network:
   module: web3.network
   kwargs:
-    network: local.main
+
+    network: skale.test
   actor: False
   wrap: False
 

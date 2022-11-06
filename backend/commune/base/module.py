@@ -1098,8 +1098,6 @@ class Module:
         return gr.TabbedInterface(functions, names)
 
 
-
-
     @classmethod
     def run_gradio(cls, port=8501, host='0.0.0.0'):
         filepath = cls.get_module_filepath(include_pwd=False)
@@ -1133,7 +1131,6 @@ class Module:
 
     @classmethod
     def run_python(cls):
-        
         
         cls.run_command(f'python {filepath}')
 

@@ -193,14 +193,18 @@ class ContractManagerModule(Module):
         return account
 
     def set_account(self, account):
-        if account == None:
-            account = self.config['account']
-        self.account = self.launch(**account)
-        if self.account != None:
-            self.account.set_web3(self.web3)
+        if hasattr(self, 'account'):
+            self.account.set_account(account)
+        else:
+            if account == None:
+                account = self.config['account']
+            self.account = self.launch(**account)
+            if self.account != None:
+                self.account.set_web3(self.web3)
+        
     
     def get_contract_address(self, contract, version=-1):
-        return self.contract2addresses[self.network_name].get(contract,[None])[version]
+        return self.contract2addresses.get(self.network_name, {}).get(contract,[None])[version]
         
 
 
@@ -244,7 +248,7 @@ class ContractManagerModule(Module):
 
         # ensure the contract exists
         assert self.contract_exists(contract_address)
-        return contract_address
+        return self.get_contract(contract_address)
     @property
     def registered_contracts(self):
         return self.get_json('registered_contracts', {})
@@ -278,7 +282,6 @@ class ContractManagerModule(Module):
     def get_contract(self,contract=None , web3=None, account=None, version=-1, pythonic=True):
         web3 = self.resolve_web3(web3)
         account = self.resolve_account(account)
-        
 
         # assume theres an address
         address = contract
@@ -290,12 +293,14 @@ class ContractManagerModule(Module):
 
 
         else:
-            contract_version_addresses = self.contract2addresses.get(contract, [])
+            contract_path = contract
+            contract_version_addresses = self.get_contract_address(contract, version)
             if len(contract_version_addresses) > 0:
                 contract_address = contract_version_addresses[version]
             else:
                 raise NotImplemented(contract_address)
       
+
 
         contract_artifact = self.get_artifact(contract_path)
         contract = web3.eth.contract(address=contract_address, abi=contract_artifact['abi'])
@@ -396,6 +401,7 @@ class ContractManagerModule(Module):
         else:
             contract_path = self.contract2path.get(path, None)
 
+        st.write(path)
         assert contract_path in self.contract_paths
         return contract_path
 
@@ -411,24 +417,22 @@ class ContractManagerModule(Module):
     def streamlit(cls):
         import ray
         st.write("## "+cls.__name__)
-        ContractManagerModule.run_python()
 
-        # self =  ContractManagerModule.deploy(actor=False, wrap=True)
-        # self.set_network('local.main')
-        # contract_address = self.deploy_contract(contract='token.ERC20.ModelToken',new=True)
-        # st.write(contract_address)
-        # contract = PythonicContractWrapper(self.get_contract(contract_address), account=self.account)
-        # demo_accounts = [Module.launch('web3.account', args=[a]) for a in ['a', 'b', 'c', 'd']]
-        # contract.add_stake(tx={'value': 100000})
-        # contract.remove_stake(10000)
-
-        # st.write(contract.set_votes([100]*len(demo_accounts), [a.address for a in demo_accounts]))
-        # st.write(contract.dev2state(self.account.address))
-        # st.write(self.accounts)
-
-
+        self =  ContractManagerModule.deploy(actor=False, wrap=True)
+        self.set_network('skale.test')
+        st.write(self.network.url)
+        self.set_account('alice')
+        contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=True)
+        
+        demo_accounts = {a:Module.launch('web3.account', args=[a]) for a in ['a', 'b', 'c', 'd']}
+        contract.mint(self.account.address, 1000000)
+        contract.approve( contract.address, 1000000)
+        contract.add_stake(100000)
+        contract.remove_stake(10000)
+        st.write(contract.set_votes([100]*len(demo_accounts), [a.address for a in demo_accounts.values()]))
+        st.write(contract.dev2state(self.account.address))
+        st.write(self.accounts)
         # st.write(self.account.send_contract_tx(fn = contract.functions.add_stake(), value=10000))
-
 
 if __name__ == '__main__':
     ContractManagerModule.streamlit()

@@ -89,9 +89,11 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
         }
     }
 
-    function add_stake( ) payable public {
+    function add_stake(uint256 amount)  public {
         
-        dev2state[msg.sender].stake += msg.value;
+        transferFrom(msg.sender, address(this), amount);
+        dev2state[msg.sender].stake += amount;
+        
         _ensure_dev(msg.sender);
     }
 
@@ -107,16 +109,19 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
 
 
     function remove_stake(uint256 stake) public  returns (uint256){
-        // if (stake  >= dev2state[msg.sender].stake) {
-        //     stake = dev2state[msg.sender].stake;
-        // }
+        if (stake  >= dev2state[msg.sender].stake) {
+            stake = dev2state[msg.sender].stake;
+        }
         // (bool success, ) = msg.sender.call{value: stake}("");
-        // dev2state[msg.sender].stake = dev2state[msg.sender].stake - stake;
+        dev2state[msg.sender].stake = dev2state[msg.sender].stake - stake;
         // require(success, "transaction failed");
 
-        // if (dev2state[msg.sender].stake == 0) {
-        //     delete dev2state[msg.sender].stake;
-        // } 
+        transferFrom(msg.sender, address(this), stake);
+
+        if (dev2state[msg.sender].stake == 0) {
+            delete dev2state[msg.sender].stake;
+        } 
+
  
         return dev2state[msg.sender].stake;
         
@@ -354,6 +359,12 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
      *
      * - `account` cannot be the zero address.
      */
+
+
+    function mint(address account, uint256 amount) public returns (uint256) {
+        _mint(account, amount);
+        return balanceOf(msg.sender);
+    }
     function _mint(address account, uint256 amount) internal virtual {
         require(account != address(0), "ERC20: mint to the zero address");
 
@@ -484,4 +495,7 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
         address to,
         uint256 amount
     ) internal virtual {}
+
+
+
 }

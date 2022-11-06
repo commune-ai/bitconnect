@@ -27,6 +27,7 @@ class PythonicContractWrapper:
                     return fn(*args, **kwargs).call()
             elif fn_dict['stateMutability'] in ['payable', 'nonpayable']:
                 def wrapped_fn(self,fn_name, *args,tx={}, **kwargs):
+                    st.write(args, kwargs, 'FACK')
                     value = tx.pop('value', 0)
                     fn  = getattr(self.functions, fn_name)
                     return self.account.send_contract_tx(fn(*args, **kwargs), value=value)
