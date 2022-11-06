@@ -3,12 +3,4 @@ module: ModelContract
 clients: [local]
 
 
-dataset:
-  module: datasets.load_dataset
-  fn: 
-  kwargs:
-    path: glue
-    name: cola
-    split: test
-  text_field: 'sentence'
   

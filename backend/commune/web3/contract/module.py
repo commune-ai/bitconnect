@@ -435,6 +435,6 @@ class ContractManagerModule(Module):
         # st.write(self.account.send_contract_tx(fn = contract.functions.add_stake(), value=10000))
 
 if __name__ == '__main__':
-    ContractManagerModule.streamlit()
+    ContractManagerModule.run()
 
  
