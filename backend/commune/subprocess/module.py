@@ -4,17 +4,17 @@
 import os, sys
 sys.path.append(os.environ['PWD'])
 import gradio
-from commune import BaseModule
+from commune import Module
 from commune.utils import *
 import shlex
 import subprocess
 import socket
 
-class SubprocessModule(BaseModule):
+class SubprocessModule(Module):
     subprocess_map = {}
     default_config_path =  'subprocess.module'
     def __init__(self, config=None, **kwargs):
-        BaseModule.__init__(self, config=config)
+        Module.__init__(self, config=config)
         self.subprocess_map_path = self.cache_path
 
         self.cache = self.get_json('cache', default={})
