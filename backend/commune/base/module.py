@@ -6,13 +6,16 @@ import os
 import subprocess, shlex
 import ray
 import torch
+import gradio as gr
 import socket
+import json
 from importlib import import_module
 from munch import Munch
 import types
 import inspect
 from commune.ray.utils import kill_actor
 from copy import deepcopy
+import argparse
 import psutil
 import asyncio
 from ray.experimental.state.api import list_actors, list_objects, list_tasks
@@ -185,14 +188,17 @@ class Module:
 
     cache = {}
 
-    @enable_cache()
     def put_cache(self, k, v, **kwargs):
+        self.cache = self.get_json('cache', default={})
         dict_put(self.cache, k, v)
+        self.cache = self.put_json('cache', self.cache)
+
     
 
-    @enable_cache()
     def get_cache(self, k, default=None, **kwargs):
+        self.cache = self.get_json('cache', default={})
         return dict_get(self.cache, k,default)
+
 
     @enable_cache(save= {'disable':True})
     def in_cache(self, k):
@@ -200,8 +206,10 @@ class Module:
     has_cache = in_cache
     @enable_cache()
     def pop_cache(self, k):
-        return dict_pop(self.cache, k)
-
+        self.cache = self.get_json('cache', default={})
+        item = dict_pop(self.cache, k)
+        self.cache = self.put_json('cache', self.cache)
+        return item
 
     del_cache = delete_cache = pop_cache 
 
@@ -242,7 +250,7 @@ class Module:
             path = path + extension
         return path
 
-    def get_json(self,path, default=None, **kwargs):
+    def get_json(self,path, default={}, **kwargs):
         path = self.resolve_path(path=path)
         try:
             data = self.client.local.get_json(path=path, **kwargs)
@@ -510,7 +518,8 @@ class Module:
     module_tree = module_list
 
     @classmethod
-    def launch_module(cls, module:str, fn:str=None ,kwargs:dict={}, actor=False, wrap=True, **additional_kwargs):
+    def launch_module(cls, module:str, fn:str=None ,kwargs:dict={}, args=[], actor=False, wrap=True, **additional_kwargs):
+        
         try:
             module_class =  cls.import_object(cls.simple2path(module))
         except Exception as e:
@@ -519,6 +528,7 @@ class Module:
 
         module_init_fn = fn
         module_kwargs = {**kwargs}
+        module_args = [*args]
 
         if module_init_fn == None:
             if actor:
@@ -535,17 +545,17 @@ class Module:
                 
 
                 actor['name'] = actor.get('name', default_actor_name )
-                module_object = cls.create_actor(cls=module_class, cls_kwargs=module_kwargs, **actor)
+                module_object = cls.create_actor(cls=module_class, cls_kwargs=module_kwargs, cls_args=module_args, **actor)
                 module_object.actor_name = actor['name']
                 if wrap == True: 
                     module_object = cls.wrap_actor(module_object)
             else:
-                module_object =  module_class(**module_kwargs)
+                module_object =  module_class(*module_args,**module_kwargs)
 
 
         else:
             module_init_fn = getattr(module_class,module_init_fn)
-            module_object =  module_init_fn(**module_kwargs)
+            module_object =  module_init_fn(*module_args, **module_kwargs)
 
 
         return module_object
@@ -765,7 +775,7 @@ class Module:
             init_kwargs = cls.default_ray_env
   
         if isinstance(init_kwargs, dict): 
-            init_kwargs =  {**cls.default_ray_env, **init_k}
+            init_kwargs =  {**cls.default_ray_env, **init_kwargs}
             if Module.ray_initialized() and reinit == True:
                 ray.shutdown()
 
@@ -789,6 +799,7 @@ class Module:
     def create_actor(cls,
                  name, 
                  cls_kwargs,
+                 cls_args =[],
                  detached=True, 
                  resources={'num_cpus': 1.0, 'num_gpus': 0},
                  max_concurrency=500,
@@ -830,7 +841,7 @@ class Module:
             
             try:
                 actor_class = ray.remote(cls)
-                actor_handle = actor_class.options(**options_kwargs).remote(**cls_kwargs)
+                actor_handle = actor_class.options(**options_kwargs).remote(*cls_args, **cls_kwargs)
             except ValueError:
                 pass
 
@@ -1055,12 +1066,89 @@ class Module:
 
 
     @classmethod
-    def get_module_filepath(cls, obj=None):
+    def get_module_filepath(cls, obj=None, include_pwd=True):
         if obj == None:
             obj = cls
-        return inspect.getfile(obj)
+        filepath = inspect.getfile(obj)
+        if not include_pwd:
+            filepath = cls.get_module_filepath().replace(os.getenv('PWD')+'/', '')
+        return filepath
 
-    
+
+    @classmethod
+    def fuck_you(cls):
+        print('FUCK YOU')
+
+    @classmethod
+    def run_streamlit(cls, port=8501):
+        filepath = cls.get_module_filepath(include_pwd=False)
+        cls.run_command(f'streamlit run {filepath} --server.port={port} -- -fn=streamlit')
+
+
+    @classmethod
+    def gradio(cls):
+        functions, names = [], []
+
+        fn_map = {
+            'fn1': lambda x :  int(x),
+            'fn2': lambda x :  int(x) 
+        }
+
+        for fn_name, fn in fn_map.items():
+            inputs = [gr.Textbox(label='input', lines=3, placeholder=f"Enter here...")]
+            outputs = [gr.Number(label='output', precision=None)]
+            names.append(fn_name)
+            functions.append(gr.Interface(fn=fn, inputs=inputs, outputs=outputs))
+        
+        return gr.TabbedInterface(functions, names)
+
+
+
+
+    @classmethod
+    def run_gradio(cls, port=8501, host='0.0.0.0'):
+        filepath = cls.get_module_filepath(include_pwd=False)
+        interface = cls.gradio()
+ 
+        interface.launch(server_port=port,
+                        server_name=host,
+                        inline= False,
+                        share= None,
+                        debug=False,
+                        enable_queue= None,
+                        max_threads=10,
+                        auth= None,
+                        auth_message= None,
+                        prevent_thread_lock= False,
+                        show_error= True,
+                        show_tips= False,
+                        height= 500,
+                        width= 900,
+                        encrypt= False,
+                        favicon_path= None,
+                        ssl_keyfile= None,
+                        ssl_certfile= None,
+                        ssl_keyfile_password= None,
+                        quiet= False)
+        
+
+
+
+
+
+    @classmethod
+    def run_python(cls):
+        cls.run_command(f'python {filepath}')
+
+    @classmethod
+    def argparse(cls):
+        parser = argparse.ArgumentParser(description='Gradio API and Functions')
+        parser.add_argument('-fn', '--function', dest='function', help='run a function from the module', type=str, default="streamlit")
+        parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='arguments to the function', type=str, default="{}")  
+        parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
+
+        return parser.parse_args()
+
 
 
 
@@ -1417,7 +1505,29 @@ class Module:
     def ray_wait( *jobs):
         finished_jobs, running_jobs = ray.wait(jobs)
         return finished_jobs, running_jobs
-
     @staticmethod
     def ray_put(*items):
         return [ray.put(i) for i in items]
+
+    @classmethod
+    def streamlit(cls):
+        st.write(f'HELLO from {cls.__name__}')
+
+
+    @classmethod
+    def run(cls): 
+        input_args = cls.argparse()
+        assert hasattr(cls, input_args.function), f'{input_args.function}'
+        kwargs = json.loads(input_args.kwargs)
+        assert isinstance(kwargs, dict)
+
+        args = json.loads(input_args.args)
+        assert isinstance(args, list)
+
+        getattr(cls, input_args.function)(*args, **kwargs)
+    
+
+
+if __name__ == '__main__':
+    Module.run()
+    st.write(Module.get_module_filepath().replace(os.getenv('PWD')+'/', ''))

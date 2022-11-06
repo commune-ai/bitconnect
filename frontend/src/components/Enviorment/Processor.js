@@ -13,6 +13,8 @@ import React ,{ useState,
                 useRef,
                 useEffect } from 'react';
 
+            
+import MessageHub from './Messages/Message';
 import Navbar from '../Navagation/navbar';
 import CustomEdge from '../Edges/Custom'
 import CustomLine from "../Edges/CustomLine.js";
@@ -46,6 +48,8 @@ export default function Processor() {
     const [reactFlowInstance, setReactFlowInstance] = useState(null);
     const reactFlowWrapper = useRef(null);
     const [tool, setTool] = useState(false)
+    const ref = useRef(null)
+
 
     // =======================
     // Changes
@@ -149,6 +153,11 @@ export default function Processor() {
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
     }, []);
+
+
+    const notify = () => {
+      ref.current?.("The Backend is currently setting up the application")
+    }
     
     const onDrop = useCallback(
       (event) => {
@@ -181,7 +190,8 @@ export default function Processor() {
                           host : `http://localhost:${data.port}`,
                           colour : `${style.colour}`,
                           emoji : `${style.emoji}`,
-                          delete : deleteNode },};
+                          delete : deleteNode,
+                          notification : notify },};
                   setNodes((nds) => nds.concat(newNode));
                   console.log(nodes)
                 })    
@@ -222,6 +232,7 @@ export default function Processor() {
                          fitView>
                 <Background variant='dots' size={1} className=" bg-white dark:bg-neutral-800"/>
                 <Controls/>
+                <MessageHub children={(add) => {ref.current = add}}/>
               </ReactFlow>
             </div>
           </ReactFlowProvider>

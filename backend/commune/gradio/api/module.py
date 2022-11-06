@@ -8,6 +8,8 @@ from commune import Module
 from inspect import getfile
 import inspect
 import socket
+from signal import SIGKILL
+from psutil import process_iter
 from commune.utils import *
 from copy import deepcopy
 # from commune.thread import PriorityThreadPoolExecutor
@@ -60,7 +62,7 @@ class GradioModule(commune.Module):
     def module2port(self):
         module2port = {}
         for port, module in self.port2module.items():
-            module2port[module ] = port
+            module2port[module] = port
         return module2port
 
     @property
@@ -68,7 +70,6 @@ class GradioModule(commune.Module):
         port2module = {}
         for k, v in self.subprocess_map.items():
             port2module[k] = v['module']
-
         return port2module
 
     @property
@@ -122,7 +123,6 @@ class GradioModule(commune.Module):
         for fn_key in GradioModule.get_funcs(self):
             if getattr(getattr(getattr(self,fn_key), '__decorator__', None), '__name__', None) == GradioModule.register.__name__:
                 return True
-
 
         return False
 
@@ -437,11 +437,12 @@ class GradioModule(commune.Module):
     def add(self,module:str, port:int, mode:str):
         print("DEBUG", module)
         module = self.resolve_module_path(module)
-        module = self.get_object(module).get_module_filepath() if mode == "streamlit" else module
+        module_filepath = self.get_object(module).get_module_filepath(include_pwd=False)
         print(module, __file__ , 'DEBUG')
+        print(module_filepath)
         command_map ={
-            'gradio':  f'python {__file__} --module={module} --port={port}',
-            'streamlit': f'streamlit run {module} --server.port={port}'
+            'gradio':  f'python {module_filepath} -fn=run_gradio -args="[{port}]"',
+            'streamlit': f'python {module_filepath} -fn=run_streamlit -args="[{port}]"'
         }
 
         command  = command_map[mode]
@@ -453,16 +454,22 @@ class GradioModule(commune.Module):
         }
     submit = add
 
+    def stdout(self, modules : list):
+        dict_stdout = {}
+
+        for simple, full in modules.items():
+            try:
+                dict_stdout[simple] = { 'gradio' : hasattr(self.get_object(full), 'gradio'), 'streamlit' : hasattr(self.get_object(full), 'streamlit') }
+            except Exception as e:
+                continue
+        return dict_stdout
+
     def resolve_module_path(self, module):
         simple2path = deepcopy(self.simple2path)
         module_list = list(simple2path.values())
 
-        print(module, simple2path.keys(), module in simple2path.keys())
-
         if module in simple2path.keys():
             module = simple2path[module]
-
-        print(module)
     
         assert module in module_list, f'{module} not found in {module_list}'
         return module
@@ -576,32 +583,24 @@ async def root():
 register = GradioModule.register
 
 
-@app.get("/list")
-async def module_list(path_map:bool=False, mode='simple'):
+@app.get("/test")
+async def test():
     module = GradioModule.get_instance()
-    if mode == 'full':
-        module_list = module.module_list
+    return module.stdout(module.module_list)
+
+@app.get("/list")
+async def module_list(mode='simple'):
+    module = GradioModule.get_instance()
+
+    # if mode == 'full':
+    #     module_list = module.module_list
+    if mode == "streamable":
+        module_list = module.stdout(module.simple2path) 
     elif mode == 'simple':
-        module_list = list(module.simple2path.keys()) 
-    elif mode == 'gradio':
-        module_list = []
-        for path in module.simple2path.keys():
-            try:
-                mod = module.resolve_module_path(path)
-                schema = module.get_gradio_function_schemas(mod, return_type='dict')
-                module_list.append(dict(path=path, read=True)) if schema else module_list.append(dict(path=path, read=False))
-            except Exception:   
-                module_list.append(dict(path=path, read=False))
-                continue
+        module_list = list(module.simple2path) 
     else:
         raise NotImplementedError()
-    if path_map:
-        module_path_map = {}
-        for module in module_list:
-            dict_put(module_path_map ,module.split('.')[:-1], module.split('.')[-1])
-        return module_path_map
-    else:
-        return module_list
+    return module_list
 
 @app.get("/simple2path")
 async def module_list(path_map:bool=False):
@@ -618,8 +617,6 @@ async def module_schemas():
 
 @app.get("/schema")
 async def module_schema(module:str, gradio:bool=True):
-
-
     if gradio:
         self = GradioModule.get_instance()
         module_schema = self.get_gradio_function_schemas(module, return_type='dict')
@@ -671,6 +668,18 @@ async def module2port( key:str='subprocess_map'):
     self = GradioModule.get_instance()
 
     return self.module2port
+
+@app.get('/kill_port')
+def portopen(port : int):
+    module = GradioModule.get_instance()
+    if module.port_connected(port):
+        for proc in process_iter():
+            for conns in proc.connections(kind='inet'):
+                if conns.laddr.port == port:
+                    proc.send_signal(SIGKILL) # or SIGKILL
+        return "Done"
+    else:
+        return "Port not on"
 
 
 if __name__ == "__main__":

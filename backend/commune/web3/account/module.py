@@ -12,6 +12,7 @@ from eth_account.messages import SignableMessage
 from hexbytes.main import HexBytes
 from web3.main import Web3
 import streamlit as st
+import gradio as gr
 from commune import Module
 from eth_account.messages import encode_defunct
 from ocean_lib.integer import Integer
@@ -241,14 +242,26 @@ class AccountModule(Module):
 
     @classmethod
     def streamlit(cls):
-        st.write(f'### {cls.__name__}')
-        self = cls.deploy(actor={'refresh': False}, wrap=True)
-        st.write(self.hash({'bro'}))
+        st.write("This is a test hello ")
+        # self = cls.deploy(actor={'refresh': False}, wrap=True)
+        # st.write(self.hash({'bro'}))
+        # st.write(self.account)
+    
+    @classmethod
+    def gradio(cls):
+        def update(name):
+            return f"Welcome to Gradio, {name}!"
 
-        st.write(self.account)
+        with gr.Blocks() as demo:
+            gr.Markdown("Start typing below and then click **Run** to see the output.")
+            with gr.Row():
+                inp = gr.Textbox(placeholder="What is your name?")
+                out = gr.Textbox()
+            btn = gr.Button("Run")
+            btn.click(fn=update, inputs=inp, outputs=out)
+        return demo
+    
+    
 
-        # st.write(self)
-
-if __name__ == '__main__':
-    AccountModule.streamlit()
-     
+if __name__ == "__main__":
+    AccountModule.run()

@@ -1,5 +1,5 @@
 down:
-	./start.sh --light
+	./start.sh --all --down
 stop:
 	make down
 up:
@@ -62,3 +62,10 @@ gradio_client:
 
 sync:
 	git submodule sync --recursive
+
+
+kill_api:
+	kill $(lsof -t -i:8080)
+
+api_logs:
+	docker exec -it backend bash -c "tail -f api.out"

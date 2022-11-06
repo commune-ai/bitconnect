@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from "react"
-import { Handle, Position } from "react-flow-renderer"
+import React, { useCallback, useEffect, useRef, useState } from "react"
+// import { Handle, Position } from "react-flow-renderer"
 import {TbResize} from 'react-icons/tb'
 import {BiCube, BiRefresh} from 'react-icons/bi'
 import {BsTrash} from 'react-icons/bs'
@@ -14,7 +14,7 @@ const MINIMUM_WIDTH = 540;
 
 export default function CustomNodeIframe({id, data}){
     const [collapsed, setCollapsible] = useState(true)
-    const [{x, y, width, height}, api] = useSpring(() => ({width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT }))
+    const [{width, height}, api] = useSpring(() => ({width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT }))
     const [sizeAdjuster, setSizeAdjuster] = useState(false)
     const [reachable ,setReachable] = useState(false)
     const [refresh, setRefresh] = useState(0)
@@ -39,13 +39,13 @@ export default function CustomNodeIframe({id, data}){
     });
 
 
-    const isFetchable = async () => {
+    const isFetchable = useCallback(async () => {
       return fetch(data.host, {mode: 'no-cors'}).then((res) => {
         return true
       }).catch((err)=>{
         return false
       })
-    }
+    },[data])
 
     const handelServerRender = async () => {
       const reach = await isFetchable()
@@ -68,13 +68,13 @@ export default function CustomNodeIframe({id, data}){
     <div className="w-10 h-10">
       
       <div id={'draggable'}className=" flex w-full h-10 top-0 cursor-pointer" onClick={() => {}}>
-      <div id={'draggable'} title={collapsed ? "Collaspse Node" : "Expand Node"} className=" flex-none duration-300 cursor-pointer shadow-xl border-2 border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Blue rounded-xl" onClick={ async () => {handelServerRender()}}><CgLayoutGridSmall className="h-full w-full text-white p-1"/></div>
+      <div id={'draggable'} title={collapsed ? "Collaspse Node" : "Expand Node"} className=" flex-none duration-300 cursor-pointer shadow-xl border-2 border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Blue rounded-xl" onClick={ async () => { await handelServerRender()}}><CgLayoutGridSmall className="h-full w-full text-white p-1"/></div>
 
       <div className={` flex ${!collapsed ? '' : 'w-0 hidden'}`}>
                       <div title="Adjust Node Size" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Violet rounded-xl" onClick={() => {setSizeAdjuster((size) => !size)}}><TbResize className="h-full w-full text-white p-1"/></div>
                       <a href={data.host} target="_blank" rel="noopener noreferrer"><div title="Gradio Host Site" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Pink rounded-xl"><BiCube className="h-full w-full text-white p-1"/></div></a>
                       <div title="Delete Node" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Red rounded-xl" onClick={() => data.delete([{id : id}])}><BsTrash className="h-full w-full text-white p-1"/></div>
-                      <div title="Refresh Node" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Orange rounded-xl" onClick={() => {setRefresh((old) => old++)}}><BiRefresh className="h-full w-full text-white p-1"/></div>
+                      <div title="Refresh Node" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Orange rounded-xl" onClick={() => {setRefresh(refresh++)}}><BiRefresh className="h-full w-full text-white p-1"/></div>
         </div>
       </div>
 
