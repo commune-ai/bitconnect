@@ -231,7 +231,8 @@ class Sandbox(Module):
             num_endpoints = 20,
             success_only= True,
             return_type='results',
-            splits=1
+            return_json = True,
+            splits=1, 
         ):
         # inputs = torch.zeros([batch_size, sequence_length], dtype=torch.int64)
         inputs = self.dataset.sample( batch_size=batch_size, sequence_length=sequence_length)
@@ -345,6 +346,9 @@ class Sandbox(Module):
             results_dict['code'] = torch.tensor([])
             results_dict['latency'] = torch.tensor([])
             results_dict['uid'] =  torch.tensor([])
+
+        if return_json:
+            results_dict = {k:v.to_list() for k,v in result_dict.items()}
 
         return results_dict
 
