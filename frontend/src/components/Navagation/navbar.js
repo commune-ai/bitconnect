@@ -65,35 +65,7 @@ export default class Navbar extends Component{
     //  * @param {*} e current menu 
     //  * @param {*} d integer variable of the diffence between the current menu and new menu updated ment
     //  */
-    // handelTabs = async (e, d) => {
-    //     // if less then 0 we must remove colour's and emoji's
-    //     // get index of the object
-    //     // remove
-    //     var c = []
-    //     var j = []
-    //     if (d.length - e.length === 0) return
-    //     else if(d.length - e.length < 0){
-    //         var a = this.state.menu.filter(item => e.includes(item)) // get the items not in menu anymore
-    //         c = this.state.colour
-    //         j = this.state.emoji
-    //         for(var k=0; k < d.length; k++){
-    //             c.splice(this.state.menu.indexOf(a[k]), 1)
-    //             j.splice(this.state.menu.indexOf(a[k]), 1)
-    //         }
-    //         this.setState({'colour' : c, 'emoji' : j})
-    //     }else{
-    //         //append new colours
-    //         for(var i =0; i < d.length; i++){
-    //                 c.push(random_colour(i === 0 ? null : c[i-1]));
-    //                 j.push(random_emoji(i === 0 ? null : c[i-1]));
-                
-    //         }
-    //         const colour = [...this.state.colour]
-    //         const emoji  = [...this.state.emoji]
-    //         this.setState({'colour' : [...colour, ...c], 'emoji' : [...emoji, ...j],})
-    //     }
-    // }
-
+    
     async handelModule(currentMenu, newMenu){
         var style = {colour : {}, emoji : {}};
         var prevState = null;
@@ -156,7 +128,6 @@ export default class Navbar extends Component{
         </>)
     }
 
-
     render(){
         
         return (<div>
@@ -184,6 +155,8 @@ export default class Navbar extends Component{
                             <input type="search" name="search" id="default-search" value={this.state.search} className="block p-1 pl-10 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-300 focus:placeholder-gray-100 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500 focus:shadow-xl" onChange={(e) => this.updateText(e , {name : 'search', value : e.target.value})} placeholder="Search Module..." required/>
                         </div>
                     </form>
+
+
 
                 </div>
   
