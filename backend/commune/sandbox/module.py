@@ -64,8 +64,6 @@ config.wallet.hotkey = 'Tiberius'
 
 
 
-
-
 from commune import Module
 class Sandbox(Module):
     def __init__(self, 

@@ -119,8 +119,6 @@ class Module:
 
     def get_clients(self, client=None):
 
-
-
         if client == False:
             return None
         elif client == True:
@@ -585,7 +583,10 @@ class Module:
 
     @classmethod
     def get_config_path(cls, simple=False):
-        config_path = os.path.join(os.getenv('PWD'), cls.get_module_path(simple=simple))
+        module_path = cls.get_module_path(simple=simple)
+        if os.getenv('PWD') != module_path[len(os.getenv('PWD'))]:
+
+            config_path = os.path.join(os.getenv('PWD'), cls.get_module_path(simple=simple))
 
         if simple == False:
             config_path = config_path.replace('.py', '.yaml')
@@ -643,11 +644,10 @@ class Module:
         """
         if path == None:
             path = cls.get_config_path()
-        return cls.config_loader.save(path=path, 
-                                      cfg=config)
+        return cls.config_loader.save(path=path, cfg=config)
     @classmethod
     def default_cfg(cls, *args,**kwargs):
-        return cls.config_loader.load(path=os.path.join(os.getenv('PWD'), cls.get_config_path()),*args, **kwargs)
+        return cls.config_loader.load(path=cls.get_config_path(),*args, **kwargs)
 
     default_config = default_cfg
     config_template = default_cfg
@@ -1503,6 +1503,9 @@ class Module:
     def ray_wait( *jobs):
         finished_jobs, running_jobs = ray.wait(jobs)
         return finished_jobs, running_jobs
+
+
+        
     @staticmethod
     def ray_put(*items):
         return [ray.put(i) for i in items]

@@ -418,6 +418,8 @@ class ContractManagerModule(Module):
         self.set_account('bob')
         contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=False)
         return contract.gradio()
+        
+
 
 
     @classmethod
@@ -430,8 +432,6 @@ class ContractManagerModule(Module):
         self.set_network('local.main')
         self.set_account('bob')
         contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=True)
-        gradio_inferface  = self.contract2gradio(contract)
-
         st.write(gradio_inferface)
 
 

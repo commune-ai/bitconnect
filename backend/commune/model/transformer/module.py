@@ -51,7 +51,6 @@ class TransformerModel(Module):
         
         outputs =  self.model.generate(input_ids.to(self.device))
 
-        return  outputs
         return self.tokenizer.decode(outputs[0])
 
     @classmethod

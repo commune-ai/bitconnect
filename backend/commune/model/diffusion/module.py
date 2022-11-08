@@ -205,7 +205,7 @@ class DiffuserModule(Module):
 
     @classmethod
     def gradio(cls):
-        cls.get_ray_context()
+
         self = cls.launch(module='model.diffusion', actor={'refresh': True, 'resources': {'num_cpus': 2, 'num_gpus': 0.3}}, wrap=True)
 
         import gradio 
