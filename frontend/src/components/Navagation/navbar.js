@@ -73,11 +73,11 @@ export default class Navbar extends Component{
         if (currentMenu.length === newMenu.length) return 
         else if ( newMenu.length - currentMenu.length < 0){
             /** FIX LATER */
-            for(i = 0; i < newMenu.length; i++){
-                style["colour"][newMenu[i]] = random_colour(prevState === null ? null : prevState["colour"])
-                style["emoji"][newMenu[i]] = random_emoji(prevState === null ? null : prevState["emoji"])
-                prevState = {colour : style["colour"][newMenu[i]], emoji : style["emoji"][newMenu[i]]}
-            }
+            // for(i = 0; i < newMenu.length; i++){
+            //     style["colour"][newMenu[i]] = random_colour(prevState === null ? null : prevState["colour"])
+            //     style["emoji"][newMenu[i]] = random_emoji(prevState === null ? null : prevState["emoji"])
+            //     prevState = {colour : style["colour"][newMenu[i]], emoji : style["emoji"][newMenu[i]]}
+            // }
         }
         else {  
             for(i = 0; i < newMenu.length; i++){
@@ -115,7 +115,6 @@ export default class Navbar extends Component{
      * @returns div component that contians infomation of gradio 
      */
     subComponents(item, index){
-        console.log(this.state.style.colour)
         return(<>
                 <li key={`${index}-li`} onDragStart={(event) => this.onDragStart(event, 'custom', item, index)} 
                     className={` text-white text-md flex flex-col text-center items-center cursor-grab shadow-lg
@@ -132,7 +131,6 @@ export default class Navbar extends Component{
     render(){
         
         return (<div>
-        
             <div className={`z-10 flex-1 float-left bg-white dark:bg-stone-900 h-screen p-5 pt-8 ${this.state.open ? "w-80" : "w-10"} duration-300 absolute shadow-2xl border-black border-r-[1px] dark:border-white dark:text-white`} >
 
             <BsArrowLeftShort onClick={this.handelNavbar} className={`  bg-white text-Retro-darl-blue text-3xl rounded-full absolute -right-3 top-9 border border-black cursor-pointer ${!this.state.open && 'rotate-180'} dark:border-white duration-300 dark:text-white dark:bg-stone-900 `}/>
@@ -145,7 +143,7 @@ export default class Navbar extends Component{
                     <div className={` w-14 h-7 flex items-center border-2 ${this.state.toggle === "gradio" ? 'bg-white border-orange-400' : ' bg-slate-800'}  shadow-xl rounded-full p-1 cursor-pointer float-left duration-300 `} onClick={() => {this.handelToggle()}}>
                         <Streamlit className=" absolute w-5 h-5"/>
                         <Gradio className=" absolute w-5 h-5 translate-x-6"/>
-                    <div className={`border-2 h-[1.42rem] w-[1.42rem] rounded-full shadow-md transform duration-300 ease-in-out  ${this.state.toggle === "gradio" ? ' bg-orange-400 transform -translate-x-[0.2rem]' : " bg-red-700 transform translate-x-[1.45rem] "}`}></div>
+                    <div className={`border-2 h-[1.6rem] w-[1.6rem] rounded-full shadow-md transform duration-300 ease-in-out  ${this.state.toggle === "gradio" ? ' bg-orange-400 transform -translate-x-[0.35rem]' : " bg-red-700 transform translate-x-[1.45rem] "}`}></div>
                     </div>
                     
                     <form>
@@ -161,7 +159,7 @@ export default class Navbar extends Component{
 
                 </div>
   
-                <div id="module-list" className={` relative z-10 w-full h-[92%] overflow-auto ${this.state.loading ? " animate-pulse duration-300 bg-neutral-900 rounded-lg bottom-0" : ""} `}>
+                <div id="module-list" className={` relative z-10 w-full h-[90%] overflow-auto ${this.state.loading ? " animate-pulse duration-300 bg-neutral-900 rounded-lg bottom-0" : ""} `}>
                     <ul className="overflow-hidden rounded-lg">
                     {this.state.loading &&<Loader active/>}
                     {this.state.menu.filter(value => (this.state.stream[value][this.state.toggle] && (this.state.search.replace(/\s+/g, '') === "" || value.toLocaleLowerCase().includes(this.state.search.replace(/\s+/g, '').toLocaleLowerCase()))) ).map((item, index) => {return this.subComponents(item, index)})}

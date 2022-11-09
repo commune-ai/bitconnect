@@ -79,7 +79,7 @@ export default function CustomNodeIframe({id, data}){
       </div>
 
       { !collapsed && reachable && <>
-          <animated.div className={`border-dashed  ${sizeAdjuster ? 'border-4 border-white' : ''} relative top-0 left-0 z-[1000] touch-none shadow-lg rounded-xl`} style={{width, height }} {...bind()}>
+          <animated.div className={`border-dashed  ${sizeAdjuster ? 'border-4 dark:border-white border-black' : ''} relative top-0 left-0 z-[1000] touch-none shadow-lg rounded-xl`} style={{width, height }} {...bind()}>
             <div id="draggable" className={`absolute h-full w-full ${data.colour} shadow-2xl rounded-xl -z-20`}></div>
             <iframe id="iframe" 
                         key={refresh}

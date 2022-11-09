@@ -3,7 +3,7 @@
 
 import os, sys
 sys.path.append(os.environ['PWD'])
-import gradio
+import gradio as gr
 from commune import Module
 from inspect import getfile
 import inspect
@@ -16,5 +16,10 @@ class ExampleModule(Module):
         pass
 
 
+    def gradio():
+        return gr.Interface(lambda inputs : f'Hello {inputs}, welcome to the gradio example', inputs="text", outputs='text')        
 
+
+if __name__ == "__main__":
+    ExampleModule().run()
 

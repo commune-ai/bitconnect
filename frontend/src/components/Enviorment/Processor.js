@@ -21,8 +21,6 @@ import CustomLine from "../Edges/CustomLine.js";
 import CustomNodeIframe from "../Nodes/Custom.js";
 
 import { CgMoreVerticalAlt } from 'react-icons/cg'
-import { BsFillEraserFill } from 'react-icons/bs' 
-import { FaRegSave } from 'react-icons/fa'
 
 import { useThemeDetector } from './utils'
 
@@ -70,64 +68,19 @@ export default function Processor() {
     );
 
     // =======================
-    // Save, Load & Erase
-    // =======================
-    useEffect(() => {
-      const restore = () => {
-      const flow = JSON.parse(localStorage.getItem('flowkey'));
-        
-        if(flow){
-          flow.nodes.map((nds) => nds.data.delete = deleteNode)
-          flow.edges.map((eds) => eds.data.delete = deleteEdge)
-          setNodes(flow.nodes || [])
-          setEdges(flow.edges || [])
-          console.log(flow)
-        }
-      }
-      restore()
-    },[])
-
-    const onSave = useCallback(() => {
-      if (reactFlowInstance) {
-        const flow = reactFlowInstance.toObject();
-        alert("The current nodes have been saved into the localstorage 💾")
-        localStorage.setItem('flowkey', JSON.stringify(flow));
-        var labels = [];
-        var colour = [];
-        var emoji = [];
-          for(let i = 0; i < flow.nodes.length; i++){
-            if (!labels.includes(flow.nodes[i].data.label))
-              colour.push(flow.nodes[i].data.colour)
-              emoji.push(flow.nodes[i].data.emoji)
-              labels.push(flow.nodes[i].data.label)
-          }
-        localStorage.setItem('colour',JSON.stringify(colour))
-        localStorage.setItem('emoji', JSON.stringify(emoji))
-      }
-    }, [reactFlowInstance]);
-
-    const onErase = useCallback(() => {
-      const flow = localStorage.getItem("flowkey")
-      if (reactFlowInstance && flow){
-        alert("The current nodes have been erased from the localstorage")
-        localStorage.removeItem("flowkey")
-        localStorage.removeItem('colour')
-        localStorage.removeItem('emoji')
-      }
-    },[reactFlowInstance])
-
-    // =======================
     // Node's & Edge's Remove
     // ======================= 
-    const deleteEdge = (id) => setEdges((eds) => eds.filter(e => e.id !== id))
+    const deleteEdge = ({id, source, target}) => {
+      console.log(id, source.split('-')[0], target.split('-')[0])
+      setEdges((eds) => eds.filter(e => e.id !== id))
+      fetch(`http://localhost:8000/rm_chain?${new URLSearchParams({a: source, b: target})}`, {method : "GET", mode: 'cors'}).then(res => res.json())
+
+    }
 
     const deleteNode = (_) =>{
       const metadata = _[0].id.split("-")
-      fetch(`http://localhost:8000/rm?${new URLSearchParams({module: metadata[0], port: metadata[1]})}`, {method : "GET", mode: 'cors'}).then(res => res.json()).then(
-      () =>{
-        setNodes((nds) => nds.filter(n => n.id !== _[0].id ))
-      }
-      )
+      setNodes((nds) => nds.filter(n => n.id !== _[0].id ))
+      fetch(`http://localhost:8000/rm?${new URLSearchParams({module: metadata[0], port: metadata[1]})}`, {method : "GET", mode: 'cors'}).then(res => res.json())
     }
 
     // =======================
@@ -135,13 +88,8 @@ export default function Processor() {
     // ======================= 
     const onConnect = useCallback(
       (params) => {
-        console.log(params)
         setEdges((els) => addEdge({...params, type: "custom", animated : true, style : {strokeWidth : "6"}, markerEnd: {type: MarkerType.ArrowClosed}, data : { delete : deleteEdge}}, els))
-        // fetch("http://localhost:2000/api/append/connection", {method : "POST", mode : 'cors', headers : { 'Content-Type' : 'application/json' }, body: JSON.stringify({"source": params.source, "target" : params.target})}).then( res => {
-        //   console.log(res)
-        // }).catch(error => {
-        //   console.log(error)
-        // })
+        fetch(`http://localhost:8000/add_chain?${new URLSearchParams({a : params.source, b : params.target})}`, {method : "GET", mode : 'cors', }).then( res => {res.json()}).catch(error => {console.error(error)})
       },
       [setEdges]
     );
@@ -202,11 +150,9 @@ export default function Processor() {
     return (
       <div className={`${theme ? "dark" : ""}`}>          
         
-        <div className={` absolute text-center ${tool ? "h-[203.3333px]" : "h-[41px]"} overflow-hidden w-[41px] text-4xl top-4 right-5 z-50 cursor-default select-none bg-white dark:bg-stone-900 rounded-full border border-black dark:border-white duration-500`}  >
-          <CgMoreVerticalAlt className={` text-black dark:text-white ${tool ? "-rotate-0 mr-auto ml-auto mt-1" : " rotate-180 mr-auto ml-auto mt-1"} duration-300`} onClick={() => setTool(!tool)}/>
-          <h1 title={theme ? 'Dark Mode' : 'Light Mode'} className={`p-4 px-1 pb-0 ${tool ? "visible" : "invisible"} text-3xl`} onClick={() => setTheme(!theme)} >{theme  ? '🌙' : '☀️'}</h1> 
-          <FaRegSave title="Save" className={`mt-6 text-black dark:text-white ${tool ? "visible" : " invisible"} ml-auto mr-auto `} onClick={() => onSave()}/> 
-          <BsFillEraserFill title="Erase" className={`mt-6 text-black dark:text-white ml-auto mr-auto ${tool ? "visible" : " invisible"} `} onClick={() => onErase()}/>
+        <div className={` absolute text-center ${tool ? "h-[90px]" : "h-[41px]"} overflow-hidden w-[41px] text-4xl top-4 right-5 z-50 cursor-default select-none bg-white dark:bg-stone-900 rounded-full border border-black dark:border-white duration-500`}  >
+          <CgMoreVerticalAlt className={` text-black dark:text-white ${tool ? "-rotate-0 mr-auto ml-auto mt-1" : " rotate-180 mr-auto ml-auto mt-1"}  duration-500`} onClick={() => setTool(!tool)}/>
+          <h1 title={theme ? 'Dark Mode' : 'Light Mode'} className={`p-4 px-1 pb-2 ${tool ? "visible" : "invisible"} text-3xl`} onClick={() => setTheme(!theme)} >{theme  ? '🌙' : '☀️'}</h1> 
         </div>
 
         <div className={`flex h-screen w-screen ${theme ? "dark" : ""} transition-all`}>    

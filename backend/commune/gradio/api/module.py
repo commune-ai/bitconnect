@@ -581,7 +581,8 @@ async def root():
 
 
 register = GradioModule.register
-
+global graph 
+graph = dict()
 
 @app.get("/test")
 async def test():
@@ -681,6 +682,25 @@ def portopen(port : int):
     else:
         return "Port not on"
 
+@app.get('/add_chain')
+def add_chain(a : str, b : str):
+    if not a in graph.keys(): 
+        graph[a] = []
+    print(b in graph[a])
+    None if b in graph[a] else graph[a].append(b)
+    return graph
+
+@app.get('/rm_chain')
+def rm_chain(a : str, b : str):
+    if not a in graph.keys(): 
+        return False
+    graph[a].remove(b)
+    return True
+
+
+@app.get('/get_chain')
+def get_chain():
+    return graph
 
 if __name__ == "__main__":
     
