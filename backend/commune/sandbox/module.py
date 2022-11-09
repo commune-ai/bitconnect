@@ -10,6 +10,9 @@ import psutil
 import random
 import argparse
 from tqdm import tqdm
+import asyncio
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 import bittensor
 import streamlit as st
 import numpy as np
@@ -23,27 +26,12 @@ from commune.utils import chunk
 ##########################
 from commune.streamlit import StreamlitPlotModule, row_column_bundles
 
-# The MIT License (MIT)
-# Copyright © 2021 Yuma Rao
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-# documentation files (the “Software”), to deal in the Software without restriction, including without limitation
-# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all copies or substantial portions of
-# the Software.
-
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-# THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-# DEALINGS IN THE SOFTWARE.
-
 import threading
 import time
 import queue
 from loguru import logger
+
+from commune import Module
 
 
 parser = argparse.ArgumentParser( 
@@ -55,16 +43,7 @@ bittensor.wallet.add_args(parser)
 bittensor.logging.add_args(parser)
 bittensor.subtensor.add_args(parser)
 config = bittensor.config(parser = parser)
-config.wallet.name = 'const'
-config.wallet.hotkey = 'Tiberius'
-##########################
-##### Setup objects ######
-##########################
-# Sync graph and load power wallet.
 
-
-
-from commune import Module
 class Sandbox(Module):
     def __init__(self, 
                 subtensor=None,
@@ -72,9 +51,11 @@ class Sandbox(Module):
                 tokenizer=None,
                 wallet = None,
                 config=None, 
-                load=False):
+                load=False,
+                loop=None):
         Module.__init__(self, config=config)
-        nest_asyncio.apply()
+        
+        self.loop = self.set_event_loop(loop)
         # config = bittensor.config()
         if load:
             self.subtensor = self.set_subtensor(subtensor)
@@ -97,6 +78,8 @@ class Sandbox(Module):
         if receptor_pool == None:
             receptor_pool = self.launch_module( **rp_config)  
         self.receptor_pool = receptor_pool
+
+        st.write(self.receptor_pool)
         return self.receptor_pool
 
     def set_dataset(self, dataset=None):
@@ -121,6 +104,7 @@ class Sandbox(Module):
         return tokenizer
     
     def set_subtensor(self, subtensor=None):
+
         if subtensor == None:
             subtensor = bittensor.subtensor( config = config )
             graph = bittensor.metagraph( subtensor = subtensor )
@@ -211,10 +195,10 @@ class Sandbox(Module):
             kwargs_list.append(dict(endpoints=endpoints_split, inputs=inputs, synapses=synapses , timeout=timeout))
 
 
-        jobs = [self.receptor_pool.async_forward.remote(**kwargs) for kwargs in kwargs_list]
+        job_bundle = asyncio.gather(*[self.receptor_pool.async_forward(**kwargs) for kwargs in kwargs_list])
        
         agg_results = [[],[],[]]
-        for results in ray.get(jobs):
+        for results in self.async_run(job_bundle):
             for i,result in enumerate(results):
                 agg_results[i].extend(result)
         # st.write(len(results[0]), len(results[1]),  len(results[2]))
@@ -319,7 +303,7 @@ class Sandbox(Module):
         else:
             raise Exception(f'{return_type} not supported')
         return results
-    def process_results(self, results, ):
+    def process_results(self, results):
         results_dict = {'tensor':[], 'code':[], 'latency':[], 'uid': []}
 
         num_responses = len(results[0])
@@ -344,9 +328,6 @@ class Sandbox(Module):
             results_dict['code'] = torch.tensor([])
             results_dict['latency'] = torch.tensor([])
             results_dict['uid'] =  torch.tensor([])
-
-        if return_json:
-            results_dict = {k:v.to_list() for k,v in result_dict.items()}
 
         return results_dict
 
@@ -464,16 +445,11 @@ class Sandbox(Module):
 
         return sequence_chunks
 
+
 if __name__ == '__main__':
     # Sandbox.ray_restart()
-    # Module.new_event_loop()
-    module = Sandbox.deploy(actor=False, wrap=True, load=True)
-    # st.write(module)
-    # st.write(Module.list_actors())
-    # st.write(ray.get(module.list_actors.remote()))
+   
     
-    # st.write(module.available_synapses)
-    # st.write(module.graph)
-    # st.write(module.subtensor.neuron_for_uid(uid=1))
+    module = Sandbox.deploy(actor=False, wrap=True, load=True)
     st.write(module.sample())
     # st.write(module.streamlit_experiment())

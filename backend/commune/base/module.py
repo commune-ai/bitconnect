@@ -522,6 +522,7 @@ class Module:
         module_kwargs = {**kwargs}
         module_args = [*args]
 
+
         if module_init_fn == None:
             if actor:
 

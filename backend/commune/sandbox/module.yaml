@@ -15,7 +15,7 @@ dataset:
 receptor_pool:
   module: bittensor.receptor_pool
   kwargs: {}
-  actor: {refresh: False}
+  actor: False
   wrap: False
   # wrap: True
 
