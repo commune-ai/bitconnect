@@ -1,5 +1,6 @@
 import React from 'react';
 import { getBezierPath } from 'react-flow-renderer';
+import '../../css/dist/output.css'
 
 const CustomLine = ({
   sourceX,
@@ -24,9 +25,8 @@ const CustomLine = ({
     <g>
       <path
         fill="none"
-        stroke="#00FF4A"
         strokeWidth={7}
-        className="animated"
+        className="animated stroke-Deep-Space-Black dark:stroke-white"
         d={edgePath}
       />
     </g>

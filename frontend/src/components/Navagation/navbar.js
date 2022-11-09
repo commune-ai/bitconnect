@@ -65,49 +65,22 @@ export default class Navbar extends Component{
     //  * @param {*} e current menu 
     //  * @param {*} d integer variable of the diffence between the current menu and new menu updated ment
     //  */
-    // handelTabs = async (e, d) => {
-    //     // if less then 0 we must remove colour's and emoji's
-    //     // get index of the object
-    //     // remove
-    //     var c = []
-    //     var j = []
-    //     if (d.length - e.length === 0) return
-    //     else if(d.length - e.length < 0){
-    //         var a = this.state.menu.filter(item => e.includes(item)) // get the items not in menu anymore
-    //         c = this.state.colour
-    //         j = this.state.emoji
-    //         for(var k=0; k < d.length; k++){
-    //             c.splice(this.state.menu.indexOf(a[k]), 1)
-    //             j.splice(this.state.menu.indexOf(a[k]), 1)
-    //         }
-    //         this.setState({'colour' : c, 'emoji' : j})
-    //     }else{
-    //         //append new colours
-    //         for(var i =0; i < d.length; i++){
-    //                 c.push(random_colour(i === 0 ? null : c[i-1]));
-    //                 j.push(random_emoji(i === 0 ? null : c[i-1]));
-                
-    //         }
-    //         const colour = [...this.state.colour]
-    //         const emoji  = [...this.state.emoji]
-    //         this.setState({'colour' : [...colour, ...c], 'emoji' : [...emoji, ...j],})
-    //     }
-    // }
-
+    
     async handelModule(currentMenu, newMenu){
         var style = {colour : {}, emoji : {}};
         var prevState = null;
+        var i = 0;
         if (currentMenu.length === newMenu.length) return 
         else if ( newMenu.length - currentMenu.length < 0){
             /** FIX LATER */
-            for(var i = 0; i < newMenu.length; i++){
+            for(i = 0; i < newMenu.length; i++){
                 style["colour"][newMenu[i]] = random_colour(prevState === null ? null : prevState["colour"])
                 style["emoji"][newMenu[i]] = random_emoji(prevState === null ? null : prevState["emoji"])
                 prevState = {colour : style["colour"][newMenu[i]], emoji : style["emoji"][newMenu[i]]}
             }
         }
         else {  
-            for(var i = 0; i < newMenu.length; i++){
+            for(i = 0; i < newMenu.length; i++){
                 style["colour"][newMenu[i]] = random_colour(prevState === null ? null : prevState["colour"])
                 style["emoji"][newMenu[i]] = random_emoji(prevState === null ? null : prevState["emoji"])
                 prevState = {colour : style["colour"][newMenu[i]], emoji : style["emoji"][newMenu[i]]}
@@ -156,7 +129,6 @@ export default class Navbar extends Component{
         </>)
     }
 
-
     render(){
         
         return (<div>
@@ -185,17 +157,14 @@ export default class Navbar extends Component{
                         </div>
                     </form>
 
+
+
                 </div>
   
                 <div id="module-list" className={` relative z-10 w-full h-[92%] overflow-auto ${this.state.loading ? " animate-pulse duration-300 bg-neutral-900 rounded-lg bottom-0" : ""} `}>
                     <ul className="overflow-hidden rounded-lg">
                     {this.state.loading &&<Loader active/>}
-                    {this.state.menu.filter((value) => {
-                        if (this.state.stream[value][this.state.toggle]){
-                            if (this.state.search.replace(/\s+/g, '') === "" || value.toLocaleLowerCase().includes(this.state.search.replace(/\s+/g, '').toLocaleLowerCase())) 
-                            return value 
-                        }
-                    }).map((item, index) => {return this.subComponents(item, index)})}
+                    {this.state.menu.filter(value => (this.state.stream[value][this.state.toggle] && (this.state.search.replace(/\s+/g, '') === "" || value.toLocaleLowerCase().includes(this.state.search.replace(/\s+/g, '').toLocaleLowerCase()))) ).map((item, index) => {return this.subComponents(item, index)})}
                     </ul>
                 </div>
 

@@ -66,3 +66,6 @@ sync:
 
 gradio:
 	docker exec -it backend bash -c "python commune/${arg}/module.py -fn=run_gradio "
+
+api_logs:
+	docker exec -it backend bash -c "tail -f api.out"
