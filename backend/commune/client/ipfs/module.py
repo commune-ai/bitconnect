@@ -21,20 +21,12 @@ import streamlit as st
 import logging
 from typing import *
 from fsspec.asyn import AsyncFileSystem, sync, sync_wrapper
-logger = logging.getLogger("ipfsspec")
-
-
-class RequestsTooQuick(OSError):
-    def __init__(self, retry_after=None):
-        self.retry_after = retry_after
-
-DEFAULT_GATEWAY = None
-
 import requests
 from requests.exceptions import HTTPError
 IPFSHTTP_LOCAL_HOST = 'ipfs'
 from commune.client.local import LocalModule
 from ipfshttpclient.multipart import stream_files, stream_directory
+logger = logging.getLogger("ipfsspec")
 class IPFSClient:
 
     data_dir = '/tmp/ipfs_client'
@@ -49,13 +41,6 @@ class IPFSClient:
         self.local = LocalModule()
         self.path2hash = asyncio.run(self.load_path2hash())
         self.loop = asyncio.set_event_loop(asyncio.new_event_loop())
-
-    def __del__(self):
-        self.close_session(loop=self.loop, session=self._session)
-
-    def ukey(self, path):
-        """returns the CID, which is by definition an unchanging identitifer"""
-        return self.info(path)["CID"]
 
     async def api_post(self, 
                       endpoint:str, 
@@ -154,87 +139,18 @@ class IPFSClient:
                             break
         return return_result
 
-    ##############
-    #   ASYNCIO
-    ##############
-    @staticmethod
-    def reset_event_loop(set_loop:bool=True) -> 'asyncio.loop':
-        '''
-        Reset the event loop
-
-        Args:
-            set_loop (bool):
-                Set event loop if true.
-
-        Returns (asyncio.loop)
-        '''
-        loop = asyncio.new_event_loop()
-        if set_loop:
-            asyncio.set_event_loop(loop)
-        return loop
-
-    def set_event_loop(self, loop:'asyncio.loop'=None)-> 'asynco.loop':
-        '''
-        Set the event loop.
-
-        Args:
-            loop (asyncio.loop):
-                Event loop.
-
-        Returns (asyncio.loop)
-        '''
-        
-        if loop == None:
-            loop = asyncio.get_event_loop()
-        self.loop = loop
-        return self.loop
-         
-    def async_run(self, job, loop=None): 
-        '''
-        Set the event loop.
-
-        Args:
-            job (asyncio.Task)
-            loop (asyncio.loop):
-                Event loop.
-
-        '''
-        
-        if loop == None:
-            loop = self.loop
-        return loop.run_until_complete(job)
-
-
-    async def cid_head(self, session, path, headers, **kwargs):
-        return await self._cid_req(session.head, path, headers=headers, **kwargs)
-
-    async def cid_get(self, session, path,  **kwargs):
-        return await self._cid_req(session.get, path, headers=headers, **kwargs)
-
     async def version(self, session):
-        res = await self.api_get( endpoint="version" )
-        res.raise_for_status()
-        return await res.json()
+        res = await self.api_get("version")
+        return rest
 
-
-    async def save_links(self, session, links):
-        return await asyncio.gather(*[self.save_link(session=session, lpath=k,rpath=v)for k, v in links.items()])
-
-    async def save_link(self, session, lpath,rpath):
-        lpath_dir = os.path.dirname(lpath)
+    def resolve_absolute_path(self, path):
+        if path[:len(os.getenv('PWD'))] != os.getenv('PWD'):
+            path = os.getenv('PWD') + path
         
-        if len(lpath.split('.')) < 2:
-            if not os.path.isdir(lpath_dir): 
-                os.mkdir(lpath_dir)
-            await self.save_links(lpath=lpath, rpath= rpath)
-        else:
-            data = await self.cat_file(links[lpath]['Hash'])
-            with open(k, 'wb') as f:
-                f.write(data.encode('utf-8'))    
+        return path
 
-
-
-    async def cat(self, session, path):
+    async def cat(self, path):
+        path = self.resolve_absolute_path(path)
         
         res = await self.api_get(endpoint='cat', arg=path)
 
@@ -243,44 +159,6 @@ class IPFSClient:
             if res.status != 200:
                 raise FileNotFoundError(path)
             return await res.read()
-
-    # async def add(self,
-    #     path:Union[str, List[str]], # Path to the file/directory to be added to IPFS
-    #     wrap_with_directory:bool=False, # True if path is a directory
-    #     chunker:str='size-262144', # Chunking algorithm, size-[bytes], rabin-[min]-[avg]-[max] or buzhash
-    #     pin:bool=True, # Pin this object when adding
-    #     hash_:str='sha2-256', # Hash function to use. Implies CIDv1 if not sha2-256
-    #     progress:str='true', # Stream progress data
-    #     silent:str='false', # Write no output
-    #     cid_version:int=0, # CID version
-    #     **kwargs,
-    #     ):
-    #     "add file/directory to ipfs"
-
-    #     params = {}
-    #     params['wrap-with-directory'] = 'true' if wrap_with_directory else 'false'
-    #     params['chunker'] = chunker
-    #     params['pin'] = 'true' if pin else 'false'
-    #     params['hash'] = hash_
-    #     params['progress'] = progress
-    #     params['silent'] = silent
-    #     params['cid-version'] = cid_version
-    #     params.update(kwargs)
-        
-    #     chunk_size = int(chunker.split('-')[1])
-
-    #     if os.path.isfile(path):
-    #         data, headers = stream_files(path, chunk_size=chunk_size)
-    #     elif os.path.isdir(path):
-    #         data, headers = stream_directory(path, chunk_size=chunk_size, recursive=True)
-    #     else:
-            
-    #     response = await self.api_post('add', 
-    #                                 params=params, 
-    #                                 data=data,
-    #                                 headers=headers)
-
-    #     return response
 
     async def pin(self, session, cid, recursive=False, progress=False, **kwargs):
         kwargs['params'] = kwargs.get('params', {})
@@ -294,11 +172,12 @@ class IPFSClient:
             path,
             pin=True,
             chunker=262144 ):
-
+        path = self.resolve_absolute_path(path)
+        self.path2hash = await self.load_path2hash()
         if os.path.isdir(path):
             file_paths = self.local.glob(path+'/**')
         elif os.path.isfile(path):
-            file_paths = [file_path]
+            file_paths = [path]
         
         file_paths = list(filter(os.path.isfile, file_paths))
 
@@ -308,28 +187,40 @@ class IPFSClient:
         responses = await jobs
         path2hash =  dict(zip(file_paths,responses))
         self.path2hash.update(path2hash)
-
-        await self.save_json('path2hash', path2hash)
+        await self.save_path2hash()
 
         return dict(zip(file_paths,responses))
 
 
     async def rm(self, path):
-        assert path in self.path2hash, f'{path} is not in {list(self.path2hash.keys())}'
-        file_meta = self.path2hash[path]
-        return  await self.pin_rm(cid=file_meta['Hash'])
+        self.load_path2hash()
+        file_paths = await self.ls(path)      
+        tasks = []
+        st.write(file_paths)
+        for fp in file_paths:
+            file_meta = self.path2hash[fp]
+            tasks.append(self.pin_rm(cid=file_meta['Hash']))
+        return_jobs = await asyncio.gather(*tasks)
+        await self.gc()
+
+        self.save_path2hash()
+        return return_jobs
 
     async def pin_ls(self,
         type_:str='all', # The type of pinned keys to list. Can be "direct", "indirect", "recursive", or "all"
         **kwargs,
     ):
         'List objects pinned to local storage.'    
-
+        self.load_path2hash()
         params = {}
         params['type'] = type_
         params.update(kwargs)
         return await self.api_post('pin/ls', params=params)
 
+    async def gc(self):
+
+        response = await self.api_post('repo/gc', return_json=False)
+        return response
 
     async def pin_rm(self,
         cid:str, # Path to object(s) to be unpinned
@@ -343,14 +234,9 @@ class IPFSClient:
         params['recursive'] = recursive
         params.update(kwargs)
 
-        response = self.api_post('pin/rm', params=params)
-
-        if response.status_code == 200:
-            return response, parse_response(response)
-
-        else:
-            raise HTTPError (parse_error_message(response))
-
+        response = await self.api_post('pin/rm', params=params)
+        self.load_path2hash()
+        return response
 
     async def add_file(self,
         path,
@@ -358,6 +244,8 @@ class IPFSClient:
         chunker=262144, 
         wrap_with_directory=False,
     ):
+
+        path = self.resolve_absolute_path(path)
 
         params = {}
         params['wrap-with-directory'] = 'true' if wrap_with_directory else 'false'
@@ -378,59 +266,14 @@ class IPFSClient:
         # return res
     
 
-    async def dag_get(self, session,  **kwargs):
+    async def dag_get(self,  **kwargs):
         kwargs['params'] = kwargs.get('params', {})
         kwargs['params'] = dict(arg=cid, recursive= recursive,progress= progress)
-        res = await self.api_post(endpoint='dag/get', session=session , **kwargs)
+        res = await self.api_post(endpoint='dag/get', **kwargs)
         return bool(cid in pinned_cid_list)
 
 
-
-
-    async def save_json(self, 
-                        path:str,
-                        obj:Union[dict, list],
-                        include_root:bool=True) -> str:
-        """ 
-        Async save of json for storing text hashes
-
-        Args:
-            path (List[str]):
-                Axon to serve.
-            obj (bool):
-                The object to save locally
-            include_root (bool):
-                Include self.data_dir as the prefix.
-                    - if True, ths meants shortens the batch and 
-                    specializes it to be with respect to the dataset's 
-                    root path which is in ./bittensor/dataset
-            
-        Returns: 
-            path (str)
-                Path of the saved JSON
-        """
-        
-        if include_root:
-            path = os.path.join(self.data_dir, path)
-
-        dir_path = os.path.dirname(path)
-
-        # ensure the json is the prefix
-        if path[-len('.json'):] != '.json':
-            path += '.json'
-
-        # ensure the directory exists, make otherwise
-        if not os.path.isdir(dir_path):
-            os.makedirs(dir_path)
-
-        assert os.access( dir_path , os.W_OK ), f'dir_path:{dir_path} is not writable'
-        with open(path, 'w') as outfile:
-            json.dump(obj, outfile)
-
-        return path
-
-
-    def rm_json(self, path=None, recursive=True, **kwargs):
+    async def rm_json(self, path=None, recursive=True, **kwargs):
         path = os.path.join(self.data_dir, path)
         return os.remove(path)
 
@@ -520,8 +363,16 @@ class IPFSClient:
             obj = json.loads(obj)
         return obj
 
+    async def ls(self, path=''):
+        self.load_path2hash()
+        path = self.resolve_absolute_path(path)
+        path_list = []
+        for fp in self.path2hash.keys():
+            if fp[:len(path)] == path:
+                path_list += [fp]
+        return path_list
+
     async def save_path2hash(self):
-        assert isinstance(value,dict)
         pinned_cids = (await self.pin_ls()).get('Keys', {}).keys()
         path2hash = {}
         for path, file_meta in self.path2hash.items():
@@ -546,11 +397,74 @@ class IPFSClient:
         path2hash = asyncio.run(self.load_path2hash())
         return {file_meta['Hash']: path for path, file_meta in path2hash.items()}
 
+
+
+    ##############
+    #   ASYNCIO
+    ##############
+    @staticmethod
+    def reset_event_loop(set_loop:bool=True) -> 'asyncio.loop':
+        '''
+        Reset the event loop
+
+        Args:
+            set_loop (bool):
+                Set event loop if true.
+
+        Returns (asyncio.loop)
+        '''
+        loop = asyncio.new_event_loop()
+        if set_loop:
+            asyncio.set_event_loop(loop)
+        return loop
+
+    def set_event_loop(self, loop:'asyncio.loop'=None)-> 'asynco.loop':
+        '''
+        Set the event loop.
+
+        Args:
+            loop (asyncio.loop):
+                Event loop.
+
+        Returns (asyncio.loop)
+        '''
+        
+        if loop == None:
+            loop = asyncio.get_event_loop()
+        self.loop = loop
+        return self.loop
+         
+    def async_run(self, job, loop=None): 
+        '''
+        Set the event loop.
+
+        Args:
+            job (asyncio.Task)
+            loop (asyncio.loop):
+                Event loop.
+
+        '''
+        
+        if loop == None:
+            loop = self.loop
+        return loop.run_until_complete(job)
+
+
 if __name__ == '__main__':
     module = IPFSClient()
-    files = module.local.ls(f'{os.getenv("PWD")}/commune/client/ipfs')
-    # st.write(asyncio.run(module.add(path='commune/client/ipfs')))
+    # files = module.local.ls(f'{os.getenv("PWD")}/commune/client/ipfs')
+    # st.write(asyncio.run(module.add(path='commune/client/local')))
+    asyncio.run(module.add(path='commune/client/ipfs/module_old.py'))
+    st.write(module.path2hash['commune/client/ipfs/module_old.py'])
+    asyncio.run(module.rm(path='commune/client/ipfs'))
+    # asyncio.run(module.save_path2hash())
+
+
+    asyncio.run(module.load_path2hash())
+
+    st.write(asyncio.run(module.ls('commune/client')))
     # st.write(asyncio.run(module.load_json('path2hash')))
-    st.write(module.hash2path)
-    st.write(module.path2hash)
-    st.write(asyncio.run(module.load_json('path2hash')))
+    # st.write(asyncio.run(module.rm('/app/commune/client/ipfs/module_old.py')))
+
+
+
