@@ -23,7 +23,7 @@ def sync_wrapper(fn):
     return  wrapper_fn
 
 IPFSHTTP_LOCAL_HOST = 'ipfs'
-class IPFSClient:
+class IPFSModule:
 
     data_dir = '/tmp/ipfs_client'
 
@@ -173,7 +173,7 @@ class IPFSClient:
         file_paths=[]
         assert os.path.exists(path), f'{path} does not exist'
         if os.path.isdir(path):
-            file_paths = glob(path+'/**')
+            file_paths = glob(path+'/**', recursive=True)
         elif os.path.isfile(path):
             file_paths = [path]
   
@@ -477,10 +477,11 @@ class IPFSClient:
         await self.rm_json(path)
         return file_meta
     
-    def async_cat(self, cid):
-        self.async_api_post('cat', cid)
+
+    async def async_cat(self, cid):
+        return await self.async_api_get('cat', cid)
 
 if __name__ == '__main__':
     IPFSClient.test()
     module = IPFSClient()
-    st.write(list(os.walk('commune')))
+    st.write(glob('commune/**', recursive=True))

@@ -1,3 +1,5 @@
+
+from __future__ import print_function
 ##################
 ##### Import #####
 ##################
@@ -27,6 +29,54 @@ from commune import Module
 from typing import *
 from munch import Munch
 
+from sys import getsizeof, stderr
+from itertools import chain
+from collections import deque
+try:
+    from reprlib import repr
+except ImportError:
+    pass
+
+def total_size(o, handlers={}, verbose=False):
+    """ Returns the approximate memory footprint an object and all of its contents.
+
+    Automatically finds the contents of the following builtin containers and
+    their subclasses:  tuple, list, deque, dict, set and frozenset.
+    To search other containers, add handlers to iterate over their contents:
+
+        handlers = {SomeContainerClass: iter,
+                    OtherContainerClass: OtherContainerClass.get_elements}
+
+    """
+    dict_handler = lambda d: chain.from_iterable(d.items())
+    all_handlers = {tuple: iter,
+                    list: iter,
+                    deque: iter,
+                    dict: dict_handler,
+                    set: iter,
+                    frozenset: iter,
+                   }
+    all_handlers.update(handlers)     # user handlers take precedence
+    seen = set()                      # track which object id's have already been seen
+    default_size = getsizeof(0)       # estimate sizeof object without __sizeof__
+
+    def sizeof(o):
+        if id(o) in seen:       # do not double count the same object
+            return 0
+        seen.add(id(o))
+        s = getsizeof(o, default_size)
+
+        if verbose:
+            print(s, type(o), repr(o), file=stderr)
+
+        for typ, handler in all_handlers.items():
+            if isinstance(o, typ):
+                s += sum(map(sizeof, handler(o)))
+                break
+        return s
+
+    return sizeof(o)
+
 import commune.sandbox.dataset.constant as constant
 
 class DatasetTesting:
@@ -35,7 +85,7 @@ class DatasetTesting:
     def run_trial(self,  
                 block_size=3000, 
                 sequence_length=256,
-                 batch_size=64, 
+                 batch_size=32, 
                  dataset_name = 'default', 
                  load_dataset=True, 
                  save_dataset=False, 
@@ -53,8 +103,11 @@ class DatasetTesting:
         
         with Module.timer() as t:
             for i in range(num_samples):
+                st.write(Module.get_memory_info())
+                # st.write('dataset size: ',total_size(dataset.__dict__))
+                # st.write('Write')
                 st.write(list(next(dataset).values())[0].shape)
-                st.write( i / t.elapsed_time.total_seconds())
+                # st.write('', i / t.elapsed_time.total_seconds())
     
 
     def run_experiment(self,
@@ -66,31 +119,15 @@ class DatasetTesting:
         pass
 
 
-    @staticmethod
-    def test_change_data_size():
-        data_sizes = [(10,1000), (15, 2000),(30, 3000), (25,4000)]
-        dataset = bittensor.dataset(num_batches = constant.dataset.num_batches, dataset_name = constant.dataset.dataset_name, run_generator=False, no_tokenizer=False)
-        for data_size in data_sizes:
-            dataset.set_data_size(*data_size)
-            sample_dict = next(dataset)
-            for k,v in sample_dict.items():
-                v.shape[0] == data_size[0]
-            
-        dataset = bittensor.dataset(num_batches = constant.dataset.num_batches, dataset_name = constant.dataset.dataset_name, run_generator=False, no_tokenizer=True)
-
-        for data_size in data_sizes:
-            raw_text_sample = next(dataset)
-            len(raw_text_sample)  == data_size[1]
-        
-        dataset.close() 
-
 if __name__ == '__main__':
 
     wallet = bittensor.wallet(hotkey='default', name='default')
     
     wallet.create(coldkey_use_password=False)
-    DatasetTesting.test_change_data_size()
-    # st.write(DatasetTesting().run_trial())
+    # DatasetTesting.test_change_data_size()
+    st.write(DatasetTesting().run_trial())
+
+
 
     # dataset = bittensor.dataset(num_batches=20, block_size=10000, sequence_length=256, batch_size=64, dataset_name = 'default', load_dataset=True, save_dataset=False, run_generator=False)
     

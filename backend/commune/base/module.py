@@ -270,7 +270,6 @@ class Module:
         path = self.resolve_path(path=path)
         return self.client.local.exists(path)
 
-
     def rm_json(self, path=None, recursive=True, **kwargs):
         path = self.resolve_path(path)
         if not self.client.local.exists(path):

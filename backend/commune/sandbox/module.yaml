@@ -5,9 +5,10 @@ wallet:
     hotkey: Tiberius
 
 client: [local]
+
 dataset:
   module: huggingface.dataset
-  actor: {'refresh': False}
+  actor: {refresh: False}
   
   wrap: True
 
@@ -16,7 +17,7 @@ receptor_pool:
   module: bittensor.receptor_pool
   kwargs: {}
   actor: False
-  wrap: False
+  wrap: True
   # wrap: True
 
 

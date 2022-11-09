@@ -198,7 +198,7 @@ class Sandbox(Module):
         job_bundle = asyncio.gather(*[self.receptor_pool.async_forward(**kwargs) for kwargs in kwargs_list])
        
         agg_results = [[],[],[]]
-        for results in self.async_run(job_bundle):
+        for results in asyncio.run(job_bundle):
             for i,result in enumerate(results):
                 agg_results[i].extend(result)
         # st.write(len(results[0]), len(results[1]),  len(results[2]))
@@ -218,6 +218,7 @@ class Sandbox(Module):
         ):
         # inputs = torch.zeros([batch_size, sequence_length], dtype=torch.int64)
         inputs = self.dataset.sample( batch_size=batch_size, sequence_length=sequence_length)
+
 
         synapse = getattr(bittensor.synapse, synapse)()
         endpoints = self.get_random_endpoints(num_endpoints)
@@ -448,8 +449,7 @@ class Sandbox(Module):
 
 if __name__ == '__main__':
     # Sandbox.ray_restart()
-   
-    
+
     module = Sandbox.deploy(actor=False, wrap=True, load=True)
     st.write(module.sample())
     # st.write(module.streamlit_experiment())
