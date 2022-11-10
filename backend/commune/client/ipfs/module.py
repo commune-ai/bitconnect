@@ -537,9 +537,10 @@ class IPFSModule:
         # Add to path.
         file_meta = await self.async_add(path=path, include_root=False)
         # remove json.
+        st.write(file_meta)
         await self.async_rm_json(path, include_root=False)
 
-        return file_meta
+        return list(file_meta.values())[0]
     
 
 
@@ -595,6 +596,6 @@ if __name__ == '__main__':
     # IPFSModule.test()
     module = IPFSModule()
     file_meta = module.put_json('hey', {'hey': {}})
-    st.write(module.cat(file_meta['Hash']))
+    st.write(file_meta)
+    st.write(module.cat(file_meta['Hash'], offset=5, length=2))
     # module.get('QmPgWfmTAH6bo6aJc1JoLuaDLH6A6vCpyVjy57YFK6Fr8m', '/tmp/hey')
-

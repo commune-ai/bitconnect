@@ -83,7 +83,7 @@ class DatasetTesting:
 
 
     def run_trial(self,  
-                block_size=3000, 
+                block_size=2000, 
                 sequence_length=256,
                  batch_size=32, 
                  dataset_name = 'default', 
@@ -103,11 +103,11 @@ class DatasetTesting:
         
         with Module.timer() as t:
             for i in range(num_samples):
-                st.write(Module.get_memory_info())
+                # st.write(Module.get_memory_info())
                 # st.write('dataset size: ',total_size(dataset.__dict__))
                 # st.write('Write')
                 st.write(list(next(dataset).values())[0].shape)
-                # st.write('', i / t.elapsed_time.total_seconds())
+                st.write('', i / t.elapsed_time.total_seconds())
     
 
     def run_experiment(self,
