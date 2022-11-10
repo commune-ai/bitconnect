@@ -78,7 +78,11 @@ class Module:
     ray_context = None
     config_loader = ConfigLoader(load_config=False)
 
-    def __init__(self, config=None, override={}, client=None , loop=None,**kwargs):
+    def __init__(self, config=None, override={}, client=None , loop=None, init_ray=True, **kwargs):
+        
+        if init_ray:
+            self.get_ray_context()
+
         # nest_asyncio.apply()
 
         self.config = self.resolve_config(config)
@@ -516,12 +520,10 @@ class Module:
         except Exception as e:
             module_class = cls.import_object(module)
 
-
         module_init_fn = fn
         module_kwargs = {**kwargs}
         module_args = [*args]
-
-
+        
         if module_init_fn == None:
             if actor:
 
@@ -768,29 +770,26 @@ class Module:
     @classmethod
     def get_ray_context(cls,init_kwargs={}, reinit=True):
         
-        # if cls.ray_initialized():
-        #     return
-        if init_kwargs == None:
+
+        if init_kwargs == None or len(init_kwargs)==0:
             init_kwargs = cls.default_ray_env
-  
-        if isinstance(init_kwargs, dict): 
-            init_kwargs =  {**cls.default_ray_env, **init_kwargs}
-            if Module.ray_initialized() and reinit == True:
-                ray.shutdown()
 
-            init_kwargs['include_dashboard'] = True
-            init_kwargs['dashboard_host'] = '0.0.0.0'
-            # init_kwargs['_system_config']={
-            #     "object_spilling_config": json.dumps(
-            #         {"type": "filesystem", "params": {"directory_path": "/tmp/spill"}},
-            #     )
-            # }
-            init_kwargs['ignore_reinit_error'] = True
-            return ray.init(**init_kwargs)
-        else:
-            raise NotImplementedError(f'{init_kwargs} is not supported')
+        init_kwargs =  {**cls.default_ray_env, **init_kwargs}
+        if Module.ray_initialized() and reinit == True:
+            ray.shutdown()
 
- 
+        init_kwargs['include_dashboard'] = True
+        init_kwargs['dashboard_host'] = '0.0.0.0'
+        # init_kwargs['_system_config']={
+        #     "object_spilling_config": json.dumps(
+        #         {"type": "filesystem", "params": {"directory_path": "/tmp/spill"}},
+        #     )
+        # }
+        init_kwargs['ignore_reinit_error'] = True
+        ray_context = ray.init(**init_kwargs)
+        st.write(ray_context.__dict__)
+
+        return ray_context
     init_ray = get_ray_context
 
     
@@ -831,21 +830,17 @@ class Module:
         if redundant:
             # if the actor already exists and you want to create another copy but with an automatic tag
             actor_index = 0
+
             while Module.actor_exists(name):
                 name =  f'{name}-{actor_index}' 
                 actor_index += 1
 
-
         if not Module.actor_exists(name):
-            
-            try:
-                actor_class = ray.remote(cls)
-                actor_handle = actor_class.options(**options_kwargs).remote(*cls_args, **cls_kwargs)
-            except ValueError:
-                pass
+            actor_class = ray.remote(cls)
+            actor_handle = actor_class.options(**options_kwargs).remote(*cls_args, **cls_kwargs)
 
 
-        return ray.get_actor(name)
+        return Module.get_actor(name)
 
 
 
@@ -911,11 +906,15 @@ class Module:
 
     @property
     def ray_context(self):
-        return ray.runtime_context.get_runtime_context()
+        return self.get_ray_context()
+
+    # @staticmethod
+    # def get_ray_context():
+    #     return ray.runtime_context.get_runtime_context()
     @property
     def context(self):
         if Module.actor_exists(self.actor_name):
-            return ray.runtime_context.get_runtime_context()
+            return self.get_ray_context()
 
     @property
     def actor_name(self):

@@ -24,43 +24,49 @@ from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, L
 
 class TransformerModel(Module):
 
-    def __init__(self, config=None,  **kwargs):
+    def __init__(self, config=None, model=None, tokenizer=None,  **kwargs):
         Module.__init__(self, config=config, **kwargs)
 
-        self.load_model()
+        self.load_model(model)
+        self.load_tokenizer(tokenizer)
 
     @property
     def hf_token(self):
         return self.config['hf_token']
 
     def load_tokenizer(self, tokenizer=None):
-        tokenizer = tokenizer if tokenizer else self.config['tokenizer']
-        self.tokenizer = self.launch(**tokenizer)
-        
+        self.tokenizer = tokenizer if tokenizer else self.launch(**self.config['tokenizer'])
+
     def load_model(self, model=None):
-        model = model if model else self.config['model']
-        self.model = self.launch(**model)
+        self.model =  model if model else self.launch(**self.config['model'])
         self.model.to(self.device)
 
     @property
     def device(self):
         return self.config.get('device', 'cuda')
 
-    def predict(self, input:str="This is the first sentence. This is the second sentence."):
-        input_ids = self.tokenizer(
-                input, add_special_tokens=False, return_tensors="pt"
-            ).input_ids
+    def predict(self, input:str="This is the first sentence. This is the second sentence.", tokenize=False):
         
-        outputs =  self.model.generate(input_ids.to(self.device))
+        if tokenize:
+            input = self.tokenizer(
+                    input, add_special_tokens=False, return_tensors="pt"
+                ).input_ids
+        return self.model.generate(input)
 
-        return self.tokenizer.decode(outputs[0])
+
 
     @classmethod
     def streamlit(self):
-        dataset = Module.launch('dataset.huggingface', actor=True, wrap=True)
+        os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+        Module.get_ray_context()
+        dataset = Module.launch('dataset.huggingface', actor=False, wrap=True)
         # st.write(dataset.sample())
-        model = TransformerModel.deploy(actor={'refresh': False, 'resources': {'num_gpus': 0.2, 'num_cpus':2}, }, wrap=True)
-        st.write(model.tokenizer.decode(model.predict()[0]))
+        # model = Module.launch('commune.model.transformer')
+        model = TransformerModel.deploy(actor=False, wrap=True)
+        st.write(model.device)
+ 
+        x = torch.tensor(dataset.sample().to_list()).to('cuda')
+        st.write(model.predict(x)[0])
         
 
 if __name__ == '__main__':

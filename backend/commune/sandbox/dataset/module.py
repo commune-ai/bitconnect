@@ -110,6 +110,25 @@ class DatasetTesting:
                 st.write('', i / t.elapsed_time.total_seconds())
     
 
+    @classmethod
+    def test_change_data_size(cls):
+        data_sizes = [(10,1000), (15, 2000),(30, 3000), (25,4000)]
+        dataset = bittensor.dataset(num_batches = constant.dataset.num_batches, dataset_name = constant.dataset.dataset_name, run_generator=False, no_tokenizer=False)
+        for data_size in data_sizes:
+            dataset.set_data_size(*data_size)
+            sample_dict = next(dataset)
+            for k,v in sample_dict.items():
+                v.shape[0] == data_size[0]
+            
+        dataset = bittensor.dataset(num_batches = constant.dataset.num_batches, dataset_name = constant.dataset.dataset_name, run_generator=False, no_tokenizer=True)
+
+        for data_size in data_sizes:
+            raw_text_sample = next(dataset)
+            len(raw_text_sample)  == data_size[1]
+        
+        dataset.close() 
+
+
     def run_experiment(self,
                         params=dict(
                             block_size= [1000, 5000, 10000, 20000],
@@ -120,11 +139,9 @@ class DatasetTesting:
 
 if __name__ == '__main__':
 
-    wallet = bittensor.wallet(hotkey='default', name='default')
-    
-    wallet.create(coldkey_use_password=False)
-    # DatasetTesting.test_change_data_size()
-    st.write(DatasetTesting().run_trial())
+
+    DatasetTesting.test_change_data_size()
+    # st.write(DatasetTesting().run_trial())
 
 
 

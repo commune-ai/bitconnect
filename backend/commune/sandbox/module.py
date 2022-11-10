@@ -18,7 +18,7 @@ import streamlit as st
 import numpy as np
 import sys
 import pandas as pd
-import nest_asyncio
+
 from commune.utils import chunk
 
 ##########################
@@ -30,6 +30,8 @@ import threading
 import time
 import queue
 from loguru import logger
+from commune.dataset.huggingface.module import DatasetModule
+st.write(DatasetModule)
 
 from commune import Module
 
@@ -45,17 +47,18 @@ bittensor.subtensor.add_args(parser)
 config = bittensor.config(parser = parser)
 
 class Sandbox(Module):
+    sample_example = {}
     def __init__(self, 
                 subtensor=None,
                 dataset=None, 
                 tokenizer=None,
                 wallet = None,
                 config=None, 
-                load=False,
+                load=True,
                 loop=None):
         Module.__init__(self, config=config)
-        
-        self.loop = self.set_event_loop(loop)
+        # self.loop = self.set_event_loop()
+        self.sample_example = {}
         # config = bittensor.config()
         if load:
             self.subtensor = self.set_subtensor(subtensor)
@@ -70,7 +73,7 @@ class Sandbox(Module):
         # if refresh:
         #     rp_config['actor'] =  rp_config.get('actor',{})
         #     rp_config['actor']['refresh'] = True
-        rp_config['actor'] = rp_config.get('actor')
+        rp_config['actor'] = rp_config.get('actor', False)
         rp_config['kwargs']['wallet']=self.wallet
         rp_config['kwargs']['max_active_receptors'] = max_active_receptors
         rp_config['kwargs']['compression'] = None
@@ -79,7 +82,6 @@ class Sandbox(Module):
             receptor_pool = self.launch_module( **rp_config)  
         self.receptor_pool = receptor_pool
 
-        st.write(self.receptor_pool)
         return self.receptor_pool
 
     def set_dataset(self, dataset=None):
@@ -90,12 +92,15 @@ class Sandbox(Module):
         return self.dataset
 
     def set_wallet(self, wallet=None):
-        if wallet == None:
-            wallet = bittensor.wallet(**self.config.get('wallet'))
-
-        self.wallet = wallet
+        wallet = wallet if wallet else self.config.get('wallet')
+        if isinstance(wallet, dict):
+            self.wallet = bittensor.wallet(**wallet)
+        elif isinstance(wallet, bittensor.wallet):
+            self.wallet = wallet
+        else:
+            raise NotImplemented(f'{type(wallet)} type of wallet is not available')
+    
         return self.wallet
-
 
     def set_tokenizer(self, tokenizer=None):
         if tokenizer == None:
@@ -143,9 +148,19 @@ class Sandbox(Module):
         return receptors
     
 
-    def get_random_endpoints(self, n = 10 ):
+    @property
+    def endpoints(self):
         endpoints =self.graph.endpoint_objs
-        random_ids =  list(np.random.randint(0, len(endpoints), (n)))
+        return endpoints
+    
+    @property
+    def uids(self):
+        return list(map(lambda x: x.uid, self.endpoints))
+        
+
+    def get_random_endpoints(self, n = 10 ):
+        endpoints =self.endpoints
+        random_ids =  np.random.randint(0, len(endpoints), (n))
         return [endpoints[i] for i in random_ids]
 
     def get_endpoints(self, n=10, uids:list=[]):
@@ -176,7 +191,7 @@ class Sandbox(Module):
     def available_synapses(self):
         return [f for f in dir(bittensor.synapse) if f.startswith('Text')]
 
-
+    synapses = all_synapses=available_synapses
     @staticmethod
     def errorcode2name(code):
         code2name_map =  {k:f'{v}' for k,v in zip(bittensor.proto.ReturnCode.values(),bittensor.proto.ReturnCode.keys())}
@@ -208,9 +223,9 @@ class Sandbox(Module):
     def sample(self,
             sequence_length = 10,
             batch_size = 10,
-            timeout= 4,
+            timeout= 2,
             synapse = 'TextLastHiddenState',
-            num_endpoints = 20,
+            num_endpoints = 10,
             success_only= True,
             return_type='results',
             return_json = True,
@@ -301,8 +316,13 @@ class Sandbox(Module):
 
             results['input'] = inputs
 
+
         else:
             raise Exception(f'{return_type} not supported')
+        
+        self.sample_example = results
+
+        
         return results
     def process_results(self, results):
         results_dict = {'tensor':[], 'code':[], 'latency':[], 'uid': []}
@@ -386,7 +406,6 @@ class Sandbox(Module):
     # def streamlit(self):
     #     for k,v_list in params.items():
     def streamlit(self):
-        st.write('fam')
         st.write(self.load_experiment('experiment3'))
 
 
@@ -413,6 +432,7 @@ class Sandbox(Module):
         df['samples_per_second'] = df['batch_size']*df['num_successes'] / df['elapsed_time']
     
         StreamlitPlotModule().run(df)
+
 
 
     @staticmethod
@@ -446,10 +466,32 @@ class Sandbox(Module):
 
         return sequence_chunks
 
+    def schema(self):
+          return {k:v.shape for k,v in self.sample_example.items()}
+
+    async def bro(self):
+        return 'bro'
 
 if __name__ == '__main__':
-    # Sandbox.ray_restart()
+    Module.ray_restart() 
+    module = Sandbox.deploy(actor={'refresh': True}, wrap=True)
 
-    module = Sandbox.deploy(actor=False, wrap=True, load=True)
-    st.write(module.sample())
+
+    tasks = []
+
+    for i in range(10):
+
+        st.write(i)
+        tasks += [module.sample(ray_get=False)]
+
+
+    cnt = 0
+    while tasks:
+        st.write(tasks)
+        ray.get(tasks)
+        finished_tasks, tasks = ray.wait(tasks)
+        for finished_task in finished_tasks:
+            cnt += 1
+            st.write(cnt)
+    st.write(module.schema())
     # st.write(module.streamlit_experiment())

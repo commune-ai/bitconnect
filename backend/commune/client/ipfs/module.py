@@ -533,7 +533,6 @@ class IPFSModule:
     async def async_put_json(self,path,input:str):
         path = os.path.join(self.json_land_dir, path)
         path = await self.async_save_json(path,input, include_root=False)
-        st.write(path)
         # Add to path.
         file_meta = await self.async_add(path=path, include_root=False)
         # remove json.
@@ -595,7 +594,7 @@ class IPFSModule:
 if __name__ == '__main__':
     # IPFSModule.test()
     module = IPFSModule()
-    file_meta = module.put_json('hey', {'hey': {}})
-    st.write(file_meta)
-    st.write(module.cat(file_meta['Hash'], offset=5, length=2))
+    # file_meta = module.put_json('hey', {'hey': {}})
+    # st.write(module.cat(file_meta['Hash'], offset=5, length=2))
+    module.test_json()
     # module.get('QmPgWfmTAH6bo6aJc1JoLuaDLH6A6vCpyVjy57YFK6Fr8m', '/tmp/hey')
