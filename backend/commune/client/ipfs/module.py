@@ -214,11 +214,17 @@ class IPFSModule:
 
     async def async_rm(self, path):
         await self.async_load_path2hash()
-        file_paths = await self.async_ls(path)      
+        hash2path =  self.hash2path
+        file_paths = await self.async_ls(path)
         tasks = []
-        for fp in file_paths:
-            file_meta = self.path2hash[fp]
-            tasks.append(self.async_pin_rm(cid=file_meta['Hash']))
+
+        if path in hash2path:
+            tasks = [self.async_pin_rm(cid=path)]
+        else:
+            for fp in file_paths:
+                file_meta = self.path2hash[fp]
+                tasks.append(self.async_pin_rm(cid=file_meta['Hash']))
+        
         return_jobs = await asyncio.gather(*tasks)
         await self.async_gc()
 
@@ -290,8 +296,24 @@ class IPFSModule:
     dag_get = sync_wrapper(async_dag_get)
 
     async def async_rm_json(self, path=None, recursive=True, **kwargs):
-        path = os.path.join(self.data_dir, path)
-        return os.remove(path)
+        json_path2hash = self.json_path2hash
+        json_hash2path = self.json_hash2path
+
+        if path in json_path2hash:
+            cid = json_path2hash[path]['Hash']
+            st.write(cid)
+            cid = await self.async_rm(cid)
+        elif path in json_hash2path:
+            cid = path
+            cid = await self.async_rm(cid)
+            
+        else:
+            path = os.path.join(self.data_dir, path)
+            return os.remove(path)
+        
+        st.write(cid, 'bro')
+        await self.async_load_path2hash()
+        st.write(await self.async_load_path2hash())
 
     rm_json = sync_wrapper(async_rm_json)
     async def async_save_json(self, 
@@ -416,9 +438,7 @@ class IPFSModule:
     
     @property
     def hash2path(self):
-        path2hash = self.load_path2hash()
-        return {file_meta['Hash']: path for path, file_meta in path2hash.items()}
-
+        return {file_meta['Hash']: path for path, file_meta in self.path2hash.items()}
 
     @classmethod
     def test_add_rm_file(cls):
@@ -498,8 +518,10 @@ class IPFSModule:
         path2hash = self.path2hash
         json_path2hash = {}
         for path, file_meta in path2hash.items():
-            if json_land_dir in path:
-                json_path = path.replace(json_land_dir, '').split('.')[0]
+            if self.json_land_dir in path:
+                json_path = path.replace(self.json_land_dir, '').split('.')[0]
+                if json_path[0] == '/':
+                    json_path = json_path[1:]
                 json_path2hash[json_path] = file_meta
         return json_path2hash
 
@@ -507,6 +529,7 @@ class IPFSModule:
     def json_hash2path(self):
         json_hash2path = {file_meta['Hash']: p for p,file_meta in self.json_path2hash.items()}
         return json_hash2path
+
 
     async def async_put_json(self,path,input:str):
         path = os.path.join(self.json_land_dir, path)
@@ -529,8 +552,9 @@ class IPFSModule:
         else:
             cid = path
 
-        json_str =   str(await self.async_cat(cid))
-        return json.loads(str)
+        json_bytes =   await self.async_cat(cid)
+        
+        return json.loads(json_bytes)
     
     
     def glob(self, pattern='*', recursive = True):
@@ -547,10 +571,31 @@ class IPFSModule:
         '''
         return await self.async_api_get('cat', params=dict(arg=cid, **kwargs), return_json=False)
 
+    @classmethod
+    def test_json(cls):
+        module = cls()
+        obj = {'fam': [0,2,3]}
+        path = 'tmp_path'
+        module.put_json(path,obj)
+        assert module.get_json(path) == obj
+        return obj
+
+
+    @classmethod
+    def test_json_rm(cls):
+        module = cls()
+        obj = {'fam': [0,2,3]}
+        path = 'tmp_path'
+        module.put_json(path,obj)
+        module.rm_json(path,obj)
+        assert module.get_json(path) == obj
+        return obj
+
+
 if __name__ == '__main__':
     # IPFSModule.test()
     module = IPFSModule()
-    # st.write(module.hash2path)
+    st.write(module.put_json('hey', {'hey': {}}))
+    st.write(module.json_path2hash)
     # module.get('QmPgWfmTAH6bo6aJc1JoLuaDLH6A6vCpyVjy57YFK6Fr8m', '/tmp/hey')
-    st.write(module.put_json('hey',{'bro': [1,2,3]}))
-    st.write(module.get_json('hey'))
+
