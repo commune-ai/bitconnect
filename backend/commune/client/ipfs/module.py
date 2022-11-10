@@ -25,7 +25,7 @@ def sync_wrapper(fn):
 IPFSHTTP_LOCAL_HOST = 'ipfs'
 class IPFSModule:
 
-    data_dir = '/tmp/ipfs_client'
+    data_dir = f'{os.getenv("PWD")}/tmp/ipfs_client'
 
     def __init__(self,
                 ipfs_urls = {'get': f'http://{IPFSHTTP_LOCAL_HOST}:8080', 
@@ -100,7 +100,7 @@ class IPFSModule:
                       endpoint:str,
                      return_json:bool = True,
                      content_type:str=None, 
-                     chunk_size:int=1024, 
+                     chunk_size:int=-1, 
                      num_chunks:int=1,
                      params: dict={},
                      headers: dict={},
@@ -146,15 +146,30 @@ class IPFSModule:
         return rest
 
     
-    def resolve_absolute_path(self, path):
-        if path[:len(os.getenv('PWD'))] != os.getenv('PWD'):
-            path = os.getenv('PWD')+'/' + path
+    def resolve_absolute_path(self, path, include_root=True):
+        if include_root:
+            if path[:len(os.getenv('PWD'))] != os.getenv('PWD'):
+                path = os.getenv('PWD')+'/' + path
         
         return path
 
-    async def async_cat(self, path, *args, **kwargs):
-        res = await self.async_api_get(endpoint='cat', arg=path,  *args, **kwargs)
+
+    async def async_get(self, cid:str, output_path:str=None,*args, **kwargs):
+        '''
+        arg [string]: The path to the IPFS object(s) to be outputted. Required: yes.
+        output [string]: The path where the output should be stored. Required: no.
+        archive [bool]: Output a TAR archive. Required: no.
+        compress [bool]: Compress the output with GZIP compression. Required: no.
+        compression-level [int]: The level of compression (1-9). Required: no.
+        progress [bool]: Stream progress data. Default: true. Required: no.
+
+        '''
+        params = dict(arg=cid, **kwargs)
+        if isinstance(output_path, str):
+            params['output'] =  output_path
+        res = await self.async_api_get('get', params=params , return_json=False)
         return res
+        
 
     async def async_pin(self, session, cid, recursive=False, progress=False, **kwargs):
         kwargs['params'] = kwargs.get('params', {})
@@ -167,15 +182,21 @@ class IPFSModule:
     async def async_add(self,
             path,
             pin=True,
-            chunker=262144 ):
-        path = self.resolve_absolute_path(path)
+            chunker=262144 , include_root=True):
+        path = self.resolve_absolute_path(path, include_root=include_root)
         self.path2hash = await self.async_load_path2hash()
         file_paths=[]
         assert os.path.exists(path), f'{path} does not exist'
         if os.path.isdir(path):
-            file_paths = glob(path+'/**', recursive=True)
+            # if the path is a directory
+            # ensure that / is at the end of the directory
+            if path[-1] != '/':
+                path += '/'
+            glob_pattern = path+'**'
+            file_paths = glob(glob_pattern, recursive=True)
         elif os.path.isfile(path):
             file_paths = [path]
+            
   
 
         file_paths = list(filter(os.path.isfile, file_paths))
@@ -471,17 +492,65 @@ class IPFSModule:
         module.save_json('fam',obj )
         assert obj == module.load_json('fam')
 
-    async def async_put_json(self, path,input):
-        save_path = await self.async_save_json(path,input)
-        file_meta = await self.async_add(path=save_path)
-        await self.rm_json(path)
+    json_land_dir = os.path.join(data_dir, 'json_land')
+    @property
+    def json_path2hash(self):
+        path2hash = self.path2hash
+        json_path2hash = {}
+        for path, file_meta in path2hash.items():
+            if json_land_dir in path:
+                json_path = path.replace(json_land_dir, '').split('.')[0]
+                json_path2hash[json_path] = file_meta
+        return json_path2hash
+
+    @property
+    def json_hash2path(self):
+        json_hash2path = {file_meta['Hash']: p for p,file_meta in self.json_path2hash.items()}
+        return json_hash2path
+
+    async def async_put_json(self,path,input:str):
+        path = os.path.join(self.json_land_dir, path)
+        path = await self.async_save_json(path,input, include_root=False)
+        st.write(path)
+        # Add to path.
+        file_meta = await self.async_add(path=path, include_root=False)
+        # remove json.
+        await self.async_rm_json(path, include_root=False)
+
         return file_meta
     
 
-    async def async_cat(self, cid):
-        return await self.async_api_get('cat', cid)
+
+
+    async def async_get_json(self, path):
+        json_path2hash=self.json_path2hash
+        if path in json_path2hash:
+            cid = json_path2hash[path]['Hash']
+        else:
+            cid = path
+
+        json_str =   str(await self.async_cat(cid))
+        return json.loads(str)
+    
+    
+    def glob(self, pattern='*', recursive = True):
+        return glob(pattern, recursive=recursive)
+
+    
+
+    async def async_cat(self, cid, **kwargs ):
+        '''
+        Args:
+            offset [int64]: Byte offset to begin reading from. Required: no.
+            length [int64]: Maximum number of bytes to read. Required: no.
+            progress [bool]: Stream progress data. Default: true. Required: no.
+        '''
+        return await self.async_api_get('cat', params=dict(arg=cid, **kwargs), return_json=False)
 
 if __name__ == '__main__':
-    IPFSClient.test()
-    module = IPFSClient()
-    st.write(glob('commune/**', recursive=True))
+    # IPFSModule.test()
+    module = IPFSModule()
+    # st.write(module.hash2path)
+    # module.get('QmPgWfmTAH6bo6aJc1JoLuaDLH6A6vCpyVjy57YFK6Fr8m', '/tmp/hey')
+    st.write(module.put_json('hey',{'bro': [1,2,3]}))
+    st.write(module.get_json('hey'))

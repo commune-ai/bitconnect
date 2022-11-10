@@ -118,7 +118,6 @@ class DatasetTesting:
                          ) ):
         pass
 
-
 if __name__ == '__main__':
 
     wallet = bittensor.wallet(hotkey='default', name='default')
