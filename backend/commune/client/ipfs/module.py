@@ -38,7 +38,6 @@ class IPFSModule:
         self.loop = asyncio.set_event_loop(asyncio.new_event_loop())
         self.sync_the_async()
 
-
     def sync_the_async(self):
         for f in dir(self):
             if 'async_' in f:
@@ -595,7 +594,7 @@ class IPFSModule:
 if __name__ == '__main__':
     # IPFSModule.test()
     module = IPFSModule()
-    st.write(module.put_json('hey', {'hey': {}}))
-    st.write(module.json_path2hash)
+    file_meta = module.put_json('hey', {'hey': {}})
+    st.write(module.cat(file_meta['Hash']))
     # module.get('QmPgWfmTAH6bo6aJc1JoLuaDLH6A6vCpyVjy57YFK6Fr8m', '/tmp/hey')
 
