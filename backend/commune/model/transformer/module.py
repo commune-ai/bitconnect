@@ -33,11 +33,13 @@ class TransformerModel(Module):
     def hf_token(self):
         return self.config['hf_token']
 
-
-    def load_model(self):
-        self.model = self.launch(**self.config['model'])
-        self.tokenizer = self.launch(**self.config['tokenizer'])
-
+    def load_tokenizer(self, tokenizer=None):
+        tokenizer = tokenizer if tokenizer else self.config['tokenizer']
+        self.tokenizer = self.launch(**tokenizer)
+        
+    def load_model(self, model=None):
+        model = model if model else self.config['model']
+        self.model = self.launch(**model)
         self.model.to(self.device)
 
     @property

@@ -2,67 +2,45 @@ import streamlit as st
 from random import shuffle, seed
 from collections import defaultdict
 import pandas as pd
-import bittensor
 import torch
 from torch import nn
 from tqdm.auto import tqdm
 from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
 # import torchsort
-from commune.bittensor import BitModule
 from commune import Module
 import ray
-from commune.bittensor.cortex.metric import causal_lm_loss, ranknet_loss
+import asyncio
+
+# from commune.bittensor.cortex.metric import causal_lm_loss, ranknet_loss
 from commune.utils import *
 from sklearn import metrics
 from scipy.stats import kendalltau
 import torch
 from torch import nn
 from commune.ray.actor_pool import ActorPool
-
+Module.new_event_loop()
+import bittensor
 
 class DatasetModule(Module):
-    __file__ = __file__
-    def __init__(self, config=None, load=True, **kwargs):
-        BitModule.__init__(self, config=config,  **kwargs)
+    def __init__(self,config=None, tokenizer=None, dataset=None, **kwargs):
+        Module.__init__(self, config=config, **kwargs)
 
-        if type(load) in [dict]:
-            self.load(**load)
-        else:
-            self.load(load)
+        self.load_tokenizer(tokenizer)
+        self.load_dataset(dataset)
 
-    default_load_keys = [ 'dataset', 'tokenizer']
-    def load(self, keys=True, load_kwargs={}, load_args={}, **kwargs):
+
+    def load_tokenizer(self, tokenizer=None): 
+        tokenizer = tokenizer if tokenizer else self.config['tokenizer']
         
-        if keys in [False, None]:
-            return
+        st.write(tokenizer)
+        self.tokenizer = self.launch_module(**tokenizer)
+        return self.tokenizer
 
-        if keys == True:
-            keys = self.default_load_keys
-        
-        load_keys = keys
-
-        for load_key in load_keys:
-            st.write(load_key, 'load')
-            load_kwargs.get(load_key, {}) 
-            load_fn = getattr(self, f'load_{load_key}', None)
-            assert load_fn != None, f'{load_key} is suppose to be a function'
-            load_fn_kwargs = load_kwargs.get(load_key, self.config.get(load_key, {}))
-            load_fn(**load_fn_kwargs)
-
-    def load_dataset(self, path, params, **kwargs):
-        dataset_class = self.import_object(path)
-
-        split = params.get('split')
-        if isinstance(split, str):
-            params['split'] = {split: split}
-        elif isinstance(split, list):
-            params['split'] = {s:s for s in params['split']}  
-        
-
-        self.dataset = dataset_class(**params)
-        filter_fn = lambda x: len(x[self.config['dataset']['text_field']]) >= self.config['dataset']['min_token_length']
-        self.datasets = self.filter_dataset(fn=filter_fn, dataset=self.dataset)
+    def load_dataset(self, dataset=None):
+        dataset = dataset if dataset else self.config['dataset']
+        self.dataset = self.launch_module(**dataset)
+        return self.dataset
 
     def filter_dataset(self, fn, dataset=None):
         if dataset == None:
@@ -78,12 +56,6 @@ class DatasetModule(Module):
     @property
     def features(self):
         return self.dataset[self.splits[0]]._info.__dict__['features']
-
-    def load_tokenizer(self, 
-                        path='bittensor.tokenizer', 
-                        params=dict(version=bittensor.__version__), **kwargs): 
-        tokenizer_class = self.import_object(path)
-        self.tokenizer = tokenizer_class(**params)
 
     @property
     def device(self):
@@ -155,6 +127,11 @@ class DatasetModule(Module):
 
         if tokenize:
             samples = self.tokenize(samples, padding=padding)
+            samples = samples[:,:sequence_length]
+            remainder = sequence_length - samples.shape[1]
+            if remainder > 0:
+                filler = torch.full(size=(samples.shape[0], remainder),fill_value=0).to(samples.device)
+                samples = torch.cat([samples, filler], dim=1)
         return samples
     
     def resolve_device(self, device=None):
@@ -162,8 +139,25 @@ class DatasetModule(Module):
             device = self.device
         return device
 
-if __name__ == '__main__':
+    @staticmethod
+    def ray_job_generator(running_jobs):
+        while running_jobs:
+            finished_jobs, running_jobs = ray.wait(running_jobs)
+            for finished_job in finished_jobs:
+                yield ray.get(finished_job)
 
+    classmethod
+    def test_model_sample(cls):
+        self = cls()
+        batch_size=12
+        seqeunce_length = 256
+        x = self.sample(batch_size=batch_size,seqeunce_length=seqeunce_length )
+        assert x.shape[0] == batch_size
+        assert x.shape[1] == seqeunce_length
+
+if __name__ == '__main__':
     module = DatasetModule.deploy(actor={'refresh': False}, load=True, wrap=True)
-    st.write(module.sample(idx_list= [1032], tokenize=False))
-    
+    generator = DatasetModule.ray_job_generator([module.sample(batch_size=32, sequence_length=256, ray_get=False) for i in range(100)])
+    for x in generator:
+        st.write(x.shape)
+

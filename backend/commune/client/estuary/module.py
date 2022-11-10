@@ -47,9 +47,6 @@ class EstuaryModule(Module):
             return env_api_key
 
 
-
-
-
     # %% ../nbs/02_estuaryapi.ipynb 4
 
     def est_get_viewer(
@@ -591,11 +588,8 @@ class EstuaryModule(Module):
 
     def get_deal_status(self,
         deal_id: str, # Deal ID,
-        api_key: str=None # Your Estuary API key
     ):
         "Get deal status by id"
-
-        api_key = self.resolve_api_key(api_key)
 
         headers = {
         'Authorization': f'Bearer {api_key}',

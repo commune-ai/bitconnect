@@ -87,9 +87,9 @@ class DatasetTesting:
                 sequence_length=256,
                  batch_size=32, 
                  dataset_name = 'default', 
-                 load_dataset=True, 
-                 save_dataset=False, 
-                 run_generator=True,  
+                 load_dataset=False, 
+                 save_dataset=True, 
+                 run_generator=False,  
                  num_samples=100,
                  cache_size: int = 10, 
                  cache_calls_per_block: int=100

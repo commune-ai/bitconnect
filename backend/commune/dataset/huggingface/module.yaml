@@ -1,15 +1,17 @@
-module: 'DatasetModule'
+module: DatasetModule
 
 client: {}
 
+tokenizer:
+  module: bittensor.tokenizer
+
 dataset:
-  path: datasets.load_dataset
-  params:
+  module: datasets.load_dataset
+  kwargs:
     path: wikitext
     name: wikitext-103-v1
-    split: [test, 'train']
+    # split: ['test', 'train']
   text_field: text
-  min_token_length: 10
 
 actor:
   name: local_copy(module)
