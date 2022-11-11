@@ -225,8 +225,17 @@ class ReceptorPool ( torch.nn.Module ):
                     dendrite backward call times
         """
         # Init receptors.
-        receptors = [ self._get_or_create_receptor_for_endpoint( endpoint ) for endpoint in endpoints ]
+        # receptors = [ self._get_or_create_receptor_for_endpoint( endpoint ) for endpoint in endpoints ]
 
+        receptors = []
+        for endpoint in endpoints:
+            receptors += [bittensor.receptor (
+                        endpoint = endpoint, 
+                        wallet = self.wallet,
+                        external_ip = self.external_ip,
+                        max_processes = self.max_processes,
+                        compression = self.compression
+                )]
         # Make calls.
         calls = []
         for index, receptor in enumerate(receptors):
@@ -250,7 +259,7 @@ class ReceptorPool ( torch.nn.Module ):
             forward_times.append( response[2] )
 
         # ---- Kill receptors ----
-        self._destroy_receptors_over_max_allowed()
+        # self._destroy_receptors_over_max_allowed()
         # ---- Return ----
         return forward_outputs, forward_codes, forward_times
 
@@ -354,7 +363,7 @@ class ReceptorPool ( torch.nn.Module ):
                     receptor with tcp connection endpoint at endpoint.ip:endpoint.port
         """
         # ---- Find the active receptor for this endpoint ----
-        if endpoint.hotkey in self.receptors:
+        if endpoint.hotkey in self.receptors :
             receptor = self.receptors[ endpoint.hotkey ]
 
             # Change receptor address.

@@ -81,7 +81,7 @@ class Module:
     def __init__(self, config=None, override={}, client=None , loop=None, init_ray=True, **kwargs):
         
         if init_ray:
-            self.get_ray_context()
+            self.init_ray()
 
         # nest_asyncio.apply()
 
@@ -727,7 +727,7 @@ class Module:
 
         ray_config = config.get('ray', {})
         if not cls.ray_initialized():
-            ray_context =  cls.get_ray_context(init_kwargs=ray_config)
+            ray_context =  cls.init_ray(init_kwargs=ray_config)
         
         if actor:
             actor_config =  config.get('actor', {})
@@ -768,15 +768,20 @@ class Module:
 
     default_ray_env = {'address':'auto', 'namespace': 'default'}
     @classmethod
-    def get_ray_context(cls,init_kwargs={}, reinit=True):
+    def init_ray(cls,init_kwargs={}, reinit=False):
         
 
         if init_kwargs == None or len(init_kwargs)==0:
             init_kwargs = cls.default_ray_env
 
         init_kwargs =  {**cls.default_ray_env, **init_kwargs}
-        if Module.ray_initialized() and reinit == True:
-            ray.shutdown()
+        if Module.ray_initialized():
+            if reinit:
+                ray.shutdown()
+            
+            else:
+                return {}
+        
 
         init_kwargs['include_dashboard'] = True
         init_kwargs['dashboard_host'] = '0.0.0.0'
@@ -786,11 +791,11 @@ class Module:
         #     )
         # }
         init_kwargs['ignore_reinit_error'] = True
+        st.write('INITIALIE RAY ', cls.ray_initialized())
+
         ray_context = ray.init(**init_kwargs)
-        st.write(ray_context.__dict__)
 
         return ray_context
-    init_ray = get_ray_context
 
     
     @staticmethod
@@ -800,7 +805,7 @@ class Module:
                  cls_args =[],
                  detached=True, 
                  resources={'num_cpus': 1.0, 'num_gpus': 0},
-                 max_concurrency=500,
+                 max_concurrency=50,
                  refresh=False,
                  return_actor_handle=False,
                  verbose = True,
@@ -906,7 +911,8 @@ class Module:
 
     @property
     def ray_context(self):
-        return self.get_ray_context()
+        return self.init_ray()
+
 
     # @staticmethod
     # def get_ray_context():
@@ -914,7 +920,7 @@ class Module:
     @property
     def context(self):
         if Module.actor_exists(self.actor_name):
-            return self.get_ray_context()
+            return self.init_ray()
 
     @property
     def actor_name(self):

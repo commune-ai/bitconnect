@@ -17,10 +17,6 @@ from ipfshttpclient.multipart import stream_directory, stream_files
 
 logger = logging.getLogger("ipfsspec")
 
-def sync_wrapper(fn):
-    def wrapper_fn(*args, **kwargs):
-        return asyncio.run(fn(*args, **kwargs))
-    return  wrapper_fn
 
 IPFSHTTP_LOCAL_HOST = 'ipfs'
 class IPFSModule:
@@ -32,16 +28,23 @@ class IPFSModule:
                              'post': f'http://{IPFSHTTP_LOCAL_HOST}:5001'},
                 loop=None,
                 client_kwargs={}):
-
+        self.sync_the_async()
         self.ipfs_url = ipfs_urls
         self.path2hash = self.load_path2hash()
         self.loop = asyncio.set_event_loop(asyncio.new_event_loop())
-        self.sync_the_async()
 
+
+    @classmethod
     def sync_the_async(self):
         for f in dir(self):
             if 'async_' in f:
-                setattr(self, f.replace('async_',  ''), sync_wrapper(getattr(self, f)))
+                setattr(self, f.replace('async_',  ''), self.sync_wrapper(getattr(self, f)))
+
+    @staticmethod
+    def sync_wrapper(fn):
+        def wrapper_fn(*args, **kwargs):
+            return asyncio.run(fn(*args, **kwargs))
+        return  wrapper_fn
 
     async def async_api_post(self, 
                       endpoint:str, 
@@ -292,8 +295,6 @@ class IPFSModule:
         kwargs['params'] = dict(arg=cid, recursive= recursive,progress= progress)
         res = await self.async_api_post(endpoint='dag/get', **kwargs)
         return bool(cid in pinned_cid_list)
-    dag_get = sync_wrapper(async_dag_get)
-
     async def async_rm_json(self, path=None, recursive=True, **kwargs):
         json_path2hash = self.json_path2hash
         json_hash2path = self.json_hash2path
@@ -314,7 +315,6 @@ class IPFSModule:
         await self.async_load_path2hash()
         st.write(await self.async_load_path2hash())
 
-    rm_json = sync_wrapper(async_rm_json)
     async def async_save_json(self, 
                         path:str,
                         obj:Union[dict, list],
@@ -358,7 +358,6 @@ class IPFSModule:
         return path
 
 
-    save_json = sync_wrapper(async_save_json)
     async def async_load_json(self, path:str,include_root:bool=True, default:Union[list, dict]={}) -> Union[list, dict]:
 
         """ 
@@ -401,7 +400,6 @@ class IPFSModule:
             obj = json.loads(obj)
         return obj
 
-    load_json = sync_wrapper(async_load_json)
 
     async def async_ls(self, path=''):
         await self.async_load_path2hash()
@@ -411,7 +409,6 @@ class IPFSModule:
             if fp[:len(path)] == path:
                 path_list += [fp]
         return path_list
-    ls = sync_wrapper(async_ls)
     async def async_save_path2hash(self):
         pinned_cids = (await self.async_pin_ls()).get('Keys', {}).keys()
         path2hash = {}
@@ -421,7 +418,6 @@ class IPFSModule:
 
         await self.async_save_json('path2hash', path2hash )
 
-    save_path2hash = sync_wrapper(async_save_path2hash)
     
     async def async_load_path2hash(self):
         loaded_path2hash  = await self.async_load_json('path2hash')
@@ -432,7 +428,6 @@ class IPFSModule:
                 path2hash[path] = file_meta
         self.path2hash = path2hash
         return path2hash
-    load_path2hash = sync_wrapper(async_load_path2hash)
 
     
     @property

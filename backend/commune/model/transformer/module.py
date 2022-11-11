@@ -58,7 +58,7 @@ class TransformerModel(Module):
     @classmethod
     def streamlit(self):
         os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-        Module.get_ray_context()
+        Module.init_ray()
         dataset = Module.launch('dataset.huggingface', actor=False, wrap=True)
         # st.write(dataset.sample())
         # model = Module.launch('commune.model.transformer')

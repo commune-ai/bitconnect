@@ -39,15 +39,23 @@ class Timer:
         self.__dict__.update(locals())
         
 
+    @property
+    def start(self):
+        self.local_start_time = self.seconds
+        return self.local_start_time
+    @property
+    def stop(self):
+        return self.seconds - self.local_start_time
+
 
     def __enter__(self):
-        self.start = datetime.datetime.utcnow()
+        self.start_time = datetime.datetime.utcnow()
         return self
 
     @property
     def interval(self):
-        self.end =  datetime.datetime.utcnow()
-        interval = (self.end - self.start)
+        self.end_time =  datetime.datetime.utcnow()
+        interval = (self.end_time - self.start_time)
 
         return_type = self.return_type
         if return_type in ['microseconds', 'ms', 'micro', 'microsecond']:
@@ -69,11 +77,9 @@ class Timer:
     @property
     def elapsed_seconds(self):
         return self.elapsed_time.total_seconds()
-    
+    seconds = elapsed_seconds
 
     def __exit__(self, *args):
-
-
         if self.verbose:
             if self.streamlit:
                 st.write(self.text.format(t=self.elapsed_time))

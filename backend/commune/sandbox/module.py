@@ -65,8 +65,9 @@ class Sandbox(Module):
             self.wallet = self.set_wallet(wallet)
             self.receptor_pool =self.set_receptor_pool(receptor_pool=None)
             self.dataset = self.set_dataset(dataset)
-            self.tokenizer = self.set_tokenizer(tokenizer)
+            # self.tokenizer = self.set_tokenizer(tokenizer)
             
+        self.sync_the_async()
     
     def set_receptor_pool(self, receptor_pool=None, refresh=None, max_active_receptors=0):
         rp_config = self.config['receptor_pool']
@@ -119,6 +120,7 @@ class Sandbox(Module):
         if self.sync_delay > self.config.get('delay_threshold', 100):
             self.graph.sync()
             self.graph.save()
+
         
         
         
@@ -198,7 +200,7 @@ class Sandbox(Module):
         return code2name_map[code]
 
         
-    def receptor_pool_forward(self, endpoints, inputs, synapses , timeout, splits=5):
+    async def async_receptor_pool_forward(self, endpoints, inputs, synapses , timeout, splits=5):
         if synapses == None:
             synapses = self.synapses
 
@@ -213,19 +215,24 @@ class Sandbox(Module):
         job_bundle = asyncio.gather(*[self.receptor_pool.async_forward(**kwargs) for kwargs in kwargs_list])
        
         agg_results = [[],[],[]]
-        for results in asyncio.run(job_bundle):
+        for results in (await job_bundle):
             for i,result in enumerate(results):
                 agg_results[i].extend(result)
         # st.write(len(results[0]), len(results[1]),  len(results[2]))
         # st.write([(len(result), type(result)) for result in results])
         return agg_results
-      
-    def sample(self,
-            sequence_length = 10,
-            batch_size = 10,
+
+
+    def resolve_synapse(self, synapse:str, *args,**kwarga):
+        return getattr(bittensor.synapse, synapse)()
+
+
+    async def async_sample(self,
+            sequence_length = 256,
+            batch_size = 32,
             timeout= 2,
-            synapse = 'TextLastHiddenState',
-            num_endpoints = 10,
+            synapse = 'TextCausalLMNext',
+            num_endpoints = 50,
             success_only= True,
             return_type='results',
             return_json = True,
@@ -233,9 +240,7 @@ class Sandbox(Module):
         ):
         # inputs = torch.zeros([batch_size, sequence_length], dtype=torch.int64)
         inputs = self.dataset.sample( batch_size=batch_size, sequence_length=sequence_length)
-
-
-        synapse = getattr(bittensor.synapse, synapse)()
+        synapse = self.resolve_synapse(synapse)
         endpoints = self.get_random_endpoints(num_endpoints)
         
         uids = torch.tensor([e.uid for e in endpoints])
@@ -245,7 +250,7 @@ class Sandbox(Module):
 
         with self.timer(text='Querying Endpoints: {t}', streamlit=True) as t:
             
-            results = self.receptor_pool_forward(
+            results = await self.async_receptor_pool_forward(
                                 endpoints=endpoints,
                                 synapses= [synapse],
                                 timeout=timeout,
@@ -259,6 +264,7 @@ class Sandbox(Module):
 
         results = list(results) + [list(map(lambda e:e.uid, endpoints))]
         results = self.process_results(results)
+
         # tensors =
         
         
@@ -282,11 +288,15 @@ class Sandbox(Module):
         results['batch_size'] = batch_size
         results['sequence_length'] = sequence_length
         results['num_tokens'] = batch_size*sequence_length
-
+        if success_only and len(success_indices) == 0:
+            return {}
         for is_success in [True, False]:
             for m in ['min', 'max', 'mean', 'std']:
                 if is_success:
-                    results[f'success_latency_{m}'] = getattr(torch, m)(results['latency'][success_indices]).item()
+                    if len(success_indices)>0:
+                        results[f'success_latency_{m}'] = getattr(torch, m)(results['latency'][success_indices]).item()
+                    else:
+                        results[f'success_latency_{m}'] = 0
                 else:
                     results[f'latency_{m}'] = getattr(torch, m)(results['latency']).item()
 
@@ -297,15 +307,19 @@ class Sandbox(Module):
         # results['code'] = list(map(self.errorcode2name, results['code'].tolist()))
 
 
+
         graph_state_dict = self.graph.state_dict()
         graph_keys = ['trust', 'consensus','stake', 'incentive', 'dividends', 'emission']
         for k in graph_keys:
             results[k] =  graph_state_dict[k][results['uid']]
         
+
         if success_only:
             for k in result_keys + graph_keys:
-                results[k] = results[k][success_indices]
-
+                if len(success_indices)>0:
+                    results[k] = results[k][success_indices]
+                else:
+                    results[k] = []
 
         if return_type in ['metric', 'metrics']:
             results = {k:v for k,v  in results.items() if k not in graph_keys+result_keys }
@@ -469,29 +483,126 @@ class Sandbox(Module):
     def schema(self):
           return {k:v.shape for k,v in self.sample_example.items()}
 
-    async def bro(self):
-        return 'bro'
+    @classmethod
+    def sync_the_async(cls, obj = None):
+        if obj == None:
+            obj = cls
+
+        for f in dir(obj):
+            if 'async_' in f:
+                setattr(obj, f.replace('async_',  ''), cls.sync_wrapper(getattr(obj, f)))
+
+
+    @staticmethod
+    def sync_wrapper(fn):
+        def wrapper_fn(*args, **kwargs):
+            return asyncio.run(fn(*args, **kwargs))
+        return  wrapper_fn
+
+from munch import Munch 
+class AyncioManager:
+    """ Base threadpool executor with a priority queue 
+    """
+
+    def __init__(self,  max_tasks:int=10):
+        """Initializes a new ThreadPoolExecutor instance.
+        Args:
+            max_threads: 
+                The maximum number of threads that can be used to
+                execute the given calls.
+        """
+        self.max_tasks = max_tasks
+        self.running, self.stopped = False, False
+        self.tasks = []
+        self.queue = Munch({'in':queue.Queue(), 'out':queue.Queue()})
+        self.start()
+        st.write(self.background_thread)
+
+    def stop(self):
+        while self.running:
+            self.stopped = True
+        return self.stopped
+        
+    def start(self):
+        self.background_thread = threading.Thread(target=self.run_loop, args={}, kwargs={}, daemon=True)
+        self.background_thread.start()
+
+    def run_loop(self):
+        return asyncio.run(self.async_run_loop())
+    def new_aysnc_loop(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop
+    async def async_run_loop(self): 
+        loop = self.new_aysnc_loop()
+        print(loop)
+        self.stopped = False
+        self.running = True
+        print(loop)
+
+        while self.running and not self.stopped:
+            finished_tasks = []
+            if len(self.tasks)>0:
+                finished_tasks, self.tasks = await asyncio.wait(self.tasks)
+            for finished_task in finished_tasks:
+                self.queue.out.put(await asyncio.gather(*finished_task))
+            if len(self.tasks) <= self.max_tasks:
+                new_job = self.queue['in'].get()
+                self.submit(**new_job)
+                new_job = self.queue.out.get()
+
+        loop.close()
+        self.running = False
+
+    def submit(self,fn, *args, **kwargs):
+        job = {'fn': fn, 'args': args, 'kwargs': kwargs}
+        self.queue['in'].put(job)
+
+    def get(self):
+        return self.queue['out'].get()
+
+    def close(self):
+        self.stop()
+        self.background_thread.join()
+
+    def __del__(self):
+        self.close()
+
 
 if __name__ == '__main__':
-    Module.ray_restart() 
-    module = Sandbox.deploy(actor={'refresh': True}, wrap=True)
+    Sandbox.ray_start()
+    module = Sandbox.deploy(actor=False, wrap=True)
 
+    async def async_run_jobs(jobs, max_tasks=5, stagger_time=0.5):
+        finished_jobs, running_jobs = [],[]
+        finished_results = []
+        for job in jobs:
+            while len(running_jobs)>=max_tasks:
+                
+                tmp_finished_jobs, running_jobs = await asyncio.wait(running_jobs, return_when=asyncio.FIRST_COMPLETED)
+                running_jobs = list(running_jobs)
+                if tmp_finished_jobs:
+                    finished_jobs += list(tmp_finished_jobs)
+                    finished_results += await asyncio.gather(*tmp_finished_jobs)
+    
+                    st.write(len(finished_results[-1].get('tensor',[])))
+    
 
-    tasks = []
+                else:
+                    asyncio.sleep(stagger_time)
+                
+            
+            running_jobs.append(job['fn'](*job.get('args', []),**job.get('kwargs',{})))
+            
 
-    for i in range(10):
+        finished_results += list(await asyncio.gather(*running_jobs))
+        
+        return finished_results
 
-        st.write(i)
-        tasks += [module.sample(ray_get=False)]
+    jobs = [{'fn': module.async_sample, 'kwargs': dict(num_endpoints=10, timeout=6, sequence_length=64) } for i in range(40)]
 
+    with Sandbox.timer() as t:
 
-    cnt = 0
-    while tasks:
-        st.write(tasks)
-        ray.get(tasks)
-        finished_tasks, tasks = ray.wait(tasks)
-        for finished_task in finished_tasks:
-            cnt += 1
-            st.write(cnt)
-    st.write(module.schema())
-    # st.write(module.streamlit_experiment())
+        results = asyncio.run(async_run_jobs(jobs, max_tasks=2))
+        st.write('QPS: ',len(results)/t.seconds)
+
