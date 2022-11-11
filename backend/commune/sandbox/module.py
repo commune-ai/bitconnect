@@ -625,10 +625,12 @@ class AyncioManager:
 
 if __name__ == '__main__':
     Sandbox.ray_start()
-    module = Sandbox.deploy(actor={'refresh': True}, wrap=True)
-    st.write(module.sample_generator(num_endpoints=60, 
-                        sequence_length=256,
-                         batch_size=32,
+    module = Sandbox.deploy(actor={'refresh': False}, wrap=True)
+
+    st.write(module.sample_generator(num_endpoints=25, 
+                        sequence_length=10,
+                        batch_size=10,
+                            
                         num_batches=50,
-                         max_tasks=10))
+                        max_tasks=10))
 

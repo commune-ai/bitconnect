@@ -21,6 +21,8 @@ from ocean_lib.web3_internal.utils import (
     private_key_to_public_key,
 )
 
+from copy import deepcopy
+
 logger = logging.getLogger(__name__)
 from eth_account.account import Account
 
@@ -183,17 +185,25 @@ class AccountModule(Module):
         return tx_receipt.__dict__
 
     @staticmethod
-    def python2str(message):
-        if type(message) in [dict]:
-            message = json.dumps(message)
-        elif type(message) in [list, tuple, set]:
-            message = json.dumps(list(message))
-        elif type(message) in [int, float, bool]:
-            message = str(message)
-
+    def python2str(input):
+        input = deepcopy(input)
+        input_type = type(input)
+        if input_type in [dict]:
+            input = json.dumps(input)
+        elif input_type in [list, tuple, set]:
+            input = json.dumps(list(input))
+        elif message_type in [int, float, bool]:
+            input = str(input)
         return message
 
-
+    @staticmethod
+    def str2python(input)-> dict:
+        assert isinstance(input, str)
+        output_dict = json.loads(input)
+        return output_dict
+    
+    
+    
     def resolve_message(self, message):
         message = self.python2str(message)
 
