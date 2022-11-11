@@ -599,10 +599,11 @@ if __name__ == '__main__':
         
         return finished_results
 
-    jobs = [{'fn': module.async_sample, 'kwargs': dict(num_endpoints=10, timeout=6, sequence_length=64) } for i in range(40)]
+    jobs = [{'fn': module.async_sample, 'kwargs': dict(num_endpoints=10, timeout=6, sequence_length=10, batch_size=10) } for i in range(50)]
+
 
     with Sandbox.timer() as t:
 
-        results = asyncio.run(async_run_jobs(jobs, max_tasks=2))
+        results = asyncio.run(async_run_jobs(jobs, max_tasks=10))
         st.write('QPS: ',len(results)/t.seconds)
 
