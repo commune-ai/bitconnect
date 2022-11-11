@@ -338,6 +338,61 @@ class Sandbox(Module):
 
         
         return results
+
+    def sample_generator(self, num_endpoints=10, 
+                        sequence_length=10,
+                         batch_size=10,
+                        num_batches=10,
+                         max_tasks=10,
+                          *args, **kwargs):
+        jobs = []
+        kwargs.update(dict(sequence_length=sequence_length, batch_size=batch_size,num_endpoints=num_endpoints))
+        for i in range(num_batches):
+            jobs += [{'fn': self.async_sample, 'kwargs': kwargs, 'args': args}]
+                
+        metrics_dict = {}
+        with self.timer() as t:
+            finished_results = asyncio.run(self.async_run_jobs(jobs=jobs,  max_tasks=num_batches))
+            
+            metrics_dict['seconds'] = t.seconds
+            metrics_dict['max_tasks'] = max_tasks
+            metrics_dict['queries'] = num_endpoints
+            metrics_dict['successes'] = len(finished_results)
+            metrics_dict['success_rate'] = metrics_dict['successes']/metrics_dict['queries']
+            metrics_dict['samples'] = sum([fr['tensor'].shape[0] for fr in finished_results])
+            metrics_dict['tokens'] = sum([fr['tensor'].shape[1]*fr['tensor'].shape[0] for fr in finished_results])
+
+        for k in list(results_dict.keys()):
+            results_dict[f'{k}_per_second'] = results_dict[k] / results_dict['seconds']
+        return results_dict
+
+
+    @staticmethod
+    async def async_run_jobs(jobs, max_tasks=5, stagger_time=0.5):
+        finished_jobs, running_jobs = [],[]
+        finished_results = []
+        for job in jobs:
+            while len(running_jobs)>=max_tasks:
+                
+                tmp_finished_jobs, running_jobs = await asyncio.wait(running_jobs, return_when=asyncio.FIRST_COMPLETED)
+                running_jobs = list(running_jobs)
+                if tmp_finished_jobs:
+                    finished_jobs += list(tmp_finished_jobs)
+                    finished_results += await asyncio.gather(*tmp_finished_jobs)
+    
+                    st.write(len(finished_results[-1].get('tensor',[])))
+    
+
+                else:
+                    asyncio.sleep(stagger_time)
+                
+            
+            running_jobs.append(job['fn'](*job.get('args', []),**job.get('kwargs',{})))
+            
+        finished_results += list(await asyncio.gather(*running_jobs))
+        
+        return finished_results
+
     def process_results(self, results):
         results_dict = {'tensor':[], 'code':[], 'latency':[], 'uid': []}
 
@@ -568,42 +623,12 @@ class AyncioManager:
     def __del__(self):
         self.close()
 
-
 if __name__ == '__main__':
     Sandbox.ray_start()
-    module = Sandbox.deploy(actor=False, wrap=True)
-
-    async def async_run_jobs(jobs, max_tasks=5, stagger_time=0.5):
-        finished_jobs, running_jobs = [],[]
-        finished_results = []
-        for job in jobs:
-            while len(running_jobs)>=max_tasks:
-                
-                tmp_finished_jobs, running_jobs = await asyncio.wait(running_jobs, return_when=asyncio.FIRST_COMPLETED)
-                running_jobs = list(running_jobs)
-                if tmp_finished_jobs:
-                    finished_jobs += list(tmp_finished_jobs)
-                    finished_results += await asyncio.gather(*tmp_finished_jobs)
-    
-                    st.write(len(finished_results[-1].get('tensor',[])))
-    
-
-                else:
-                    asyncio.sleep(stagger_time)
-                
-            
-            running_jobs.append(job['fn'](*job.get('args', []),**job.get('kwargs',{})))
-            
-
-        finished_results += list(await asyncio.gather(*running_jobs))
-        
-        return finished_results
-
-    jobs = [{'fn': module.async_sample, 'kwargs': dict(num_endpoints=10, timeout=6, sequence_length=10, batch_size=10) } for i in range(50)]
-
-
-    with Sandbox.timer() as t:
-
-        results = asyncio.run(async_run_jobs(jobs, max_tasks=10))
-        st.write('QPS: ',len(results)/t.seconds)
+    module = Sandbox.deploy(actor={'refresh': True}, wrap=True)
+    st.write(module.sample_generator(num_endpoints=60, 
+                        sequence_length=256,
+                         batch_size=32,
+                        num_batches=50,
+                         max_tasks=10))
 

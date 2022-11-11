@@ -80,8 +80,6 @@ class Module:
 
     def __init__(self, config=None, override={}, client=None , loop=None, init_ray=True, **kwargs):
         
-        if init_ray:
-            self.init_ray()
 
         # nest_asyncio.apply()
 

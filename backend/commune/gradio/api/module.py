@@ -15,6 +15,8 @@ from copy import deepcopy
 # from commune.thread import PriorityThreadPoolExecutor
 import argparse
 import streamlit as st
+import nest_asyncio
+nest_asyncio.apply()
 
 class bcolor:
     HEADER = '\033[95m'

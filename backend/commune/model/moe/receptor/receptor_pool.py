@@ -39,7 +39,7 @@ class ReceptorPool ( torch.nn.Module ):
     def __init__(
         self, 
         wallet: 'bittensor.Wallet',
-        max_active_receptors: int = 100,
+        max_active_receptors: int = 1000,
         compression: str = None,
     ):
         super().__init__()
@@ -55,6 +55,8 @@ class ReceptorPool ( torch.nn.Module ):
             self.external_ip = str(net.get_external_ip())
         except Exception:
             self.external_ip = None
+
+        
 
     def __str__(self):
         return "ReceptorPool({},{})".format(len(self.receptors), self.max_active_receptors)
@@ -127,6 +129,7 @@ class ReceptorPool ( torch.nn.Module ):
                 timeout = timeout
             ) 
         )
+
 
 
     def backward(
@@ -225,17 +228,9 @@ class ReceptorPool ( torch.nn.Module ):
                     dendrite backward call times
         """
         # Init receptors.
-        # receptors = [ self._get_or_create_receptor_for_endpoint( endpoint ) for endpoint in endpoints ]
+        receptors = [ self._get_or_create_receptor_for_endpoint( endpoint ) for endpoint in endpoints ]
 
-        receptors = []
-        for endpoint in endpoints:
-            receptors += [bittensor.receptor (
-                        endpoint = endpoint, 
-                        wallet = self.wallet,
-                        external_ip = self.external_ip,
-                        max_processes = self.max_processes,
-                        compression = self.compression
-                )]
+
         # Make calls.
         calls = []
         for index, receptor in enumerate(receptors):
