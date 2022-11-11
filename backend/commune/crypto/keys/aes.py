@@ -4,8 +4,9 @@ from Crypto import Random
 from Crypto.Cipher import AES
 from copy import deepcopy
 import json
+import sys
 import inspect
-
+import time
 class AESKey:
 
     def __init__(self, key): 
@@ -63,6 +64,7 @@ class AESKey:
 
     @classmethod
     def test_encrypt_decrypt(cls, key='dummy'):
+        import streamlit as st
         print(inspect.stack()[0][3])
         self = cls(key=key)
         test_objects = [
@@ -71,24 +73,70 @@ class AESKey:
             1,
             'fam', 
         ]
-
+        import time
         for test_object in test_objects:
+            start_time = time.clock()
             encrypted = self.encrypt(test_object)
             decrypted = self.decrypt(encrypted)
             assert decrypted == test_object, f'FAILED: {test_encrypt_decrypt} {test_object} FAILED'
+            
+            size_bytes = sys.getsizeof(test_object)
+            seconds =  time.clock() - start_time
+            rate = size_bytes / seconds
 
         print('PASSED test_encrypt_decrypt')
 
         return True
+    
+    
+
+
+
+    @classmethod
+    def test_encrypt_decrypt_throughput(cls, key='dummy'):
+        import streamlit as st
+        print(inspect.stack()[0][3])
+        self = cls(key=key)
+        test_object = [1,2,3,5]*1000000
+        start_time = time.clock()
+        encrypted = self.encrypt(test_object)
+        seconds =  time.clock() - start_time        
+        size_bytes = sys.getsizeof(test_object)
+        encrypt_rate = size_bytes / seconds
+
+        start_time = time.clock()
+        decrypted = self.decrypt(encrypted)
+        seconds =  time.clock() - start_time        
+        size_bytes = sys.getsizeof(test_object)
+        decrypt_rate = size_bytes / seconds
+
+
+        st.write(f'ENCRYPT SPEED (MB per Second): {encrypt_rate//1000}')
+        st.write(f'DECRYPT SPEED (MB per Second): {decrypt_rate//1000}')
+
+        print('PASSED test_encrypt_decrypt')
+
+        return True
+    
+
+
+
+
     @classmethod
     def test(cls):
+        import streamlit as st
         for attr in dir(cls):
             if attr[:len('test_')] == 'test_':
                 getattr(cls, attr)()
                 st.write('PASSED',attr)
 
 
+    @classmethod
+    def streamlit(cls):
+        import streamlit as st
+        with st.expander('Tests'):
+            cls.test()
+        
+
 if __name__ =='__main__':
-    import streamlit as st
-    from commune.web3.account.module import AccountModule
-    AESKey.test()
+    AESKey.streamlit()
