@@ -6,6 +6,7 @@ pragma solidity ^0.8.0;
 import "contracts/openzeppelin/token/ERC20/IERC20.sol";
 import "contracts/openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import "contracts/openzeppelin/utils/Context.sol";
+import "./ERC20Manager.sol";
 
 
 struct DevState {
@@ -36,6 +37,8 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
     mapping(address=>address[]) public voter2devs;
     mapping(address=>address[]) public dev2voters;
     
+    ERC20Manager public token_manager = new ERC20Manager();
+
     
     // number of block
     uint256 block_step = 2;
@@ -53,6 +56,7 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
     constructor(string memory name_, string memory symbol_) {
         _name = name_;
         _symbol = symbol_;
+        
         // _mint(msg.sender, 1000000000 );
     }
 

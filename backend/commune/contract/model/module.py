@@ -11,7 +11,7 @@ class BaseContract(Module):
     def setup_web3_env(self):
         self.contract_manager = self.launch('web3.contract', kwargs=dict(network=self.config['network']))
         self.contract_manager.set_account(self.config['account'])
-        self.contract = self.contract_manager.deploy_contract(**)
+        self.contract = self.contract_manager.deploy_contract(**self.config['contract'])
         self.account = self.contract.account
         self.web3 = self.contract.web3
 
