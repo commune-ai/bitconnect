@@ -3,7 +3,7 @@ import re
 import sys
 sys.path.append(os.environ['PWD'])
 import yaml
-
+import glob
 from copy import deepcopy
 # sys.path.append(os.environ['PWD'])
 from commune.utils import dict_get,dict_put, list2str
@@ -37,6 +37,7 @@ class ConfigLoader:
             self.load(path=path)
 
 
+
     @staticmethod
     def override_cfg(cfg, override={}):
         """
@@ -49,13 +50,18 @@ class ConfigLoader:
         return cfg
 
 
+    @classmethod
+    def load_config(cls,  path, override={}, return_munch=False): 
+        self = cls()
+        return self.load(path=path, override=override, recursive=True, return_munch=return_munch)
 
-    def load(self, path,override={}, recursive=True, return_munch=False):
+    @classmethod
+    def save_config(cls,  path, config): 
+        self = cls()
+        return self.save(path=path, config=config)
         
-
+    def load(self, path,override={}, recursive=True, return_munch=False):
         self.cfg = self.parse_config(path=path)
-       
-
         if recursive:
             self.cfg = self.resolver_methods(cfg=self.cfg)
         if isinstance(override, dict) and len(override) > 0:
@@ -77,23 +83,33 @@ class ConfigLoader:
     
     def resolve_config_path(self, config_path):
         # find config path
-        file_type = 'yaml'
 
-        if file_type ==  config_path[-len(file_type):]:
+        original_config_path = config_path
+
+
+        file_type = 'yaml'
+        if '.'+file_type ==  os.path.splitext(config_path)[-1]:
             config_path = config_path.replace(f'.{file_type}', '')
+        
         config_path = config_path.replace(".", "/")
 
-
-        print('DEBUG', config_path)
-        if self.root != config_path[:len(self.root)]:
-            config_path =  os.path.join(self.root,config_path)
-            
         if os.path.isdir(config_path):
-            config_path = os.path.join(config_path,'module.yaml')
+            pass
+        if os.path.isdir(os.path.join(os.getenv('PWD'),config_path)):
+            pass
+        elif self.root != config_path[:len(self.root)]:
+            config_path =  os.path.join(self.root,config_path)
+        else:
+            raise NotImplementedError(config_path)
+
+        if os.path.isdir(config_path):
+            yaml_options = list(filter(lambda f: os.path.splitext(f)[-1] == '.yaml', glob.glob(config_path+'/*')))
+            assert len(yaml_options) == 1, config_path
+            config_path = yaml_options[-1]
 
         if file_type != config_path[-len(file_type):]:
             config_path = f'{config_path}.{file_type}'
-        
+
         return config_path
     def get_cfg(self, input, key_path, local_key_path=[]):
         

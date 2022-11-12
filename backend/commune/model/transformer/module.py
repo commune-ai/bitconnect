@@ -43,33 +43,34 @@ class TransformerModel(Module):
 
     @property
     def device(self):
+        st.write(self.config.get('device', 'cuda'))
         return self.config.get('device', 'cuda')
 
-    def predict(self, input:str="This is the first sentence. This is the second sentence.", tokenize=False):
-        
-        if tokenize:
-            input = self.tokenizer(
-                    input, add_special_tokens=False, return_tensors="pt"
-                ).input_ids
-        return self.model.generate(input)
+    def forward(self, input:str="This is the first sentence. This is the second sentence.", tokenize=False):
+    
+        input = self.tokenizer(
+                input, add_special_tokens=False, return_tensors="pt", padding=True,
+            ).to(self.model.device)
+        return self.model(**input)
 
-
+    def streamlit_pipeline(self):
+        dataset = Module.launch('dataset.text', actor={'cpus':1})
+        model = Module.launch('model.transformer', actor={'gpus': 0.1, 'cpus':1}, wrap=True)
+        st.write(model.get_default_actor_name())
+        st.write(model.actor_name)
+        x = dataset.sample(tokenize=False)
+        st.write(model.forward(x))
 
     @classmethod
-    def streamlit(self):
-        os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+    def streamlit(cls):
+        # os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
         Module.init_ray()
-        dataset = Module.launch('dataset.huggingface', actor=False, wrap=True)
-        # st.write(dataset.sample())
-        # model = Module.launch('commune.model.transformer')
-        model = TransformerModel.deploy(actor=False, wrap=True)
-        st.write(model.device)
- 
-        x = torch.tensor(dataset.sample().to_list()).to('cuda')
-        st.write(model.predict(x)[0])
         
 
 if __name__ == '__main__':
+    import commune
+    commune.pipeline()
+    # Module.ray_start()
     TransformerModel.run()
 
 

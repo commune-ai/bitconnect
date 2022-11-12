@@ -39,7 +39,6 @@ contract ERC20Manager {
     function totalSupply(address token) public view virtual returns (uint256) {
         return IERC20(token).totalSupply();
     }
-
     
     /**
      * @dev See {IERC20-balanceOf}.

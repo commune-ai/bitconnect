@@ -512,9 +512,9 @@ class Module:
     module_tree = module_list
 
     @classmethod
-    def launch_module(cls, module:str, fn:str=None ,kwargs:dict={}, args=[], actor=False, wrap=True, **additional_kwargs):
+    def launch(cls, module:str, fn:str=None ,kwargs:dict={}, args=[], actor=False, wrap=True, **additional_kwargs):
         try:
-            module_class =  cls.import_object(cls.simple2path(module))
+            module_class =  cls.load_module(module)
         except Exception as e:
             module_class = cls.import_object(module)
 
@@ -524,13 +524,11 @@ class Module:
         
         if module_init_fn == None:
             if actor:
-
                 # ensure actor is a dictionary
                 if actor == True:
                     actor = {}
                 assert isinstance(actor, dict), f'{type(actor)} should be dictionary fam'
                 parents = cls.get_parents(module_class)
-
                 if cls.is_module(module_class):
                     default_actor_name = module_class.get_default_actor_name()
                 else:
@@ -552,11 +550,17 @@ class Module:
 
 
         return module_object
-    load_module = launch = launch_module
+    launch_module = launch
     #############
 
     # RAY ACTOR TINGS, TEHE
     #############
+
+    @classmethod
+    def load_module(cls, path):
+        module_path = cls.simple2path(path)
+        module_class =  cls.import_object(module_path)
+        return module_class
 
 
     @property
@@ -803,13 +807,21 @@ class Module:
                  cls_args =[],
                  detached=True, 
                  resources={'num_cpus': 1.0, 'num_gpus': 0},
+                 cpus = 0,
+                 gpus = 0,
                  max_concurrency=50,
                  refresh=False,
                  return_actor_handle=False,
                  verbose = True,
                  redundant=False,
                  **kwargs):
-        
+
+
+        if cpus > 0:
+            resources['num_cpus'] = cpus
+        if gpus > 0:
+            resources['num_gpus'] = gpus
+
         if not torch.cuda.is_available() and 'num_gpus' in resources:
             del resources['num_gpus']
 
@@ -1078,10 +1090,6 @@ class Module:
 
 
     @classmethod
-    def fuck_you(cls):
-        print('FUCK YOU')
-
-    @classmethod
     def run_streamlit(cls, port=8501):
         filepath = cls.get_module_filepath(include_pwd=False)
         cls.run_command(f'streamlit run {filepath} --server.port={port} -- -fn=streamlit')
@@ -1138,7 +1146,6 @@ class Module:
 
     @classmethod
     def run_python(cls):
-        
         cls.run_command(f'python {filepath}')
 
     @classmethod
@@ -1213,14 +1220,6 @@ class Module:
     def get_default_actor_name(cls):
         return cls.get_module_path(simple=True)
 
-    
-
-    @staticmethod
-    def load_object(module:str, __dict__:dict, **kwargs):
-        kwargs = kwargs.get('__dict__', kwargs.get('kwargs', {}))
-        return Module.import_object(module)(**kwargs)
-
-
 
     @classmethod
     def ray_stop(cls):
@@ -1229,7 +1228,6 @@ class Module:
     @classmethod
     def ray_start(cls):
         cls.run_command('ray start --head')
-
 
     @classmethod
     def ray_restart(cls):

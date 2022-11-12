@@ -1,0 +1,20 @@
+module: DatasetModule
+
+client: {}
+
+tokenizer:
+  module: bittensor.tokenizer
+
+dataset:
+  module: datasets.load_dataset
+  kwargs:
+    path: wikitext
+    name: wikitext-103-v1
+    # split: ['test', 'train']
+  text_field: text
+
+actor:
+  name: local_copy(module)
+  refresh: False
+  resources: {num_cpus: 1.0}
+

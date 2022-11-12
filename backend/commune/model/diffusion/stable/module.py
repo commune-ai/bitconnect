@@ -372,27 +372,6 @@ class DiffuserModule(Module, DiffusionPipeline):
 
         return {'image': image, 'has_nsfw_concept': has_nsfw_concept}
 
-    def load_module(self, module,refresh=None):
-       
-        module_config = deepcopy(self.config.get(module))
-        
-        assert isinstance(module_config, dict ), f'{module}'
-        module_path = module_config.get('module', module_config.get('path', None))
-        st.write(module_config)
-        try:
-            module_class = self.import_object(module_path)
-        except:
-            module_class =  self.get_module_class(module_path)
-
-        module_kwargs = module_config.get('kwargs', module_config.get('params'))
-        module_init_fn = module_config.get('fn', None)
-
-        if module_init_fn == None:
-            module_object =  module_class(**module_kwargs)
-        else:
-            module_init_fn = getattr(module_class,module_init_fn)
-            module_object =  module_init_fn(**module_kwargs)
-        return module_object
     registered_modules = []
     def load_modules(self, modules=None):
         default_modules = ['vae', 'text_encoder',
