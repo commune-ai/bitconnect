@@ -5,12 +5,13 @@ import streamlit as st
 class BaseContract(Module):
     def __init__(self):
         Module.__init__(self)
+        
         self.setup_web3_env()
 
     def setup_web3_env(self):
         self.contract_manager = self.launch('web3.contract', kwargs=dict(network=self.config['network']))
         self.contract_manager.set_account(self.config['account'])
-        self.contract = self.contract_manager.deploy_contract(self.config['contract']['name'], new=True)
+        self.contract = self.contract_manager.deploy_contract(**)
         self.account = self.contract.account
         self.web3 = self.contract.web3
 
@@ -129,9 +130,8 @@ class BaseContract(Module):
     def streamlit(cls):
         cls.streamlit_demo()
 
-
     @classmethod
-    def gradio(cls):
+    def gradio(cls) -> 'gradio.Interface':
         self = cls()
         import gradio 
         functions, names = [], []
@@ -162,9 +162,13 @@ class BaseContract(Module):
                         'inputs':[gradio.Dropdown(label=f'Account Name', choices=list(self.peers.keys()), value='alice')],
                         'outputs':[gradio.Textbox(label='Account Address', lines=1, placeholder=self.account.address)]}
 
+        gradio_interface = self.gradio_build_interface(fn_map=fn_map)
+
+        return gradio_interface
 
 
-
+    @staticmethod
+    def gradio_build_interface( fn_map:dict):
         for fn_name, fn_obj in fn_map.items():
             inputs = fn_obj.get('inputs', [])
             outputs = fn_obj.get('outputs',[])

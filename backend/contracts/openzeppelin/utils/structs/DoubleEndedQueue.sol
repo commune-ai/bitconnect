@@ -63,6 +63,7 @@ library DoubleEndedQueue {
      *
      * Reverts with `Empty` if the queue is empty.
      */
+    
     function popBack(Bytes32Deque storage deque) internal returns (bytes32 value) {
         if (empty(deque)) revert Empty();
         int128 backIndex;

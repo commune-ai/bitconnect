@@ -202,8 +202,6 @@ class AccountModule(Module):
         output_dict = json.loads(input)
         return output_dict
     
-    
-    
     def resolve_message(self, message):
         message = self.python2str(message)
 

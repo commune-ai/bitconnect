@@ -1158,6 +1158,8 @@ class Module:
         return get_parents(cls)
 
 
+
+
     @staticmethod
     def timeit(fn, trials=1, time_type = 'seconds', timer_kwargs={} ,*args,**kwargs):
         

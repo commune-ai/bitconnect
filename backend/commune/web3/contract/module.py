@@ -412,17 +412,6 @@ class ContractManagerModule(Module):
 
 
     @classmethod
-    def gradio(cls):
-        self =  ContractManagerModule.deploy(actor=False, wrap=True)
-        self.set_network('local.main')
-        self.set_account('bob')
-        contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=False)
-        return contract.gradio()
-        
-
-
-
-    @classmethod
     def streamlit(cls):
         import ray
         st.write("## "+cls.__name__)

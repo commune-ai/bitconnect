@@ -31,7 +31,10 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
     string private _symbol;
     address[] public devs;
     mapping(address=>DevState) public dev2state;
+
     mapping(address=>mapping(address=>VoteState)) public voter2dev_vote_map;
+    mapping(address=>address[]) public voter2devs;
+    mapping(address=>address[]) public dev2voters;
     
     
     // number of block
@@ -64,24 +67,9 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
     // addes stake to model
 
     function  is_dev(address dev) public view returns(bool){
-        bool has_dev_bool;
-        for (uint i=0; i<devs.length; i++) {
-            if (devs[i] == dev) {
-                has_dev_bool = true; 
-            }
-        }
-        return has_dev_bool;
+        return bool(dev2voters[dev].length > 0);
     }
 
-    function  get_dev_index(address dev) public view returns(uint){
-        uint dev_index;
-        for (uint i=0; i<devs.length; i++) {
-            if (devs[i] == dev) {
-                dev_index = i; 
-            }
-        }
-        return dev_index;
-    }
 
     function _ensure_dev(address dev) internal {
         // push dev to devs if it doesnt exist
@@ -92,9 +80,9 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
 
     function add_stake(uint256 amount)  public {
         
-        transferFrom(msg.sender, address(this), amount);
-        dev2state[msg.sender].stake += amount;
         
+        _allowances[msg.sender][address(this)] +=  amount;
+        dev2state[msg.sender].stake = allowance(msg.sender,address(this));
         _ensure_dev(msg.sender);
     }
 
@@ -115,46 +103,40 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
 
     
     function get_stake(address user) public view returns(uint256){
-        return dev2state[user].stake;
+        return _allowances[user][address(this)];
     }
 
-    function get_score(address user) public view returns(uint256){
-        return dev2state[user].score;
-    }
-
-
-
-
-    // function get_votes(address user) public view returns(uint256){
-    //     return dev2state[user].vote;
-    // }
-
-    
-
-
-    function remove_stake(uint256 stake) public  returns (uint256){
-        if (stake  >= dev2state[msg.sender].stake) {
-            stake = dev2state[msg.sender].stake;
+    function get_score(address user) public view returns(uint256 score){
+        for (uint i; i< dev2voters[user].length; i++) {
+            address voter = dev2voters[user][i];
+            score = score + voter2dev_vote_map[voter][user].score;
         }
-        // (bool success, ) = msg.sender.call{value: stake}("");
-        dev2state[msg.sender].stake = dev2state[msg.sender].stake - stake;
-        // require(success, "transaction failed");
 
-        transferFrom(msg.sender, address(this), stake);
+        return score;
+    }
 
-        if (dev2state[msg.sender].stake == 0) {
-            delete dev2state[msg.sender].stake;
-        } 
-
- 
-        return dev2state[msg.sender].stake;
-        
+    function my_score() public view returns(uint256 score){
+        score = get_score(msg.sender);
     }
 
 
+    function my_stake() public view returns(uint256 stake){
+        stake = get_stake(msg.sender);
+
+        return stake;
+    }
+
+
+    function remove_stake(uint256 amount) public  returns (uint256 removed_amount){
+        if (amount > _allowances[msg.sender][address(this)]) {
+            amount = _allowances[msg.sender][address(this)];
+        }
+        removed_amount = _allowances[msg.sender][address(this)] -= amount;
+        return removed_amount;
+    }
 
     uint256 public constant PERCENT_BASE = 10000;
-    uint256 public ALPHA = 5000;
+    uint256 public ALPHA = 0;
 
     function set_alpha(uint256 alpha) public {
         // set alpha
@@ -162,42 +144,68 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
         ALPHA = alpha;
     }
 
-    function set_votes(uint256[] memory votes,  address[] memory to_devs) public {
+    function set_votes(uint256[] memory votes,  address[] memory devs) public {
         
-        require(votes.length == to_devs.length, 'votes and devs have to be same length bro');
+        require(votes.length == devs.length, 'votes and devs have to be same length bro');
         require(votes.length<PERCENT_BASE, 'the size of you voters is too big fam');
         require(dev2state[msg.sender].stake>0, 'you need to stake greater than 0');
 
         uint256 total_score = 0;
         uint256 current_score;
-        uint256 previous_score;
+        uint256[] memory previous_normalized_scores = new uint256[](votes.length);
         address voter = msg.sender;
         address dev;
 
-        uint256 adjusted_total_score = 0;
-        for (uint i; i<votes.length; i++) {
-            dev = to_devs[i];
-            previous_score = dev2state[dev].score;
-            current_score = (votes[i] * dev2state[msg.sender].stake * PERCENT_BASE) ;
 
-            // moving average from previous score
-            dev2state[dev].score += ((current_score * ALPHA + previous_score * (PERCENT_BASE - ALPHA) ) / PERCENT_BASE);
-            dev2state[dev].block_number =  block.number;
-            total_score += dev2state[dev].score;
+        // get the previous votes and delete the map elements
+        for (uint i; i < devs.length; i++) {
+            previous_normalized_scores[i] = voter2dev_vote_map[voter][devs[i]].score;
+            delete voter2dev_vote_map[voter][dev];
+        }
+        // remove existing vote registries
+        // iterate through the devs
+        for (uint d_i; d_i< voter2devs[voter].length; d_i++) {
+            dev = voter2devs[voter][d_i];
+            // iterate through the voters
+            uint num_voters_for_dev = dev2voters[dev].length;
+            for (uint v_i; v_i<num_voters_for_dev; v_i++) {
+                // remove the the voter from the dev registery
+                if (voter == dev2voters[dev][v_i]) {
+                    // delete the voter from the dev2voters registery
+                    dev2voters[dev][v_i] = dev2voters[dev][dev2voters[dev].length-1];
+                    delete dev2voters[dev][dev2voters[dev].length-1];
+                    break;
+                }
+            }
+        } 
+        
+        // purge devs for voter (not efficient but it works)
+        delete voter2devs[voter];
+
+        for (uint i; i<votes.length; i++) {
+            dev = devs[i];
+            current_score = (votes[i] * dev2state[voter].stake) ;
+            voter2dev_vote_map[voter][dev] = VoteState({block_number: block.number, score: current_score });
+            total_score += current_score;
 
         }
+
         for (uint i; i<votes.length; i++) {
-            dev = to_devs[i];
-            dev2state[dev].score = (dev2state[dev].score*PERCENT_BASE)/(total_score);
-            voter2dev_vote_map[voter][dev] = VoteState({block_number: block.number, 
-                                                        score: dev2state[dev].score });
-
-
-            
-
-            
+            dev = devs[i];
             _ensure_dev(dev);
+            voter2dev_vote_map[voter][dev].score = (voter2dev_vote_map[voter][dev].score*PERCENT_BASE)/(total_score);
+            voter2dev_vote_map[voter][dev].score  = ((previous_normalized_scores[i] * ALPHA + voter2dev_vote_map[voter][dev].score * (PERCENT_BASE - ALPHA) ) / PERCENT_BASE);
+
+
+            // create new registries
+            if (voter2dev_vote_map[voter][dev].score > 0 ) {
+                voter2devs[voter].push(dev);
+                dev2voters[dev].push(voter);
+            } 
+
         }
+
+
 
     }
     /**
