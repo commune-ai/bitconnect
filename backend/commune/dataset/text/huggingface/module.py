@@ -114,7 +114,7 @@ class DatasetModule(Module):
 
         return final_sample
 
-    def sample(self, batch_size=10, sequence_length=16, random=True, idx_list = None, tokenize=True, padding=True,  **kwargs):
+    def sample(self, batch_size=10, sequence_length=16, random=True, idx_list = None, tokenize=True, padding=True,  **kwargs)->dict:
         if idx_list != None:
             assert isinstance(idx_list, list)
             batch_size = len(idx_list)
@@ -124,15 +124,19 @@ class DatasetModule(Module):
             samples =  [self.__getitem__(idx=None if random else i,**kwargs) for i in range(batch_size)]
         else:
             raise NotImplementedError(type(idx_list))
+        output = {'text': samples}
 
         if tokenize:
-            samples = self.tokenize(samples, padding=padding)
-            samples = samples[:,:sequence_length]
+            sample_tokens = self.tokenize(samples, padding=padding)
+            sample_tokens = samples[:,:sequence_length]
             remainder = sequence_length - samples.shape[1]
             if remainder > 0:
                 filler = torch.full(size=(samples.shape[0], remainder),fill_value=0).to(samples.device)
                 samples = torch.cat([samples, filler], dim=1)
-        return samples
+            output['tokens'] = sample_tokens
+
+
+        return output
     
     def resolve_device(self, device=None):
         if device == None:

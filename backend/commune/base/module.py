@@ -830,6 +830,7 @@ class Module:
 
 
         # refresh the actor by killing it and starting it (assuming they have the same name)
+        
         if refresh:
             if Module.actor_exists(name):
                 kill_actor(actor=name,verbose=verbose)
@@ -847,7 +848,7 @@ class Module:
             actor_class = ray.remote(cls)
             actor_handle = actor_class.options(**options_kwargs).remote(*cls_args, **cls_kwargs)
 
-
+        
         return Module.get_actor(name)
 
 
@@ -901,7 +902,13 @@ class Module:
     @staticmethod
     def actor_exists(actor):
         if isinstance(actor, str):
-            return actor in Module.list_actor_names()
+            try:
+                ray.get_actor(actor)
+                actor_exists = True
+            except ValueError as e:
+                actor_exists = False
+            
+            return actor_exists
         else:
             raise NotImplementedError
     @staticmethod
@@ -1398,15 +1405,22 @@ class Module:
         kwargs['detail'] = detail
 
         actor_info_list =  list_actors(*args, **kwargs)
+        final_info_list = []
         for i, actor_info in enumerate(actor_info_list):
             resource_map = {'memory':  Module.get_memory_info(pid=actor_info['pid'])}
             resource_list = actor_info_list[i].pop('resource_mapping', [])
+
             for resource in resource_list:
                 resource_map[resource['name'].lower()] = resource['resource_ids']
-
             actor_info_list[i]['resources'] = resource_map
 
-        return actor_info_list
+            try:
+                ray.get_actor(actor_info['name'])
+                final_info_list.append(actor_info_list[i])
+            except ValueError as e:
+                pass
+
+        return final_info_list
 
     @staticmethod
     def actor_map(*args, **kwargs):
