@@ -22,27 +22,11 @@ class SumAggregator(commune.Aggregator):
     @classmethod
     def test_sequential_pipeline(cls):
         commune.init_ray()
-        blocks = [
- 
-         {
+        blocks = [{
             'module': 'model.transformer',
             'actor': {'gpus': 0.1},
             'fn': 'forward',
-            'kwargs': {'ray_get': True},
-        }, 
-         {
-            'module': 'model.transformer',
-            'actor': {'gpus': 0.1},
-            'fn': 'forward',
-            'kwargs': {'ray_get': True},
-        },
-        {
-            'module': 'model.transformer',
-            'actor': {'gpus': 0.1},
-            'fn': 'forward',
-            'kwargs': {'ray_get': False},
-        }
-        ]
+            'kwargs': {'ray_get': True}}]
 
         aggregator = cls(blocks)
         st.write(aggregator.run())

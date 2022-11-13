@@ -74,12 +74,15 @@ class Pipeline:
     @staticmethod
     def test_sequential_pipeline():
         commune.init_ray()
-        pipeline_blocks = [{
-        'module': 'dataset.text.huggingface',
-        'actor': {'cpus': 1, 'refresh': False},
-        'fn': 'sample',
-        'kwargs': {'tokenize': False},
-         }, {
+        pipeline_blocks = [
+        {
+            'module': 'dataset.text.huggingface',
+            'actor': {'cpus': 0.2, 'gpus': 0, 'refresh': False },
+            # 'actor': False,
+            'fn': 'sample',
+            'kwargs': {'tokenize': False},
+         }, 
+         {
             'module': 'model.transformer',
             'actor': {'gpus': 0.1},
             'fn': 'forward',
@@ -88,13 +91,13 @@ class Pipeline:
         }]
 
         pipeline = Pipeline(pipeline_blocks)
-        st.write(pipeline)
-        st.write(pipeline.run())
+        pipeline.run()
 
 if __name__ == '__main__':
 
-    Pipeline.test_sequential_pipeline()
+    # Pipeline.test_sequential_pipeline()
 
+    st.write(commune.list_actors())
 
 
     
