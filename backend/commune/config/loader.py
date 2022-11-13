@@ -95,7 +95,9 @@ class ConfigLoader:
 
         if os.path.isdir(config_path):
             pass
-        if os.path.isdir(os.path.join(os.getenv('PWD'),config_path)):
+        elif os.path.isdir(os.path.join(os.getenv('PWD'),config_path)):
+            pass
+        elif os.path.isdir(os.path.dirname(config_path)):
             pass
         elif self.root != config_path[:len(self.root)]:
             config_path =  os.path.join(self.root,config_path)

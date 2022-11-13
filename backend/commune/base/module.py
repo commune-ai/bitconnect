@@ -768,38 +768,31 @@ class Module:
             kwargs['config']['actor'] = None
             return cls(**kwargs)
 
-    default_ray_env = {'address':'auto', 'namespace': 'default'}
+    default_ray_env = {'address':'auto', 
+                     'namespace': 'default',
+                      'ignore_reinit_error': False,
+                      'dashboard_host': '0.0.0.0'}
     @classmethod
-    def init_ray(cls,init_kwargs={}, reinit=False):
-        
+    def ray_init(cls,init_kwargs={}):
 
-        if init_kwargs == None or len(init_kwargs)==0:
-            init_kwargs = cls.default_ray_env
-
-        init_kwargs =  {**cls.default_ray_env, **init_kwargs}
-        if Module.ray_initialized():
-            if reinit:
-                ray.shutdown()
-            
-            else:
-                return {}
-        
-
-        init_kwargs['include_dashboard'] = True
-        init_kwargs['dashboard_host'] = '0.0.0.0'
         # init_kwargs['_system_config']={
         #     "object_spilling_config": json.dumps(
         #         {"type": "filesystem", "params": {"directory_path": "/tmp/spill"}},
         #     )
         # }
-        init_kwargs['ignore_reinit_error'] = True
-        st.write('INITIALIE RAY ', cls.ray_initialized())
+        init_kwargs =  {**cls.default_ray_env, **init_kwargs}
+        if cls.ray_initialized():
+            # shutdown if namespace is different
+            if cls.ray_namespace() == cls.default_ray_env['namespace']:
+                return cls.ray_runtime_context()
+            else:
+                ray.shutdown()
 
+                
         ray_context = ray.init(**init_kwargs)
-
         return ray_context
 
-    
+    init_ray = ray_init
     @staticmethod
     def create_actor(cls,
                  name, 
@@ -923,10 +916,17 @@ class Module:
     def ray_context(self):
         return self.init_ray()
 
+    @staticmethod
+    def ray_runtime_context():
+        return ray.get_runtime_context()
 
-    # @staticmethod
-    # def get_ray_context():
-    #     return ray.runtime_context.get_runtime_context()
+    @classmethod
+    def ray_namespace(cls):
+        return ray.get_runtime_context().namespace
+
+    @staticmethod
+    def get_ray_context():
+        return ray.runtime_context.get_runtime_context()
     @property
     def context(self):
         if Module.actor_exists(self.actor_name):

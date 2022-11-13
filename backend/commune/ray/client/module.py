@@ -141,9 +141,9 @@ class ClientModule(Module):
         return deserializer, serialized_data
 
     def __repr__(self):
-        return 'ClientWrapped'+ray.get(self.actor.__repr__.remote())
+        return 'ClientWrapped'
     def __str__(self):
-        return 'ClientWrapped'+ray.get(self.actor.__str__.remote())
+        return 'ClientWrapped'
 if __name__ == '__main__':
     module = ClientModule.deploy(actor=True)
     # st.write(module.get_functions(module))

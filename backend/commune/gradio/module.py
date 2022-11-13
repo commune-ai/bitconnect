@@ -159,7 +159,6 @@ class GradioModule(Module):
                     for gradio_fn in gradio_fn_schema_dict[fn][m]:
                         gradio_fn_list += [{'__dict__': gradio_fn.__dict__, 
                                             'module': f'gradio.{str(gradio_fn.__class__.__name__)}'}]
-                        print('DEBUG',GradioModule.load_object(**gradio_fn_list[-1]))
                     gradio_fn_schema_dict[fn][m] =  gradio_fn_list
             elif return_type in ['gradio']:
                 pass
