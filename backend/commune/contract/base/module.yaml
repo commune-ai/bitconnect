@@ -3,12 +3,12 @@ module: BaseContract
 network:
   module: web3.network
   kwargs:
-    network: skale.test
-
+    network: polygon.test
 
 contract: 
-  name: token.ERC20.ModelToken
+  contract: token.ERC20.ModelToken
   args: ['ModelToken', 'MDL']
+  new: False
 
 account: alice
 

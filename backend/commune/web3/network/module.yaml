@@ -138,9 +138,10 @@ networks:
         infura: https://polygon-mainnet.infura.io/v3/$WEB3_INFURA_PROJECT_ID
       explorer: https://api.polygonscan.com/api
       multicall2: "0xc8E51042792d7405184DfCa245F2d27B94D013b6"
-    mumbai:
+    test:
       chainid: 80001
       url: 
+        public:  https://rpc-mumbai.maticvigil.com
         infura: https://polygon-mumbai.infura.io/v3/$WEB3_INFURA_PROJECT_ID
       explorer: https://api-testnet.polygonscan.com/api
       multicall2: "0x6842E0412AC1c00464dc48961330156a07268d14"

@@ -208,7 +208,7 @@ class ContractManagerModule(Module):
         
 
 
-    def deploy_contract(self, contract = 'token.ERC20.ERC20', args=['AIToken', 'AI'],  new=True, refresh=False, **kwargs):
+    def deploy_contract(self, contract , args,  new=True, refresh=False, **kwargs):
         
         simple_contract_path = contract
         contract_path = self.resolve_contract_path(simple_contract_path)
@@ -400,7 +400,8 @@ class ContractManagerModule(Module):
             contract_path = path
         else:
             contract_path = self.contract2path.get(path, None)
-        assert contract_path in self.contract_paths
+        
+        assert contract_path in self.contract_paths, f'{contract_path} {self.contract_paths}'
         return contract_path
 
 
