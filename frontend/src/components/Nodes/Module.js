@@ -12,12 +12,22 @@ import '../../css/counter.css'
 const MINIMUM_HEIGHT = 600;
 const MINIMUM_WIDTH = 540; 
 
-export default function CustomNodeIframe({id, data}){
+
+//create your forceUpdate hook
+// function useForceUpdate(){
+//     console.log("called")
+//     const [value, setValue] = useState(0); // integer state
+//     return () => setValue(value => value + 1); // update state to force render
+//     // An function that increment 👆🏻 the previous state like here 
+//     // is better than directly setting `value + 1`
+// }
+
+export default function ModuleFrame({id, data}){
     const [collapsed, setCollapsible] = useState(true)
     const [{width, height}, api] = useSpring(() => ({width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT }))
-    const [sizeAdjuster, setSizeAdjuster] = useState(false)
+    const [sizeAdjuster, setSizeAdjuster] = useState(true)
     const [reachable ,setReachable] = useState(false)
-    const [refresh, setRefresh] = useState(0)
+    // const forceUpdate = useForceUpdate();
     const dragElement = useRef()
 
     const bind = useDrag((state) => {
@@ -48,9 +58,13 @@ export default function CustomNodeIframe({id, data}){
     },[data])
 
     const handelServerRender = useCallback(async () => {
-      const reach = await isFetchable()
-      reach ? setCollapsible((clps) => !clps) : data.notification()
-    }, [isFetchable, setCollapsible, data] )
+      if (!collapsed){
+        return setCollapsible((clps) => !clps)
+      } else {
+          const reach = await isFetchable()
+          return reach ? setCollapsible((clps) => !clps) : data.notification()
+      }
+    }, [isFetchable, setCollapsible, collapsed, data] )
 
     useEffect(() => {
       const fetched = setInterval(
@@ -74,7 +88,7 @@ export default function CustomNodeIframe({id, data}){
                       <div title="Adjust Node Size" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Violet rounded-xl" onClick={() => {setSizeAdjuster((size) => !size)}}><TbResize className="h-full w-full text-white p-1"/></div>
                       <a href={data.host} target="_blank" rel="noopener noreferrer"><div title="Gradio Host Site" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Pink rounded-xl"><BiCube className="h-full w-full text-white p-1"/></div></a>
                       <div title="Delete Node" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Red rounded-xl" onClick={() => data.delete([{id : id}])}><BsTrash className="h-full w-full text-white p-1"/></div>
-                      <div title="Refresh Node" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Orange rounded-xl" onClick={() => {setRefresh((r) => r++)}}><BiRefresh className="h-full w-full text-white p-1"/></div>
+                      <div title="Refresh Node" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Orange rounded-xl"><BiRefresh className="h-full w-full text-white p-1"/></div>
         </div>
       </div>
 
@@ -82,7 +96,6 @@ export default function CustomNodeIframe({id, data}){
           <animated.div className={`border-dashed  ${sizeAdjuster ? 'border-4 dark:border-white border-black' : ''} relative top-0 left-0 z-[1000] touch-none shadow-lg rounded-xl`} style={{width, height }} {...bind()}>
             <div id="draggable" className={`absolute h-full w-full ${data.colour} shadow-2xl rounded-xl -z-20`}></div>
             <iframe id="iframe" 
-                        key={refresh}
                         src={data.host} 
                         title={data.label}
                         frameBorder="0"

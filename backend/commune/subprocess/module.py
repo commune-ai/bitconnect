@@ -85,13 +85,16 @@ class SubprocessModule(Module):
         if result == 0: return True
         return False
 
+    @classmethod
+    def streamlit(cls):
+        st.write(cls().subprocess_map)
 
 if __name__ == "__main__":
-
-    import streamlit as st
-    module = SubprocessModule.deploy(actor=False, override={'refresh':True})
-    st.write(module)
-    import ray
+    SubprocessModule.run()
+    # import stre=amlit as st
+    # module = SubprocessModule.deploy(actor=False, override={'refresh':True})
+    # st.write(module)
+    # import ray
 
     # # st.write(module.subprocess_map)
 
@@ -100,8 +103,8 @@ if __name__ == "__main__":
 
     # st.write(ray.get(module.ls.remote()))
     # st.write(ray.get(module.rm_all.remote()))
-    st.write(module.add(key='pid', command='python commune/gradio/api/module.py  --module="gradio.client.module.ClientModule"'))
-    st.write(module.getattr('cache'))
+    # st.write(module.add(key='pid', command='python commune/gradio/api/module.py  --module="gradio.client.module.ClientModule"'))
+    # st.write(module.getattr('cache'))
     # st.write(ray.get(module.ls.remote()))
 
 

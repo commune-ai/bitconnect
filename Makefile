@@ -16,7 +16,6 @@ bash_backend:
 restart:
 	make down && make up;
 
-
 prune_volumes:	
 	docker system prune --all --volumes
 
@@ -25,6 +24,7 @@ bash:
 
 app:
 	make streamlit
+
 kill_all:
 	docker kill $(docker ps -q)
 
@@ -33,6 +33,7 @@ logs:
 
 streamlit:
 	docker exec -it backend bash -c "streamlit run commune/${arg}/module.py "
+
 enter_backend:
 	docker exec -it backend bash
 pull:
