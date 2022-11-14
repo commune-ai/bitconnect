@@ -28,14 +28,11 @@ class Pipeline:
         self.pipeline_blocks = []
         for key in keys:
             process_block = pipeline_config[key]
-
-
             path = process_block['module']
-            process_block['replica'] = process_block.get('replica', 0)
-            block_name = path if process_block['replica'] == 0 else path + f".{process_block['replica']}"
+
+            process_block['tag'] = process_block.get('tag', None)
             process_block['name'] = process_block.get('name',  path )
             process_block['actor'] = process_block.get('actor',  False )
-
             launch_kwargs = dict(
                 module = process_block['module'],
                 fn = process_block.get('init_fn', None),
@@ -43,7 +40,7 @@ class Pipeline:
             )
             module_block = commune.launch(**launch_kwargs)
             process_block['module'] = module_block
-            process_block['function'] = getattr(module_block, process_block['fn'])
+            process_block['function'] = getattr(module_block, process_block.get('fn', process_block.get('function', '__call__' )))
 
             self.process_block[process_block['name']] = process_block
 
@@ -63,16 +60,43 @@ class Pipeline:
             fn = block.get('function')
             fn_args = block.get('args', [])
             fn_kwargs = block.get('kwargs', {})
-            key_map = block.get('key_map', {})
-            input = {key_map.get(k, k):v for k,v in input.items()}
+            input_key_map = block.get('input_key_map', {})
+            input = {input_key_map.get(k, k):v for k,v in input.items()}
             fn_kwargs = {**input, **fn_kwargs}
             output = fn(*fn_args, **fn_kwargs)
+            output_key_map = block.get('output_key_map', {})
+            output = {output_key_map.get(k, k):v for k,v in output.items()}
+            
 
-            st.write(output)
             input = output
+
+        return output
 
     @staticmethod
     def test_sequential_pipeline():
+        commune.init_ray()
+        pipeline_blocks = [
+        {
+            'module': 'dataset.text.huggingface',
+            'actor': {'cpus': 0.2, 'gpus': 0, 'refresh': False },
+            'fn': 'sample',
+            'kwargs': {'tokenize': False},
+            'output_key_map': {'text': 'input'}
+         }, 
+         {
+            'module': 'model.transformer',
+            'actor': {'gpus': 0.1},
+            'fn': 'forward',
+            'output_key_map': {'input': 'text'}
+        }
+         ]
+
+        pipeline = Pipeline(pipeline_blocks)
+        st.write(pipeline.run())
+
+
+    @staticmethod
+    def test_aggregator_pipeline():
         commune.init_ray()
         pipeline_blocks = [
         {
@@ -82,22 +106,30 @@ class Pipeline:
             'fn': 'sample',
             'kwargs': {'tokenize': False},
          }, 
+         
          {
-            'module': 'model.transformer',
-            'actor': {'gpus': 0.1},
-            'fn': 'forward',
-            'key_map': {'text': 'input'},
-            'kwargs': {},
+            'module': 'commune.Aggregator',
+            'kwargs': {'blocks': [
+                                {
+                                    'module': 'model.transformer',
+                                    'actor': {'gpus': 0.1},
+                                    'fn': 'forward',
+                                    'kwargs': {'ray_get': True},
+                                } for i in range(3)] },
         }]
 
         pipeline = Pipeline(pipeline_blocks)
-        pipeline.run()
+        st.write(pipeline.run())
+
 
 if __name__ == '__main__':
 
-    # Pipeline.test_sequential_pipeline()
+    Pipeline.test_sequential_pipeline()
+    Pipeline.test_aggregator_pipeline()
 
-    st.write(commune.list_actors())
+    # st.write(commune.list_actors())
+    # st.write(commune.actor_resources())
+    # st.write(commune.total_resources())
 
 
     
