@@ -104,10 +104,10 @@ while :; do
 
         --light)
         COMPOSE_FILES=""
+        COMPOSE_FILES+=" -f frontend/frontend.yml"
         COMPOSE_FILES+=" -f backend/backend.yml"
         COMPOSE_FILES+=" -f ipfs/ipfs.yml"
         COMPOSE_FILES+=" -f ganache/ganache.yml"
-        COMPOSE_FILES+=" -f frontend/frontend.yml"
         
         ;;
 
