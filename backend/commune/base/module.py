@@ -2,6 +2,8 @@ from commune.utils import get_object, dict_any, dict_put, dict_get, dict_has, di
 import datetime
 from commune.config.loader import ConfigLoader
 import streamlit as st
+from signal import SIGKILL
+from psutil import process_iter
 import os
 import subprocess, shlex
 import ray
@@ -1107,26 +1109,32 @@ class Module:
         filepath = cls.get_module_filepath(include_pwd=False)
         interface = cls.gradio()
  
+        if cls.port_connected(port, host):
+            for proc in process_iter():
+                for conns in proc.connections(kind='inet'):
+                    if conns.laddr.port == port:
+                        proc.send_signal(SIGKILL) # or SIGKILL
+
         interface.launch(server_port=port,
-                        server_name=host,
-                        inline= False,
-                        share= None,
-                        debug=False,
-                        enable_queue= None,
-                        max_threads=10,
-                        auth= None,
-                        auth_message= None,
-                        prevent_thread_lock= False,
-                        show_error= True,
-                        show_tips= False,
-                        height= 500,
-                        width= 900,
-                        encrypt= False,
-                        favicon_path= None,
-                        ssl_keyfile= None,
-                        ssl_certfile= None,
-                        ssl_keyfile_password= None,
-                        quiet= False)
+                         server_name=host,
+                         inline= False,
+                         share= None,
+                         debug=False,
+                         enable_queue= None,
+                         max_threads=10,
+                         auth= None,
+                         auth_message= None,
+                         prevent_thread_lock= False,
+                         show_error= True,
+                         show_tips= False,
+                         height= 500,
+                         width= 900,
+                         encrypt= False,
+                         favicon_path= None,
+                         ssl_keyfile= None,
+                         ssl_certfile= None,
+                         ssl_keyfile_password= None,
+                         quiet= False)
         
 
 
@@ -1135,7 +1143,6 @@ class Module:
 
     @classmethod
     def run_python(cls):
-        
         cls.run_command(f'python {filepath}')
 
     @classmethod

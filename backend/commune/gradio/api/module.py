@@ -4,9 +4,6 @@
 import os, sys
 sys.path.append(os.environ['PWD'])
 import gradio
-from commune import Module
-from inspect import getfile
-import inspect
 import socket
 from signal import SIGKILL
 from psutil import process_iter
@@ -38,7 +35,7 @@ class GradioModule(commune.Module):
         self.host  = self.config.get('host', '0.0.0.0')
         self.port  = self.config.get('port', 8000)
         self.num_ports = self.config.get('num_ports', 10)
-        self.port_range = self.config.get('port_range', [7865, 7870])
+        self.port_range = self.config.get('port_range', [7865, 7871])
         
         # self.thread_manager = PriorityThreadPoolExecutor()
         # self.process_manager = self.get_object('cliProcessManager()
@@ -149,19 +146,22 @@ class GradioModule(commune.Module):
         return self.subprocess_manager.subprocess_map
 
     def port_available(self, port:int):
-        subprocess_map = self.subprocess_map
+        # print(self.subprocess_map)
+        print(str(port) in self.subprocess_map.keys(), self.port_connected(port))
+        return not str(port) in self.subprocess_map.keys() and not self.port_connected(port)
+        # subprocess_map = self.subprocess_map
 
         
-        if str(port)  in subprocess_map:
-            return False
-        else:
-            return True
+        # if str(port) in subprocess_map and self.port_connected(port):
+        #     return False
+        # else:
+        #     return True
         
     def suggest_port(self, max_trial_count=100):
-        for trial in range(max_trial_count):
-            for port in range(*self.port_range):
-                if self.port_available(port):
-                    return port
+
+        for port in range(*self.port_range):
+            if self.port_available(port):
+                return port
         '''
         TODO: kill a port when they are all full
         '''
@@ -364,7 +364,11 @@ class GradioModule(commune.Module):
 
         # print('GRADIO:', gradio_schema['input'][0].__dict__)
         return gradio_schema
-                
+    
+
+    @classmethod
+    def streamlit(cls):
+        st.write(cls.subprocess_map)       
 
 
     def get_gradio_function_schemas(self, module, return_type='gradio'):
@@ -459,7 +463,7 @@ class GradioModule(commune.Module):
 
         for simple, full in modules.items():
             try:
-                dict_stdout[simple] = { 'gradio' : hasattr(self.get_object(full), 'gradio'), 'streamlit' : hasattr(self.get_object(full), 'streamlit') }
+                dict_stdout[simple] = { 'gradio' : hasattr(self.get_object(full), 'gradio'), 'streamlit' : hasattr(self.get_object(full), 'streamlit'), 'fn' : dir(self.get_object(full)) }
             except Exception as e:
                 continue
         return dict_stdout
@@ -581,7 +585,8 @@ async def root():
 
 
 register = GradioModule.register
-
+global graph 
+graph = dict()
 
 @app.get("/test")
 async def test():
@@ -628,7 +633,6 @@ async def module_schema(module:str, gradio:bool=True):
 @app.get("/ls_ports")
 async def ls():
     self = GradioModule.get_instance()
-    # self.launch(module=module)
     return self.ls_ports()
 
 
@@ -636,13 +640,19 @@ async def ls():
 async def module_add(module:str=None, mode:str="gradio"):
     self = GradioModule.get_instance()
     port = self.suggest_port()
-    # self.launch(module=module)
     return self.add(port=port, module=module, mode=mode)
 
 
 @app.get("/rm")
-async def module_rm(module:str=None, port:str=None ):
+async def module_rm(module:str=None, port:str=None, name:str=None):
     self = GradioModule.get_instance()
+    for key, value in graph.items():
+        if f"{module}-{port}" in key :
+            graph.pop(key, None)
+        for link in value:
+            if f"{module}-{port}" in link:
+                value.remove(link)
+        
     return self.rm(port=port, module=module)
 
 @app.get("/rm_all")
@@ -681,13 +691,31 @@ def portopen(port : int):
     else:
         return "Port not on"
 
+@app.get('/add_chain')
+def add_chain(a : str, b : str):
+    if not a in graph.keys(): 
+        graph[a] = []
+    print(b in graph[a])
+    None if b in graph[a] else graph[a].append(b)
+    return graph
+
+@app.get('/rm_chain')
+def rm_chain(a : str, b : str):
+    if not a in graph.keys(): 
+        return False
+    graph[a].remove(b)
+    return True
+
+
+@app.get('/get_chain')
+def get_chain():
+    return graph
 
 if __name__ == "__main__":
     
     if args.api:
         uvicorn.run(f"module:app", host="0.0.0.0", port=8000, reload=True, workers=2)
-    else:
-        module_proxy = GradioModule()
-        module_proxy.launch(module=args.module, port=args.port)
-    # module_proxy = GradioModule.deploy(actor=True, wrap=False)
-    # st.write(module_proxy.module_path)
+    # else:
+        # module_proxy = GradioModule()
+        # module_proxy.launch(module=args.module, port=args.port)
+        

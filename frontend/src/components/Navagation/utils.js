@@ -1,5 +1,5 @@
 import '../../css/dist/output.css'
-const emote = ['👺','🎮', '💀','⚗️', '🎉','👾','🤖', '🍩','✏️', '🎼', '🔥','🧠','🔒','🌿','🦾','🦊','✨','🏡','🐵','🦄','🀄','🌟','🖥','📟','👋','🧬','📖','🚀','👑','🌈','🌱','🌎']
+const emote = ['👺', '🎮', '💀', '⚗️', '🎉', '👾', '🤖', '🍩', '✏️', '🎼', '🔥', '🧠', '🔒', '🌿', '🦾', '🦊', '✨', '🏡', '🐵', '🦄', '🀄', '🌟', '🖥', '📟', '👋', '🧬', '📖', '🚀', '👑', '🌈', '🌱', '🌎', '🧙‍♀️', '🎰', '🎱', '🎲', '🔮']
 
 const colour_map = [
     'bg-gradient-to-bl from-Retro-light-blue to-Retro-light-pink',
@@ -23,16 +23,16 @@ const colour_map = [
     'bg-gradient-to-bl from-[#c94b4b] to-[#4b134f]',
     'bg-gradient-to-bl from-[#000000] to-[#0f9b0f]',
     'bg-gradient-to-bl from-[#0D324D] to-[#7F5A83]',
-    'bg-gradient-to-bl from-[#34e89e] to-[#0f3443]',    
+    'bg-gradient-to-bl from-[#34e89e] to-[#0f3443]',
 ]
 
 /**
  * Get a random emoji from emote array
  * @returns random emoji from emote array
  */
-export const random_emoji = (prev) =>{
+export const random_emoji = (prev) => {
     var e = emote[Math.floor(Math.random() * emote.length)]
-    while(e === prev){
+    while (e === prev) {
         e = emote[Math.floor(Math.random() * emote.length)]
     }
     return e
@@ -44,7 +44,7 @@ export const random_emoji = (prev) =>{
  */
 export const random_colour = (prev) => {
     var c = colour_map[Math.floor(Math.random() * colour_map.length)]
-    while(c === prev){
+    while (c === prev) {
         c = colour_map[Math.floor(Math.random() * colour_map.length)]
     }
     return c
@@ -53,7 +53,7 @@ export const random_colour = (prev) => {
 
 export const list_of_null = (idx) => {
     var list = []
-    for(var i = 0; i < idx; i++ ) {
+    for (var i = 0; i < idx; i++) {
         list.push(null)
     }
     return list
