@@ -26,7 +26,7 @@ class MeanAggregator(commune.Aggregator):
  
          {
             'module': 'model.transformer',
-            'actor': {'gpus': 0.1},
+            'actor': {'gpus': 0.1, 'name': 'model.transformer'},
             'fn': 'forward',
             'kwargs': {'ray_get': True},
         }, 
@@ -35,12 +35,6 @@ class MeanAggregator(commune.Aggregator):
             'actor': {'gpus': 0.1},
             'fn': 'forward',
             'kwargs': {'ray_get': True},
-        },
-        {
-            'module': 'model.transformer',
-            'actor': {'gpus': 0.1},
-            'fn': 'forward',
-            'kwargs': {'ray_get': False},
         }
         ]
 

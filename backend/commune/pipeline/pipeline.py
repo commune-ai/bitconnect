@@ -28,14 +28,11 @@ class Pipeline:
         self.pipeline_blocks = []
         for key in keys:
             process_block = pipeline_config[key]
-
-
             path = process_block['module']
-            process_block['replica'] = process_block.get('replica', 0)
-            block_name = path if process_block['replica'] == 0 else path + f".{process_block['replica']}"
+
+            process_block['tag'] = process_block.get('tag', None)
             process_block['name'] = process_block.get('name',  path )
             process_block['actor'] = process_block.get('actor',  False )
-
             launch_kwargs = dict(
                 module = process_block['module'],
                 fn = process_block.get('init_fn', None),
@@ -43,7 +40,7 @@ class Pipeline:
             )
             module_block = commune.launch(**launch_kwargs)
             process_block['module'] = module_block
-            process_block['function'] = getattr(module_block, process_block['fn'])
+            process_block['function'] = getattr(module_block, process_block.get('fn', process_block.get('function', '__call__' )))
 
             self.process_block[process_block['name']] = process_block
 
@@ -82,22 +79,29 @@ class Pipeline:
             'fn': 'sample',
             'kwargs': {'tokenize': False},
          }, 
+         
          {
-            'module': 'model.transformer',
-            'actor': {'gpus': 0.1},
-            'fn': 'forward',
-            'key_map': {'text': 'input'},
-            'kwargs': {},
+            'module': 'commune.Aggregator',
+            'kwargs': {'blocks': [
+                                {
+                                    'module': 'model.transformer',
+                                    'actor': {'gpus': 0.1},
+                                    'fn': 'forward',
+                                    'kwargs': {'ray_get': True},
+                                } for i in range(3)] },
         }]
 
         pipeline = Pipeline(pipeline_blocks)
         pipeline.run()
 
+
 if __name__ == '__main__':
 
-    # Pipeline.test_sequential_pipeline()
+    Pipeline.test_sequential_pipeline()
 
-    st.write(commune.list_actors())
+    # st.write(commune.list_actors())
+    # st.write(commune.actor_resources())
+    # st.write(commune.total_resources())
 
 
     

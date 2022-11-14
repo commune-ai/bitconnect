@@ -2,7 +2,6 @@ module: NetworkModule
 
 network: local.main
 
-
 # network: avalanche.test.public
 # client: []
 networks:
@@ -70,7 +69,6 @@ networks:
   binance:
     test:
       chainid: 97
-      id: bsc-test
       url: 
         public: https://data-seed-prebsc-1-s1.binance.org:8545
       explorer: https://api-testnet.bscscan.com/api
@@ -135,12 +133,14 @@ networks:
     main:
       chainid: 137
       url:
+        public: https://rpc-mainnet.matic.network
         infura: https://polygon-mainnet.infura.io/v3/$WEB3_INFURA_PROJECT_ID
       explorer: https://api.polygonscan.com/api
       multicall2: "0xc8E51042792d7405184DfCa245F2d27B94D013b6"
-    mumbai:
+    test:
       chainid: 80001
       url: 
+        public: https://rpc-mumbai.maticvigil.com
         infura: https://polygon-mumbai.infura.io/v3/$WEB3_INFURA_PROJECT_ID
       explorer: https://api-testnet.polygonscan.com/api
       multicall2: "0x6842E0412AC1c00464dc48961330156a07268d14"
@@ -148,6 +148,7 @@ networks:
     zkevm:
       chainid: 80001
       url: 
+        infura: https://polygon-mumbai.infura.io/v3/$WEB3_INFURA_PROJECT_ID
         infura: https://polygon-mumbai.infura.io/v3/$WEB3_INFURA_PROJECT_ID
       explorer: https://api-testnet.polygonscan.com/api
       multicall2: "0x6842E0412AC1c00464dc48961330156a07268d14"

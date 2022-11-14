@@ -418,10 +418,12 @@ class ContractManagerModule(Module):
         ContractManagerModule.new_event_loop()
 
         self =  ContractManagerModule.deploy(actor=False, wrap=True)
-        self.set_network('local.main')
-        self.set_account('bob')
+        self.set_network('polygon.test')
+        self.set_account('chris')
+
+        st.write(self.network.network)
         contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=True)
-        st.write(gradio_inferface)
+        st.write(contract)
 
 
 if __name__ == '__main__':

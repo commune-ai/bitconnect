@@ -1,5 +1,7 @@
 module: 'TransformerModel'
 
+model_name: distilbert-base-uncased
+
 model:
   module: transformers.AutoModel
   fn: from_pretrained

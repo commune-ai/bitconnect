@@ -63,10 +63,9 @@ def enable_cache(**input_kwargs):
         return new_fn
     return wrapper_fn
 
-
-
 import streamlit as st
 import nest_asyncio
+
 class Module:
     client = None
     client_module_class_path = 'client.manager.module.ClientModule'
@@ -149,16 +148,6 @@ class Module:
             raise NotImplementedError
         return client_module_class(config=client_config)
             
-    # def get_config(self, config=None):
-    #     if getattr(self, 'config') != None:
-    #         assert isinstance(self,dict)
-    #     if config == None:
-
-    #         assert self.default_config_path != None
-    #         config = self.config_loader.load(path=self.default_config_path)
-    #     return config
-    
-
     def get_submodules(self, submodule_configs=None, get_submodules_bool=True):
         
         if get_submodules_bool == False:
@@ -521,7 +510,7 @@ class Module:
         module_init_fn = fn
         module_kwargs = {**kwargs}
         module_args = [*args]
-        
+
         if module_init_fn == None:
             if actor:
                 # ensure actor is a dictionary
@@ -551,8 +540,8 @@ class Module:
 
         return module_object
     launch_module = launch
-    #############
 
+    #############
     # RAY ACTOR TINGS, TEHE
     #############
 
@@ -705,6 +694,8 @@ class Module:
 
 
 
+
+
     @staticmethod
     def add_actor_metadata(actor):
         # actor_id = Module.get_actor_id(actor)
@@ -807,6 +798,8 @@ class Module:
                  return_actor_handle=False,
                  verbose = True,
                  redundant=False,
+                 tag=None,
+                 tag_seperator = '-',
                  **kwargs):
 
 
@@ -814,6 +807,10 @@ class Module:
             resources['num_cpus'] = cpus
         if gpus > 0:
             resources['num_gpus'] = gpus
+
+        if tag != None:
+            tag = str(tag)
+            name = tag_seperator.join([name, tag])
 
         if not torch.cuda.is_available() and 'num_gpus' in resources:
             del resources['num_gpus']
@@ -1401,8 +1398,13 @@ class Module:
 
     @staticmethod
     def list_actors(state='ALIVE', detail=True, *args, **kwargs):
+        
+        
+        
+        
+        
         kwargs['filters'] = kwargs.get('filters', [("state", "=", state)])
-        kwargs['detail'] = detail
+        kwargs['detail'] = True
 
         actor_info_list =  list_actors(*args, **kwargs)
         final_info_list = []
@@ -1419,7 +1421,8 @@ class Module:
                 final_info_list.append(actor_info_list[i])
             except ValueError as e:
                 pass
-
+        if detail == False:
+            final_info_list = [f['name'] for f in final_info_list]
         return final_info_list
 
     @staticmethod
@@ -1430,6 +1433,39 @@ class Module:
             actor_name = actor.pop('name')
             actor_map[actor_name] = actor
         return actor_map
+
+
+    @classmethod
+    def actor_resources(cls):
+        actor_map = deepcopy(cls.actor_map())
+        actor_resource_map = {}
+        for k,v in actor_map.items():
+            actor_resource_map[k] = v['resources']
+            for r_k in ['cpu', 'memory', 'gpu']:
+                if r_k == 'memory':
+                    actor_resource_map[k][r_k] = actor_resource_map[k][r_k]['ratio']
+                elif r_k in ['cpu', 'gpu']:
+                    if r_k in actor_resource_map[k]:
+                        actor_resource_map[k][r_k] = sum([_r['quantity'] for _r in  actor_resource_map[k][r_k]])
+                    else:
+                        actor_resource_map[k][r_k] = 0
+
+
+        return actor_resource_map 
+
+    @classmethod
+    def total_resources(cls):
+        
+        total_resources = {k:0 for k in ['cpu', 'memory', 'gpu']}
+        actor_resources_map = deepcopy(cls.actor_resources())
+        for actor_name,actor_resources in actor_resources_map.items():
+            for r_k, r_v in actor_resources.items():
+                total_resources[r_k] += r_v
+
+        return total_resources
+             
+                
+
 
     @staticmethod   
     def list_actor_names():
@@ -1544,8 +1580,5 @@ class Module:
 
         getattr(cls, input_args.function)(*args, **kwargs)
     
-
-
 if __name__ == '__main__':
     Module.run()
-    st.write(Module.get_module_filepath().replace(os.getenv('PWD')+'/', ''))

@@ -8,38 +8,27 @@ import ray
 # pipeline_config = commune.load_config(os.path.dirname(__file__).replace(os.getenv('PWD'), ''))
 import torch 
 
-
 class BaseAggregator:
-    def __init__(self, blocks, config={}):
+    def __init__(self, blocks:list=[], config={}):
         self.config = Munch(config)
+        self.build_blocks(blocks)
 
-        self.blocks = blocks if blocks != None else self.config.blocks
-        self.build(self.blocks)
-
-    def build(self,blocks):
-        if isinstance(blocks, list):
-            block_keys = list(range(len(blocks)))
-        elif isinstance(blocks, dict): 
-            block_keys = list(blocks.keys())
-        
-        previous_key = None
+    
+    def build_blocks(self,blocks):
         # building the pipeline
         self.blocks = []
-        for block_key in block_keys:
-            process_block = blocks[block_key]
-            path = process_block['module']
-            process_block['name'] = process_block.get('name',  path )
-            process_block['actor'] = process_block.get('actor',  False )
+        for block in blocks:
+            block['name'] = block.get('name',  block['module'] )
+            block['actor'] = block.get('actor',  False )
             launch_kwargs = dict(
-                module = process_block['module'],
-                fn = process_block.get('init_fn', None),
-                actor =  process_block['actor']
+                module = block['module'],
+                fn = block.get('init_fn', None),
+                actor =  block['actor']
             )
-            module_block = commune.launch(**launch_kwargs)
-            process_block['module'] = module_block
-            process_block['function'] = getattr(module_block, process_block['fn'])
-            previous_key = block_key
-            self.blocks.append(process_block)
+            block['module'] =  commune.launch(**launch_kwargs)
+            block['function'] = getattr(block['module'], block['fn'])
+            self.blocks.append(block)
+        return self.blocks
 
 
     @staticmethod
@@ -79,48 +68,38 @@ class BaseAggregator:
                     aggregate_outputs[k] = [v]
         return aggregate_outputs
 
-    def run(self, *args, **kwargs):
+    def __call__(self, blocks:list=[], *args, **kwargs):
+        if len(blocks)>0:
+            self.blocks = self.build_blocks(blocks)
         outputs = self.get_outputs(*args , **kwargs)
         aggregate_outputs = self.aggregate_outputs(outputs)
         
+
         # stack outputs in 1st dimension
         outputs = {k:torch.stack(v) for k,v in aggregate_outputs.items()}
-        outputs = {k: torch.sum(v, dim=0) for k,v in outputs.items()}
+        outputs = {k: torch.mean(v, dim=0) for k,v in outputs.items()}
         return outputs
+
 
     @staticmethod
     def test_sequential_pipeline():
         commune.init_ray()
         blocks = [
- 
          {
             'module': 'model.transformer',
             'actor': {'gpus': 0.1},
             'fn': 'forward',
-            'kwargs': {'ray_get': False},
-        }, 
-         {
-            'module': 'model.transformer',
-            'actor': {'gpus': 0.1},
-            'fn': 'forward',
-            'kwargs': {'ray_get': False},
-        },
-        {
-            'module': 'model.transformer',
-            'actor': {'gpus': 0.1},
-            'fn': 'forward',
-            'kwargs': {'ray_get': False},
-        }
-        ]
+            'kwargs': {'ray_get': True},
+        } for i in range(3)] 
+        st.write(blocks)
 
 
 
-        aggregator = BaseAggregator(blocks)
-        st.write(aggregator.run())
+        aggregator = BaseAggregator()
+        st.write(aggregator(blocks=blocks))
 
 if __name__ == '__main__':
-
-    BaseAggregator.test_sequential_pipeline()
+    commune.Aggregator.test_sequential_pipeline()
     # st.write(commune.list_actor_names())
 
 

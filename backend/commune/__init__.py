@@ -21,6 +21,8 @@ get_parents = Module.get_parents
 is_module = Module.is_module
 run_command = Module.run_command
 timer = Module.timer
+actor_resources = Module.actor_resources
+total_resources = Module.total_resources
 
 from .pipeline import Pipeline 
 from .process.aggregator import BaseAggregator as Aggregator
