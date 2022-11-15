@@ -97,6 +97,58 @@ class DatasetTesting:
                          ) ):
         pass
 
+
+
+
+    @staticmethod
+    def test_next_tokenized_sample():
+        batch_size = 10
+        sequence_length = 128
+        block_size = 1000
+        num_batches = 10
+        for run_generator in [True, False]:
+            
+
+            dataset = bittensor.dataset (
+                block_size = block_size,
+                batch_size = batch_size,
+                sequence_length = sequence_length,
+                num_batches=num_batches,
+                run_generator = run_generator,
+                no_tokenizer=False
+            )
+
+
+            input = next(dataset)
+            assert input['input_ids'].shape[0] == input['attention_mask'].shape[0] == batch_size
+            assert input['input_ids'].shape[1] == input['attention_mask'].shape[1] == sequence_length
+            dataset.close()
+
+
+    @staticmethod
+    def test_next_raw_sample():
+        batch_size = 10
+        sequence_length = 128
+        block_size = 1000
+        num_batches = 10
+        for run_generator in [True, False]:
+            dataset = bittensor.dataset (
+                block_size = block_size,
+                batch_size = batch_size,
+                sequence_length = sequence_length,
+                num_batches=num_batches,
+                run_generator = run_generator,
+                no_tokenizer = True
+            )
+
+            input = next(dataset)
+            assert len(input) == batch_size
+            for i in range(len(input)):
+                assert len(input[i].split()) == sequence_length
+
+            dataset.close()
+
+
 if __name__ == '__main__':
 
 
@@ -105,11 +157,9 @@ if __name__ == '__main__':
 
 
     # st.write('FUCK')
-
-    dataset = bittensor.dataset(num_batches=20, block_size=10000, sequence_length=64, batch_size=32, dataset_name = 'default', load_dataset=False, save_dataset=False, run_generator=False)
+    dataset = bittensor.dataset(num_batches=20, block_size=500, max_blocks_per_dataset=1000, cache_size=5000, sequence_length=64, batch_size=32, dataset_name = 'default', load_dataset=False, save_dataset=False, run_generator=True)
     
     for i in range(100):
-        st.write(i)
-        st.write({k:v.shape for k,v in next(dataset).items()})
-
-
+        st.write(next(dataset))
+    # st.write(DatasetTesting.test_next_raw_sample())
+    # st.write(DatasetTesting.test_next_tokenized_sample())

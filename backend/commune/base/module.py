@@ -807,8 +807,9 @@ class Module:
                  return_actor_handle=False,
                  verbose = True,
                  redundant=False,
+                 tag_seperator = '-',
+                 tag = None,
                  **kwargs):
-
 
         if cpus > 0:
             resources['num_cpus'] = cpus
@@ -820,6 +821,9 @@ class Module:
 
         # configure the option_kwargs
 
+        if tag != None:
+            tag = str(tag)
+            name = tag_seperator.join([name, tag])
         options_kwargs = {'name': name,
                           'max_concurrency': max_concurrency,
                            **resources}
@@ -1072,7 +1076,6 @@ class Module:
         else:
             return fn_dict
         
-        
 
     @classmethod
     def hasfunc(cls, key):
@@ -1085,7 +1088,6 @@ class Module:
         ## TODO: regex
         return list(filter(lambda f: key in f, fn_list))
 
-
     @classmethod
     def get_module_filepath(cls, obj=None, include_pwd=True):
         if obj == None:
@@ -1094,7 +1096,6 @@ class Module:
         if not include_pwd:
             filepath = cls.get_module_filepath().replace(os.getenv('PWD')+'/', '')
         return filepath
-
 
     @classmethod
     def run_streamlit(cls, port=8501):
