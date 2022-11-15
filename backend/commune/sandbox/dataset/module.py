@@ -37,46 +37,6 @@ try:
 except ImportError:
     pass
 
-def total_size(o, handlers={}, verbose=False):
-    """ Returns the approximate memory footprint an object and all of its contents.
-
-    Automatically finds the contents of the following builtin containers and
-    their subclasses:  tuple, list, deque, dict, set and frozenset.
-    To search other containers, add handlers to iterate over their contents:
-
-        handlers = {SomeContainerClass: iter,
-                    OtherContainerClass: OtherContainerClass.get_elements}
-
-    """
-    dict_handler = lambda d: chain.from_iterable(d.items())
-    all_handlers = {tuple: iter,
-                    list: iter,
-                    deque: iter,
-                    dict: dict_handler,
-                    set: iter,
-                    frozenset: iter,
-                   }
-    all_handlers.update(handlers)     # user handlers take precedence
-    seen = set()                      # track which object id's have already been seen
-    default_size = getsizeof(0)       # estimate sizeof object without __sizeof__
-
-    def sizeof(o):
-        if id(o) in seen:       # do not double count the same object
-            return 0
-        seen.add(id(o))
-        s = getsizeof(o, default_size)
-
-        if verbose:
-            print(s, type(o), repr(o), file=stderr)
-
-        for typ, handler in all_handlers.items():
-            if isinstance(o, typ):
-                s += sum(map(sizeof, handler(o)))
-                break
-        return s
-
-    return sizeof(o)
-
 import commune.sandbox.dataset.constant as constant
 
 class DatasetTesting:
@@ -140,14 +100,16 @@ class DatasetTesting:
 if __name__ == '__main__':
 
 
-    DatasetTesting.test_change_data_size()
+    # DatasetTesting.test_change_data_size()
     # st.write(DatasetTesting().run_trial())
 
 
+    # st.write('FUCK')
 
-    # dataset = bittensor.dataset(num_batches=20, block_size=10000, sequence_length=256, batch_size=64, dataset_name = 'default', load_dataset=True, save_dataset=False, run_generator=False)
+    dataset = bittensor.dataset(num_batches=20, block_size=10000, sequence_length=64, batch_size=32, dataset_name = 'default', load_dataset=False, save_dataset=False, run_generator=False)
     
-    # for i in range(10):
-    #     st.write({k:v.shape for k,v in next(dataset).items()})
+    for i in range(100):
+        st.write(i)
+        st.write({k:v.shape for k,v in next(dataset).items()})
 
 
