@@ -359,12 +359,14 @@ class Sandbox(Module):
             metrics_dict['queries'] = num_endpoints
             metrics_dict['successes'] = len(finished_results)
             metrics_dict['success_rate'] = metrics_dict['successes']/metrics_dict['queries']
-            metrics_dict['samples'] = sum([fr['tensor'].shape[0] for fr in finished_results])
-            metrics_dict['tokens'] = sum([fr['tensor'].shape[1]*fr['tensor'].shape[0] for fr in finished_results])
 
-        for k in list(results_dict.keys()):
-            results_dict[f'{k}_per_second'] = results_dict[k] / results_dict['seconds']
-        return results_dict
+            metrics_dict['samples'] = sum([fr['tensor'].shape[0] for fr in finished_results if 'tensor' in fr])
+            metrics_dict['tokens'] = sum([fr['tensor'].shape[1]*fr['tensor'].shape[0] for fr in finished_results if 'tensor' in fr])
+
+        for k in list(metrics_dict.keys()):
+            if k not in ['seconds']:
+                metrics_dict[f'{k}_per_second'] = metrics_dict[k] / metrics_dict['seconds']
+        return metrics_dict
 
 
     @staticmethod
@@ -625,7 +627,7 @@ class AyncioManager:
 
 if __name__ == '__main__':
     Sandbox.ray_start()
-    module = Sandbox.deploy(actor={'refresh': False}, wrap=True)
+    module = Sandbox.deploy(actor=False, wrap=True)
 
     st.write(module.sample_generator(num_endpoints=25, 
                         sequence_length=10,
