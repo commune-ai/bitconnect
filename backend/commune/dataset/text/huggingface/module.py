@@ -10,6 +10,7 @@ import torch.nn.functional as F
 # import torchsort
 from commune import Module
 import ray
+from huggingface_hub import HfApi
 import asyncio
 
 # from commune.bittensor.cortex.metric import causal_lm_loss, ranknet_loss
@@ -23,11 +24,13 @@ Module.new_event_loop()
 import bittensor
 
 class DatasetModule(Module):
-    def __init__(self,config=None, tokenizer=None, dataset=None, **kwargs):
+    def __init__(self,config=None, tokenizer=None, dataset=None, load=False,**kwargs):
         Module.__init__(self, config=config, **kwargs)
+        self.hf_api = HfApi(self.config.get('hub'))
 
-        self.load_tokenizer(tokenizer)
-        self.load_dataset(dataset)
+        if load:
+            self.load_tokenizer(tokenizer)
+            self.load_dataset(dataset)
 
 
     def load_tokenizer(self, tokenizer=None): 
@@ -159,9 +162,115 @@ class DatasetModule(Module):
         assert x.shape[0] == batch_size
         assert x.shape[1] == seqeunce_length
 
-if __name__ == '__main__':
-    module = DatasetModule.deploy(actor={'refresh': False}, load=True, wrap=True)
-    generator = DatasetModule.ray_job_generator([module.sample(batch_size=32, sequence_length=256, ray_get=False) for i in range(100)])
-    for x in generator:
-        st.write(x.shape)
 
+    def list_datasets(self,return_type = 'dict', filter_fn=None, *args, **kwargs):
+        datasets = self.hf_api.list_datasets(*args,**kwargs)
+        filter_fn = self.resolve_filter_fn(filter_fn=filter_fn)
+        if return_type in 'dict':
+            datasets = list(map(lambda x: x.__dict__, datasets))
+            if filter_fn != None and callable(filter_fn):
+                datasets = list(filter(filter_fn, datasets))
+        elif return_type in ['pandas', 'pd']:
+            datasets = list(map(lambda x: x.__dict__, datasets))
+            df = pd.DataFrame(datasets)
+            df['num_tags'] = df['tags'].apply(len)
+            df['tags'] = df['tags'].apply(lambda tags: {tag.split(':')[0]:tag.split(':')[1] for tag in tags  }).tolist()
+            for tag_field in ['task_categories']:
+                df[tag_field] = df['tags'].apply(lambda tag:tag.get(tag_field) )
+            df['size_categories'] = df['tags'].apply(lambda t: t.get('size_categories'))
+            df = df.sort_values('downloads', ascending=False)
+            if filter_fn != None and callable(filter_fn):
+                df = self.filter_df(df=df, fn=filter_fn)
+            return df
+        else:
+            raise NotImplementedError
+
+    
+        return datasets
+
+    @property
+    def task_categories(self):
+        return list(self.datasets['task_categories'].unique())
+    @property
+    def pipeline_tags(self): 
+        df = self.list_models(return_type='pandas')
+        return df['pipeline_tag'].unique()
+    @property
+    def pipeline_tags_count(self):
+        count_dict = dict(self.models_df['pipeline_tag'].value_counts())
+        return {k:int(v) for k,v in count_dict.items()}
+
+    @staticmethod
+    def resolve_filter_fn(filter_fn):
+        if filter_fn != None:
+            if callable(filter_fn):
+                fn = filter_fn
+
+            if isinstance(filter_fn, str):
+                filter_fn = eval(f'lambda r : {filter_fn}')
+        
+            assert(callable(filter_fn))
+        return filter_fn
+    @property
+    def models(self):
+        df = pd.DataFrame(self.list_models(return_type='dict'))
+        return df
+    @property
+    def datasets(self):
+        df = pd.DataFrame(self.list_datasets(return_type='dict'))
+        return df
+
+
+
+    def list_models(self,return_type = 'pandas',filter_fn=None, *args, **kwargs):
+        models = self.hf_api.list_models(*args,**kwargs)
+       
+        filter_fn = self.resolve_filter_fn(filter_fn=filter_fn)
+
+
+        if return_type in 'dict':
+            models = list(map(lambda x: x.__dict__, models))
+            if filter_fn != None and callable(filter_fn):
+                models = list(filter(filter_fn, models))
+
+        elif return_type in ['pandas', 'pd']:
+
+            models = list(map(lambda x: x.__dict__, models))
+            models = pd.DataFrame(models)
+            if filter_fn != None and callable(filter_fn):
+                models = self.filter_df(df=models, fn=filter_fn)
+
+        else:
+            raise NotImplementedError
+
+        return models
+
+
+    @property
+    def task_categories(self):
+        return list(self.datasets['task_categories'].unique())
+    @property
+    def pipeline_tags(self): 
+        df = self.list_models(return_type='pandas')
+        return df['pipeline_tag'].unique()
+
+
+
+    def dataset_tags(self, limit=10, **kwargs):
+        df = self.list_datasets(limit=limit,return_type='pandas', **kwargs)
+        tag_dict_list = df['tags'].apply(lambda tags: {tag.split(':')[0]:tag.split(':')[1] for tag in tags  }).tolist()
+        tags_df =  pd.DataFrame(tag_dict_list)
+        df = df.drop(columns=['tags'])
+        return pd.concat([df, tags_df], axis=1)
+
+    @staticmethod
+    def filter_df(df, fn):
+        indices =  df.apply(fn, axis=1)
+        return df[indices]
+
+if __name__ == '__main__':
+    module = DatasetModule.deploy(actor=False, load=False, wrap=True)
+    st.write(module.pipeline_tags)
+    st.write(module.task_categories)
+    # for x in :
+    #     st.write(x.shape)

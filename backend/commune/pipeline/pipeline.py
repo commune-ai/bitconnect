@@ -112,11 +112,12 @@ class Pipeline:
             'kwargs': {'blocks': [
                                 {
                                     'module': 'model.transformer',
-                                    'actor': {'gpus': 0.1},
+                                    'actor': {'gpus': 0.1, 'tag': f'{i}'},
                                     'fn': 'forward',
                                     'kwargs': {'ray_get': True},
                                 } for i in range(3)] },
         }]
+        
 
         pipeline = Pipeline(pipeline_blocks)
         st.write(pipeline.run())

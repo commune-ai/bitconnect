@@ -824,15 +824,13 @@ class Module:
         if tag != None:
             tag = str(tag)
             name = tag_seperator.join([name, tag])
+
         options_kwargs = {'name': name,
                           'max_concurrency': max_concurrency,
                            **resources}
         if detached:
             options_kwargs['lifetime'] = 'detached'
-
         # setup class init config
-
-
         # refresh the actor by killing it and starting it (assuming they have the same name)
         
         if refresh:
@@ -843,7 +841,6 @@ class Module:
         if redundant:
             # if the actor already exists and you want to create another copy but with an automatic tag
             actor_index = 0
-
             while Module.actor_exists(name):
                 name =  f'{name}-{actor_index}' 
                 actor_index += 1

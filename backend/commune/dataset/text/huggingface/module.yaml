@@ -8,8 +8,7 @@ tokenizer:
 dataset:
   module: datasets.load_dataset
   kwargs:
-    path: wikitext
-    name: wikitext-103-v1
+    path: glue
     # split: ['test', 'train']
   text_field: text
 
