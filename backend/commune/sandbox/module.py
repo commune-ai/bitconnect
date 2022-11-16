@@ -31,7 +31,6 @@ import time
 import queue
 from loguru import logger
 from commune.dataset.huggingface.module import DatasetModule
-st.write(DatasetModule)
 
 from commune import Module
 
@@ -200,7 +199,7 @@ class Sandbox(Module):
         return code2name_map[code]
 
         
-    async def async_receptor_pool_forward(self, endpoints, inputs, synapses , timeout, splits=5):
+    async def async_receptor_pool_forward(self, endpoints, inputs, synapses , timeout, min_successes, splits=5):
         if synapses == None:
             synapses = self.synapses
 
@@ -209,7 +208,7 @@ class Sandbox(Module):
         kwargs_list = []
 
         for endpoints_split in endpoints_split_list:
-            kwargs_list.append(dict(endpoints=endpoints_split, inputs=inputs, synapses=synapses , timeout=timeout))
+            kwargs_list.append(dict(endpoints=endpoints_split, inputs=inputs, synapses=synapses , timeout=timeout, min_successes=min_successes))
 
 
         job_bundle = asyncio.gather(*[self.receptor_pool.async_forward(**kwargs) for kwargs in kwargs_list])
@@ -230,6 +229,7 @@ class Sandbox(Module):
     async def async_sample(self,
             sequence_length = 256,
             batch_size = 32,
+            min_successes=10,
             timeout= 2,
             synapse = 'TextCausalLMNext',
             num_endpoints = 50,
@@ -248,12 +248,13 @@ class Sandbox(Module):
         io_1 = psutil.net_io_counters()
         start_bytes_sent, start_bytes_recv = io_1.bytes_sent, io_1.bytes_recv
 
-        with self.timer(text='Querying Endpoints: {t}', streamlit=True) as t:
+        with self.timer() as t:
             
             results = await self.async_receptor_pool_forward(
                                 endpoints=endpoints,
                                 synapses= [synapse],
                                 timeout=timeout,
+                                min_successes=min_successes,
                                 inputs= [inputs]*len(endpoints),
                                 splits=splits)
 
@@ -344,52 +345,54 @@ class Sandbox(Module):
                          batch_size=10,
                         num_batches=10,
                          max_tasks=10,
+                         min_successes=10,
                           *args, **kwargs):
         jobs = []
-        kwargs.update(dict(sequence_length=sequence_length, batch_size=batch_size,num_endpoints=num_endpoints))
+        kwargs.update(dict(sequence_length=sequence_length, batch_size=batch_size,num_endpoints=num_endpoints, min_successes=min_successes))
         for i in range(num_batches):
             jobs += [{'fn': self.async_sample, 'kwargs': kwargs, 'args': args}]
                 
         metrics_dict = {}
         with self.timer() as t:
-            finished_results = asyncio.run(self.async_run_jobs(jobs=jobs,  max_tasks=num_batches))
+            finished_results = asyncio.run(self.async_run_jobs(jobs=jobs,  max_tasks=max_tasks))
             
             metrics_dict['seconds'] = t.seconds
             metrics_dict['max_tasks'] = max_tasks
-            metrics_dict['queries'] = num_endpoints
+
             metrics_dict['successes'] = len(finished_results)
-            metrics_dict['success_rate'] = metrics_dict['successes']/metrics_dict['queries']
+            metrics_dict['num_batches'] = num_batches
+            metrics_dict['endpoints'] = num_endpoints*num_batches
 
             metrics_dict['samples'] = sum([fr['tensor'].shape[0] for fr in finished_results if 'tensor' in fr])
+            
+            metrics_dict['samples_per_batch'] = metrics_dict['samples']/metrics_dict['num_batches']
+            metrics_dict['success_rate'] = metrics_dict['samples']/metrics_dict['endpoints']
             metrics_dict['tokens'] = sum([fr['tensor'].shape[1]*fr['tensor'].shape[0] for fr in finished_results if 'tensor' in fr])
 
         for k in list(metrics_dict.keys()):
-            if k not in ['seconds']:
+            if k not in ['seconds', 'success_rate', 'samples_per_batch']:
                 metrics_dict[f'{k}_per_second'] = metrics_dict[k] / metrics_dict['seconds']
         return metrics_dict
 
 
     @staticmethod
-    async def async_run_jobs(jobs, max_tasks=5, stagger_time=0.5):
+    async def async_run_jobs(jobs, max_tasks=5, stagger_time=0.0):
         finished_jobs, running_jobs = [],[]
         finished_results = []
         for job in jobs:
             while len(running_jobs)>=max_tasks:
-                
                 tmp_finished_jobs, running_jobs = await asyncio.wait(running_jobs, return_when=asyncio.FIRST_COMPLETED)
                 running_jobs = list(running_jobs)
                 if tmp_finished_jobs:
                     finished_jobs += list(tmp_finished_jobs)
                     finished_results += await asyncio.gather(*tmp_finished_jobs)
-    
-                    st.write(len(finished_results[-1].get('tensor',[])))
-    
-
                 else:
                     asyncio.sleep(stagger_time)
                 
-            
-            running_jobs.append(job['fn'](*job.get('args', []),**job.get('kwargs',{})))
+            fn = job['fn']
+            args = job.get('args', [])
+            kwargs = job.get('kwargs',{})
+            running_jobs.append(fn(*args,**kwargs))
             
         finished_results += list(await asyncio.gather(*running_jobs))
         
@@ -497,8 +500,6 @@ class Sandbox(Module):
         df = self.load_experiment(path=experiment)
         from commune.streamlit import StreamlitPlotModule, row_column_bundles
 
-        st.write(df)
-
         df['tokens_per_second'] = df['num_tokens']*df['num_successes'] / df['elapsed_time']
         df['samples_per_second'] = df['batch_size']*df['num_successes'] / df['elapsed_time']
     
@@ -573,7 +574,6 @@ class AyncioManager:
         self.tasks = []
         self.queue = Munch({'in':queue.Queue(), 'out':queue.Queue()})
         self.start()
-        st.write(self.background_thread)
 
     def stop(self):
         while self.running:
@@ -626,13 +626,14 @@ class AyncioManager:
         self.close()
 
 if __name__ == '__main__':
-    Sandbox.ray_start()
+    # Sandbox.ray_start()
     module = Sandbox.deploy(actor=False, wrap=True)
 
-    st.write(module.sample_generator(num_endpoints=25, 
-                        sequence_length=10,
-                        batch_size=10,
-                            
-                        num_batches=50,
-                        max_tasks=10))
+    st.write(module.sample_generator(num_endpoints=50, 
+                        sequence_length=64,
+                        batch_size=16,
+                        timeout = 4,
+                        num_batches=20,
+                        min_successes=20,
+                        max_tasks=500))
 

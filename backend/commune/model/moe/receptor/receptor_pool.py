@@ -20,7 +20,7 @@
 import math
 from typing import Tuple, List, Union
 from threading import Lock
-
+import streamlit as st
 import torch
 import asyncio
 from loguru import logger
@@ -198,6 +198,7 @@ class ReceptorPool ( torch.nn.Module ):
             synapses: List[ 'bittensor.Synapse' ],
             inputs: List [ torch.Tensor ],
             timeout: int,
+            min_successes: int = 20,
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
         r""" Forward tensor inputs to endpoints.
 
@@ -231,28 +232,55 @@ class ReceptorPool ( torch.nn.Module ):
         receptors = [ self._get_or_create_receptor_for_endpoint( endpoint ) for endpoint in endpoints ]
 
 
+
+        loop = asyncio.get_event_loop()
         # Make calls.
-        calls = []
+        running_tasks = []
         for index, receptor in enumerate(receptors):
-            calls.append( 
+            task = asyncio.create_task(
                 receptor.async_forward(
                     synapses = synapses,
                     inputs = inputs[index], 
                     timeout = timeout
                 )
             )
+            running_tasks.append(task)
 
-        responses = await asyncio.gather( *calls )
 
-        # Unpack responses
         forward_outputs = []
         forward_codes = []
         forward_times = []
-        for response in responses:
-            forward_outputs.append( response[0] )
-            forward_codes.append( response[1] )
-            forward_times.append( response[2] )
+        while len(running_tasks) > 0:
+            
+            finished_tasks, running_tasks  = await asyncio.wait( running_tasks , return_when=asyncio.FIRST_COMPLETED)
+            finished_tasks, running_tasks = list(finished_tasks), list(running_tasks)
 
+            # st.write(len(finished_tasks), len(running_tasks))
+            # Unpack responses
+            
+
+            responses = await asyncio.gather(*finished_tasks)
+
+            for response in responses:
+                if  min_successes > 0:
+                    if  response[1][0] == 1:
+                        forward_outputs.append( response[0] )
+                        forward_codes.append( response[1] )
+                        forward_times.append( response[2] )
+
+                    if len(forward_outputs) >= min_successes :
+                        # cancel the rest of the tasks
+                        [t.cancel() for t in running_tasks]
+                        running_tasks = [t for t in running_tasks if t.cancelled()]
+                        assert len(running_tasks) == 0, f'{len(running_tasks)}'
+                        break
+                else:
+                    forward_outputs.append( response[0] )
+                    forward_codes.append( response[1] )
+                    forward_times.append( response[2] )
+
+
+        st.write(len(forward_codes), min_successes, sum([_[0] for _ in forward_codes])/(len(forward_codes)+1e-10) )
         # ---- Kill receptors ----
         # self._destroy_receptors_over_max_allowed()
         # ---- Return ----
