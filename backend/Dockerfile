@@ -65,3 +65,4 @@ RUN npm install @uniswap/v2-periphery
 
 COPY ./scripts .
 
+RUN pip install jupyterlab

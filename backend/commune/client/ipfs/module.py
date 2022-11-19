@@ -301,7 +301,6 @@ class IPFSModule:
 
         if path in json_path2hash:
             cid = json_path2hash[path]['Hash']
-            st.write(cid)
             cid = await self.async_rm(cid)
         elif path in json_hash2path:
             cid = path
@@ -311,9 +310,7 @@ class IPFSModule:
             path = os.path.join(self.data_dir, path)
             return os.remove(path)
         
-        st.write(cid, 'bro')
         await self.async_load_path2hash()
-        st.write(await self.async_load_path2hash())
 
     async def async_save_json(self, 
                         path:str,
@@ -338,9 +335,10 @@ class IPFSModule:
                 Path of the saved JSON
         """
         
+        if os.path.splitext(path)[-1] == '.json':
+            path = os.path.splitext(path)[0]
         if include_root:
             path = os.path.join(self.data_dir, path)
-
         dir_path = os.path.dirname(path)
 
         # ensure the json is the prefix
@@ -461,7 +459,6 @@ class IPFSModule:
         for f in dir(cls):
             if 'test_' in f:
                 getattr(cls, f)()
-                st.write(f'PASSED: {f}')
 
 
     ##############
@@ -525,13 +522,14 @@ class IPFSModule:
         return json_hash2path
 
 
+
+
     async def async_put_json(self,path,input:str):
         path = os.path.join(self.json_land_dir, path)
         path = await self.async_save_json(path,input, include_root=False)
         # Add to path.
         file_meta = await self.async_add(path=path, include_root=False)
         # remove json.
-        st.write(file_meta)
         await self.async_rm_json(path, include_root=False)
 
         return list(file_meta.values())[0]
@@ -556,7 +554,7 @@ class IPFSModule:
 
     
 
-    async def async_cat(self, cid, **kwargs ):
+    async def async_cat(self, cid, offset=0, length=None, **kwargs ):
         '''
         Args:
             offset [int64]: Byte offset to begin reading from. Required: no.
@@ -571,8 +569,35 @@ class IPFSModule:
         obj = {'fam': [0,2,3]}
         path = 'tmp_path'
         module.put_json(path,obj)
-        assert module.get_json(path) == obj
+        st.write(obj, module.get_json(path), 'bro')
+        assert json.dumps(module.get_json(path)) == json.dumps(obj)
         return obj
+
+
+
+    async def async_save_model(self, path:str, model):
+
+
+        path_dict = {
+            **{f'state_dict.{k}':v for k,v in model.state_dict().items()},
+        }
+
+        # st.write({k:v.shape for k,v in path_dict.items()})
+        task_map = {}
+        tasks = []
+        for k,v in path_dict.items():
+            if k in ['state_dict.embeddings.word_embeddings.weight']:
+                continue
+            task = self.async_save_json(k,v.tolist())
+            st.write(k)
+            tasks.append(task)
+
+        while len(tasks)>0:
+            st.write(tasks)
+            finished_tasks, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            st.write(tasks)
+            for finished_task in finished_tasks:
+                st.write(task_map[finished_task])
 
 
     @classmethod
@@ -582,14 +607,21 @@ class IPFSModule:
         path = 'tmp_path'
         module.put_json(path,obj)
         module.rm_json(path,obj)
-        assert module.get_json(path) == obj
+        loaded_obj = module.get_json(path)
+        assert loaded_obj.get('Type') == 'error', loaded_obj
         return obj
 
-
+# import aiofile
 if __name__ == '__main__':
-    # IPFSModule.test()
-    module = IPFSModule()
-    # file_meta = module.put_json('hey', {'hey': {}})
-    # st.write(module.cat(file_meta['Hash'], offset=5, length=2))
-    module.test_json()
+    ipfs_module = IPFSModule()
+    from commune.model.transformer.module import TransformerModel
+    model = TransformerModel.deploy()
+    import sys
+    st.write(ipfs_module.save_model('model',model.model))
+
+    # # IPFSModule.test()
+
+    # # file_meta = module.put_json('hey', {'hey': {}})
+    # # st.write(module.cat(file_meta['Hash'], offset=5, length=2))
+    # module.test()
     # module.get('QmPgWfmTAH6bo6aJc1JoLuaDLH6A6vCpyVjy57YFK6Fr8m', '/tmp/hey')

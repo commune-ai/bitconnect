@@ -90,11 +90,6 @@ class BaseAggregator:
             'fn': 'forward',
             'kwargs': {'ray_get': True},
         } for i in range(3)] 
-        st.write(blocks)
-
-        
-
-
 
         aggregator = BaseAggregator()
         st.write(aggregator(blocks=blocks))

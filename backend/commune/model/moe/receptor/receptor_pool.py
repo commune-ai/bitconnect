@@ -280,7 +280,6 @@ class ReceptorPool ( torch.nn.Module ):
                     forward_times.append( response[2] )
 
 
-        st.write(len(forward_codes), min_successes, sum([_[0] for _ in forward_codes])/(len(forward_codes)+1e-10) )
         # ---- Kill receptors ----
         # self._destroy_receptors_over_max_allowed()
         # ---- Return ----

@@ -5,7 +5,6 @@ import os
 import sys
 from copy import deepcopy
 import streamlit as st
-sys.path.append(os.environ['PWD'])
 from commune.utils import dict_put, get_object, dict_has
 from commune import Module
 from diffusers import StableDiffusionPipeline, LMSDiscreteScheduler
@@ -68,9 +67,5 @@ class TransformerModel(Module):
         
 
 if __name__ == '__main__':
-    import commune
-    commune.pipeline()
-    # Module.ray_start()
-    TransformerModel.run()
-
+    TransformerModel
 

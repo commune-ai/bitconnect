@@ -66,6 +66,8 @@ class Sandbox(Module):
             self.dataset = self.set_dataset(dataset)
             # self.tokenizer = self.set_tokenizer(tokenizer)
             
+        self.tasks = []
+        self.sample_cache = []
         self.sync_the_async()
     
     def set_receptor_pool(self, receptor_pool=None, refresh=None, max_active_receptors=0):
@@ -347,32 +349,58 @@ class Sandbox(Module):
                          max_tasks=10,
                          min_successes=10,
                           *args, **kwargs):
+
         jobs = []
-        kwargs.update(dict(sequence_length=sequence_length, batch_size=batch_size,num_endpoints=num_endpoints, min_successes=min_successes))
-        for i in range(num_batches):
-            jobs += [{'fn': self.async_sample, 'kwargs': kwargs, 'args': args}]
-                
+        kwargs.update(dict(sequence_length=sequence_length, batch_size=batch_size, num_endpoints=num_endpoints, min_successes=min_successes))
+
+
+
         metrics_dict = {}
         with self.timer() as t:
-            finished_results = asyncio.run(self.async_run_jobs(jobs=jobs,  max_tasks=max_tasks))
-            
+            for i in range(num_batches):
+                self.submit_job(fn=self.async_sample, max_tasks=max_tasks, *args, **kwargs)
+        
+            finished_results = []
+            for i in range(num_batches):
+                st.write(i)
+                finished_results.append(self.get_sample())
+        
             metrics_dict['seconds'] = t.seconds
-            metrics_dict['max_tasks'] = max_tasks
-
             metrics_dict['successes'] = len(finished_results)
-            metrics_dict['num_batches'] = num_batches
-            metrics_dict['endpoints'] = num_endpoints*num_batches
-
+            metrics_dict['input'] = dict(num_batches=num_batches, num_endpoints=num_endpoints, max_tasks=max_tasks)
             metrics_dict['samples'] = sum([fr['tensor'].shape[0] for fr in finished_results if 'tensor' in fr])
-            
-            metrics_dict['samples_per_batch'] = metrics_dict['samples']/metrics_dict['num_batches']
-            metrics_dict['success_rate'] = metrics_dict['samples']/metrics_dict['endpoints']
+            metrics_dict['samples_per_batch'] = metrics_dict['samples']/num_batches
+            metrics_dict['success_rate'] = metrics_dict['samples']/num_endpoints
             metrics_dict['tokens'] = sum([fr['tensor'].shape[1]*fr['tensor'].shape[0] for fr in finished_results if 'tensor' in fr])
-
+        
         for k in list(metrics_dict.keys()):
-            if k not in ['seconds', 'success_rate', 'samples_per_batch']:
+            if k not in ['seconds', 'success_rate', 'samples_per_batch','input']:
                 metrics_dict[f'{k}_per_second'] = metrics_dict[k] / metrics_dict['seconds']
         return metrics_dict
+
+
+    async def async_submit_job(self, fn, max_tasks=10, *args, **kwargs):
+
+
+        # ensure there is enough space
+        while len(self.tasks) >= max_tasks:
+            finished_tasks, tasks = await asyncio.wait(self.tasks, return_when=asyncio.FIRST_COMPLETED)
+            finished_tasks, self.tasks = list(finished_tasks), list(tasks)
+            for finished_task in finished_tasks:
+                self.sample_cache.append(finished_task.result())
+        
+        self.tasks.append(fn(*args, **kwargs))
+
+    async def async_get_sample(self):
+        if len(self.sample_cache) == 0:
+            while len(self.tasks)>0:
+                finished_tasks, tasks = await asyncio.wait(self.tasks, return_when=asyncio.FIRST_COMPLETED)
+                finished_tasks, self.tasks = list(finished_tasks), list(tasks)
+                for finished_task in finished_tasks:
+                    self.sample_cache.append(finished_task.result())
+                
+        return self.sample_cache.pop(0)
+
 
 
     @staticmethod
@@ -426,11 +454,6 @@ class Sandbox(Module):
 
         return results_dict
 
-
-    # def run_experiment()
-
-
-
     def run_experiment(self,
             params = dict(
                 sequence_length=[16,32,64, 128, 256 ],
@@ -442,17 +465,6 @@ class Sandbox(Module):
             ),
             experiment='experiment3',
             sequence_length=[]):
-
-        # def flatten_hyperparams(hyperparams, flat_list =[]):
-        #     for k,v_obj in hyperparams.items():
-        #         tmp_params = deepcopy(hyperparams)
-        #         if isinstance(v_obj, list):
-        #             for v in v_obj:
-        #                 tmp_params[k] = v
-        #                 flat_list += flatten_hyperparams(hyperparams=tmp_params[k], flat_list=flat_list)
-        #         else:
-        #             continue
-
             
         sample_kwargs_list = []
         for sequence_length in params['sequence_length']:
@@ -491,9 +503,6 @@ class Sandbox(Module):
 
         df =  pd.DataFrame(df)
 
-        # df = pd.concat(df)
-        # returnid2code = {k:f'{v}' for k,v in zip(bittensor.proto.ReturnCode.values(),bittensor.proto.ReturnCode.keys())}
-        # df['code'] = df['code'].map(returnid2code)
         return df
 
     def streamlit_experiment(self, experiment= 'experiment3'):
@@ -619,6 +628,8 @@ class AyncioManager:
         return self.queue['out'].get()
 
     def close(self):
+        for task in self.tasks:
+            task.cancel()
         self.stop()
         self.background_thread.join()
 
@@ -629,11 +640,12 @@ if __name__ == '__main__':
     # Sandbox.ray_start()
     module = Sandbox.deploy(actor=False, wrap=True)
 
-    st.write(module.sample_generator(num_endpoints=50, 
-                        sequence_length=64,
-                        batch_size=16,
+    st.write(module.sample_generator(num_endpoints=60, 
+                        sequence_length=256,
+                        batch_size=32,
                         timeout = 4,
-                        num_batches=20,
+                        num_batches=100,
                         min_successes=20,
-                        max_tasks=500))
+                        max_tasks=20))
+
 

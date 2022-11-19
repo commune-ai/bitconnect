@@ -36,3 +36,17 @@ def row_column_bundles(fn_list, fn_args_list,cols_per_row=3):
         col_idx = fn_idx % cols
         with row2cols[row_idx][col_idx]:
             fn(*fn_args_list[fn_idx])
+
+
+def streamlit_thread(thread):
+    try:
+        # Streamlit >= 1.12.0
+        from streamlit.runtime.scriptrunner import add_script_run_ctx
+        from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
+    except:
+        # Streamlit <= 1.11.0
+        from streamlit.scriptrunner import add_script_run_ctx
+        from streamlit.scriptrunner.script_run_context import get_script_run_ctx
+    
+    return get_script_run_ctx(t)
+
