@@ -32,7 +32,7 @@ logs:
 	docker logs ${arg} --tail=100 --follow
 
 streamlit:
-	docker exec -it backend bash -c "streamlit run commune/${arg}/module.py "
+	docker exec -it backend bash -c "streamlit run commune/${arg}.py "
 enter_backend:
 	docker exec -it backend bash
 pull:
@@ -54,15 +54,3 @@ api:
 	docker exec -it backend bash -c "python commune/gradio/api/module.py --api"
 
 
-gradio_api:
-	docker exec -it backend bash -c "python commune/gradio/api/module.py --api"
-
-gradio_client:
-	make app arg=gradio/client
-
-sync:
-	git submodule sync --recursive
-
-
-gradio:
-	docker exec -it backend bash -c "python commune/${arg}/module.py -fn=run_gradio "

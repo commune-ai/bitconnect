@@ -11,6 +11,10 @@ dataset:
   actor: {refresh: False}
   wrap: True
 
+
+tokenizer:
+  module: bittensor.tokenizer
+
 receptor_pool:
   module: commune.model.moe.receptor_pool
   kwargs: {}

@@ -62,10 +62,10 @@ class ConfigLoader:
         
     def load(self, path,override={}, recursive=True, return_munch=False):
         self.cfg = self.parse_config(path=path)
-        if recursive:
-            self.cfg = self.resolver_methods(cfg=self.cfg)
         if isinstance(override, dict) and len(override) > 0:
             self.cfg = self.override_cfg(cfg=self.cfg, override=override)
+        if recursive:
+            self.cfg = self.resolver_methods(cfg=self.cfg)
         if return_munch:
             return Munch(self.cfg)
 

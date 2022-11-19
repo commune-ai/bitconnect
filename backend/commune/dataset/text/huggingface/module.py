@@ -10,8 +10,8 @@ import torch.nn.functional as F
 # import torchsort
 from commune import Module
 import ray
-from huggingface_hub import HfApi
 import asyncio
+from munch import Munch
 
 # from commune.bittensor.cortex.metric import causal_lm_loss, ranknet_loss
 from commune.utils import *
@@ -22,27 +22,33 @@ from torch import nn
 from commune.ray.actor_pool import ActorPool
 Module.new_event_loop()
 import bittensor
+import datasets
 
 class DatasetModule(Module):
-    def __init__(self,config=None, tokenizer=None, dataset=None, load=False,**kwargs):
+    def __init__(self,config=None, tokenizer=None, dataset=None, load=True,**kwargs):
         Module.__init__(self, config=config, **kwargs)
-        self.hf_api = HfApi(self.config.get('hub'))
-
         if load:
             self.load_tokenizer(tokenizer)
             self.load_dataset(dataset)
 
-
     def load_tokenizer(self, tokenizer=None): 
         tokenizer = tokenizer if tokenizer else self.config['tokenizer']
         
-        st.write(tokenizer)
         self.tokenizer = self.launch_module(**tokenizer)
         return self.tokenizer
 
+
+
     def load_dataset(self, dataset=None):
-        dataset = dataset if dataset else self.config['dataset']
-        self.dataset = self.launch_module(**dataset)
+
+
+        dataset = dataset if dataset else {'path': self.path, 'name': self.name, 'split': self.splits}
+
+        datasets = self.launch_module(module='datasets.load_dataset', kwargs=dataset)
+        self.dataset = {}
+        for dataset in datasets:
+            self.dataset[dataset.split] = dataset
+        self.dataset = Munch(self.dataset)
         return self.dataset
 
     def filter_dataset(self, fn, dataset=None):
@@ -86,7 +92,10 @@ class DatasetModule(Module):
 
     @property
     def splits(self):
-        return list(self.dataset.keys())
+        splits = self.config.get('splits', ['train'])
+
+        return splits
+
 
 
     def split_size(self, split=None):
@@ -99,7 +108,6 @@ class DatasetModule(Module):
 
     def __getitem__(self, idx=None, split='train', sequence_length=128):
         
-        text_field = self.config['dataset']['text_field']
         dataset_length =  self.split_size(split)
         if idx == None:
             idx = random.randint(1,dataset_length-1)    
@@ -109,7 +117,9 @@ class DatasetModule(Module):
             if split == None:
                 split = self.splits[0]
                 
-            sample = self.dataset[split][idx][text_field]
+            sample = self.dataset[split][idx].get(self.text_field)
+            assert sample != None, f'Please specify a valid text_field {self.dataset[split][idx]}'
+
             final_sample += sample if len(final_sample) == 0 else '\n' + sample
             idx = (idx + 1 ) % dataset_length
         
@@ -117,20 +127,21 @@ class DatasetModule(Module):
 
         return final_sample
 
-    def sample(self, batch_size=10, sequence_length=16, random=True, idx_list = None, tokenize=True, padding=True,  **kwargs)->dict:
+    def sample(self, batch_size=10, sequence_length=16, random=True, idx_list = None, tokenize=True, padding=True,  split=None)->dict:
+        
         if idx_list != None:
             assert isinstance(idx_list, list)
             batch_size = len(idx_list)
-            samples =  [self.__getitem__(idx=idx_list[i] ,**kwargs) for i in range(batch_size)]
+            samples =  [self.__getitem__(idx=idx_list[i] ,split=split) for i in range(batch_size)]
 
         elif idx_list == None:
-            samples =  [self.__getitem__(idx=None if random else i,**kwargs) for i in range(batch_size)]
+            samples =  [self.__getitem__(idx=None if random else i, split=split) for i in range(batch_size)]
         else:
             raise NotImplementedError(type(idx_list))
         output = {'text': samples}
 
         if tokenize:
-            sample_tokens = self.tokenize(samples, padding=padding)
+            samples = self.tokenize(samples, padding=padding)
             sample_tokens = samples[:,:sequence_length]
             remainder = sequence_length - samples.shape[1]
             if remainder > 0:
@@ -268,9 +279,84 @@ class DatasetModule(Module):
         indices =  df.apply(fn, axis=1)
         return df[indices]
 
+
+    def list_datasets(self, *args, **kwargs):
+        df = self.hf_api.list_datasets( *args, **kwargs)
+        return df    
+
+
+
+
+    @staticmethod
+    def load_dataset_builder( path:str=None, factory_module_path:str=None):
+        if factory_module_path == None:
+            assert isinstance(path, str)
+            factory_module = datasets.load.dataset_module_factory(path)
+            factory_module_path = factory_module.module_path
+
+        dataset_builder = datasets.load.import_main_class(factory_module_path)
+        return dataset_builder
+
+    @staticmethod
+    def load_dataset_factory( path:str):
+        return datasets.load.dataset_module_factory(path)
+
+    @property
+    def dataset_factory(self):
+        placeholder_name = '_dataset_factory'
+        if not hasattr(self, placeholder_name):
+            setattr(self, placeholder_name,self.load_dataset_factory(self.path))
+        return getattr(self, placeholder_name)
+
+    @property
+    def dataset_builder(self):
+        placeholder_name = '_dataset_builder'
+        if not hasattr(self, placeholder_name):
+            setattr(self, placeholder_name,self.load_dataset_builder(self.path))
+        return getattr(self, placeholder_name)
+
+    @property
+    def path(self):
+        return self.config['path']
+
+    @property
+    def text_field(self):
+        return self.config['text_field']
+
+    @property
+    def name(self):
+        if 'name' in self.config:
+            return self.config['name']
+        else:
+            return self.configs[0]
+
+    def list_configs(self):
+        return self.config_map
+
+    @property
+    def configs(self):
+        return list(self.config_map.keys())
+
+
+    @property
+    def config_map(self):
+
+        configs = [config.__dict__ for config in self.dataset_builder.BUILDER_CONFIGS]
+
+        if len(configs) == 0:
+            configs =  [self.dataset_builder('default').info.__dict__]
+            configs[0]['name'] = 'default'
+
+        config_map = {config['name']: config for config in configs}
+            
+
+        return config_map
+    
+
+
+
 if __name__ == '__main__':
-    module = DatasetModule.deploy(actor=False, load=False, wrap=True)
-    st.write(module.pipeline_tags)
-    st.write(module.task_categories)
-    # for x in :
-    #     st.write(x.shape)
+    module = DatasetModule.deploy(actor=False, load=True, wrap=True)
+
+    st.write(module.sample())
+    

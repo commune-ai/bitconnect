@@ -5,15 +5,9 @@ client: {}
 tokenizer:
   module: bittensor.tokenizer
 
-dataset:
-  module: datasets.load_dataset
-  kwargs:
-    path: glue
-    # split: ['test', 'train']
-  text_field: text
+path: glue
+name: cola
+text_field: sentence
+split: ['train']
 
-actor:
-  name: local_copy(module)
-  refresh: False
-  resources: {num_cpus: 1.0}
 

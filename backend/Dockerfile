@@ -66,3 +66,4 @@ RUN npm install @uniswap/v2-periphery
 COPY ./scripts .
 
 RUN pip install jupyterlab
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y

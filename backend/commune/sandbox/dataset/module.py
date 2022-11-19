@@ -165,8 +165,19 @@ if __name__ == '__main__':
 
 
     time_log_df = []
-    with Module.timer() as t:
+    with commune.timer() as t:
         dataset = bittensor.dataset(dataset_name = ['Books3'], save_dataset=False, sequence_length=256)
+        cnt = 0
+        previous_seconds =  0
+        for i in range(1000):
+            raw_text_sample = next(dataset)
+            seconds = t.elapsed_time.total_seconds() 
+            row_dict  = dict(count=i, seconds=seconds, rate=i/seconds)
+            st.write(row_dict)
+            time_log_df.append(row_dict)
+
+    with commune.timer() as t:
+        dataset = bittensor.dataset(dataset_name = ['Books3'], save_dataset=False, sequence_length=256, batch_size=32)
         cnt = 0
         previous_seconds =  0
         for i in range(1000):
@@ -177,4 +188,7 @@ if __name__ == '__main__':
             time_log_df.append(row_dict)
             
     st.write(pd.DataFrame(time_log_df))
+
+
+    
     # st.write(DatasetTesting.test_next_raw_sample())

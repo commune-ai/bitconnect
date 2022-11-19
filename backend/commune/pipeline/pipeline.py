@@ -78,7 +78,7 @@ class Pipeline:
         pipeline_blocks = [
         {
             'module': 'dataset.text.huggingface',
-            'actor': {'cpus': 0.2, 'gpus': 0, 'refresh': False },
+            'actor': {'cpus': 0.2, 'gpus': 0, 'refresh': True },
             'fn': 'sample',
             'kwargs': {'tokenize': False},
             'output_key_map': {'text': 'input'}
