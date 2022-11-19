@@ -148,46 +148,33 @@ class DatasetTesting:
 
 
 
-    
-
-def test_change_data_size():
-    # (batch_size, block_size, buffer_size)
-    data_sizes = [(10,1000, 100), (15, 2000, 1000), (25,3000, 4000)]
-    dataset = bittensor.dataset(dataset_name = ['ArXiv'], no_tokenizer=False)
-
-    for data_size in data_sizes:
-        st.write(data_size)
-        dataset.set_data_size(*data_size)
-        sample = next(dataset)
-        assert sample.shape[0] == data_size[0]
-        assert dataset.block_size == data_size[1]
-        assert dataset.buffer_size == data_size[2]
-        
+  
 if __name__ == '__main__':
 
 
     Module.new_event_loop()
     # DatasetTesting.test_change_data_size()
     # st.write(DatasetTesting().run_trial())
-    test_change_data_size()
 
-    dataset = bittensor.dataset(block_size=4000,no_tokenizer=True, 
-                             buffer_size=2000, sequence_length=256, batch_size=32, buffer_calls_per_update=100,
-                             dataset_name = ['ArXiv'], load_dataset=False, save_dataset=True)
+    # dataset = bittensor.dataset(block_size=4000,no_tokenizer=True, 
+    #                          buffer_size=2000, sequence_length=256, batch_size=32, buffer_calls_per_update=100,
+    #                          dataset_name = ['ArXiv'], load_dataset=False, save_dataset=True)
     
+
+    import pandas as pd
+
+
+    time_log_df = []
     with Module.timer() as t:
+        dataset = bittensor.dataset(dataset_name = ['Books3'], save_dataset=False, sequence_length=256)
         cnt = 0
         previous_seconds =  0
-        for i in range(10000):
-            cnt += 1
-            if cnt % 100 == 0:
-                seconds = t.elapsed_time.total_seconds() - previous_seconds
-                st.write(seconds)
-                st.write(cnt/ seconds)
-
-                cnt = 0
-                previous_seconds = t.elapsed_time.total_seconds() 
-
+        for i in range(1000):
             raw_text_sample = next(dataset)
+            seconds = t.elapsed_time.total_seconds() 
+            row_dict  = dict(count=i, seconds=seconds, rate=i/seconds)
+            st.write(row_dict)
+            time_log_df.append(row_dict)
             
+    st.write(pd.DataFrame(time_log_df))
     # st.write(DatasetTesting.test_next_raw_sample())
