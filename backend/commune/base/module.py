@@ -516,6 +516,7 @@ class Module:
         try:
             module_class =  cls.load_module(module)
         except Exception as e:
+            st.write(e)
             module_class = cls.import_object(module)
 
         module_init_fn = fn
@@ -556,8 +557,13 @@ class Module:
     # RAY ACTOR TINGS, TEHE
     #############
 
+
+    root_dir = 'commune'
     @classmethod
     def load_module(cls, path):
+        prefix = f'{cls.root_dir}.'
+        if cls.root_dir+'.' in path[:len(cls.root_dir+'.')]:
+            path = path.replace(f'{cls.root_dir}.', '')
         module_path = cls.simple2path(path)
         module_class =  cls.import_object(module_path)
         return module_class

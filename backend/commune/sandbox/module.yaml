@@ -7,7 +7,7 @@ wallet:
 client: [local]
 
 dataset:
-  module: dataset.huggingface
+  module: commune.dataset.huggingface
   actor: {refresh: False}
   wrap: True
 

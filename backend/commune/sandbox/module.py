@@ -20,7 +20,7 @@ import sys
 import pandas as pd
 
 from commune.utils import chunk
-
+from copy import deepcopy
 ##########################
 ##### Get args ###########
 ##########################
@@ -30,7 +30,6 @@ import threading
 import time
 import queue
 from loguru import logger
-from commune.dataset.huggingface.module import DatasetModule
 
 from commune import Module
 
@@ -64,17 +63,21 @@ class Sandbox(Module):
             self.wallet = self.set_wallet(wallet)
             self.receptor_pool =self.set_receptor_pool(receptor_pool=None)
             self.dataset = self.set_dataset(dataset)
-            # self.tokenizer = self.set_tokenizer(tokenizer)
+            self.tokenizer = self.set_tokenizer(tokenizer)
             
+        self.sampleidx2result = {}
         self.tasks = []
         self.sample_cache = []
+        self.task_queue = asyncio.Queue()
         self.sync_the_async()
     
+
+    def set_tokenizer(self):
+        tokenizer = self.launch(**self.config['tokenizer'])
+        return tokenizer
+
     def set_receptor_pool(self, receptor_pool=None, refresh=None, max_active_receptors=0):
         rp_config = self.config['receptor_pool']
-        # if refresh:
-        #     rp_config['actor'] =  rp_config.get('actor',{})
-        #     rp_config['actor']['refresh'] = True
         rp_config['actor'] = rp_config.get('actor', False)
         rp_config['kwargs']['wallet']=self.wallet
         rp_config['kwargs']['max_active_receptors'] = max_active_receptors
@@ -229,23 +232,33 @@ class Sandbox(Module):
 
 
     async def async_sample(self,
-            sequence_length = 256,
-            batch_size = 32,
+            sequence_length = 20,
+            batch_size = 10,
             min_successes=10,
             timeout= 2,
             synapse = 'TextCausalLMNext',
-            num_endpoints = 50,
+            num_endpoints = 10,
             success_only= True,
-            return_type='results',
-            return_json = True,
+            idx_list = None, 
+            split = 'train', 
             splits=1, 
         ):
         # inputs = torch.zeros([batch_size, sequence_length], dtype=torch.int64)
-        inputs = self.dataset.sample( batch_size=batch_size, sequence_length=sequence_length)
+        raw_inputs = self.dataset.sample( batch_size=batch_size, idx_list = idx_list, split=split, sequence_length=sequence_length, tokenize= False)
+        inputs = self.tokenizer(raw_inputs, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt")["input_ids"]
+        synapse_str = deepcopy(synapse)   
         synapse = self.resolve_synapse(synapse)
         endpoints = self.get_random_endpoints(num_endpoints)
-        
         uids = torch.tensor([e.uid for e in endpoints])
+        input_dict =  {
+            'split': split,
+            'idx_list': idx_list,
+            'dataset': self.dataset.config.get('dataset'),
+            'raw_text': raw_inputs, 'input_ids': inputs,
+            'synapse': synapse_str,
+            'uids': uids
+        }
+
 
         io_1 = psutil.net_io_counters()
         start_bytes_sent, start_bytes_recv = io_1.bytes_sent, io_1.bytes_recv
@@ -272,43 +285,33 @@ class Sandbox(Module):
         
         
         success_indices = torch.argwhere(results['code']==1).squeeze(1).tolist()
+        metrics_dict = {}
+        metrics_dict['elapsed_time'] = elapsed_time
+        metrics_dict['timeout'] = timeout
+        metrics_dict['num_successes'] = len(success_indices)
         
-        results['elapsed_time'] = elapsed_time
-        results['timeout'] = timeout
-        results['num_successes'] = len(success_indices)
 
-        results['successes_per_second'] = results['num_successes']/results['elapsed_time'] 
-        results['time_over_timeout'] = elapsed_time - timeout
-        results['time_over_timeout_ratio'] = (elapsed_time - timeout)/(timeout + 1e-10)
-        results['upload_bytes_mb'] =total_bytes_sent / 1000
-        results['download_bytes_mb'] =total_bytes_recved / 1000
-        results['upload_rate_mb'] =results['upload_bytes_mb']/elapsed_time 
-        results['download_rate_mb'] =results['download_bytes_mb']/elapsed_time
-        results['num_endpoints'] = num_endpoints
-        results['success_rate'] = results['num_successes']/results['num_endpoints']
-        results['splits'] = splits
+        metrics_dict['successes_per_second'] = metrics_dict['num_successes']/metrics_dict['elapsed_time'] 
+        metrics_dict['time_over_timeout'] = elapsed_time - timeout
+        metrics_dict['time_over_timeout_ratio'] = (elapsed_time - timeout)/(timeout + 1e-10)
+        metrics_dict['upload_bytes_mb'] =total_bytes_sent / 1000
+        metrics_dict['download_bytes_mb'] =total_bytes_recved / 1000
+        metrics_dict['upload_rate_mb'] =metrics_dict['upload_bytes_mb']/elapsed_time 
+        metrics_dict['download_rate_mb'] =metrics_dict['download_bytes_mb']/elapsed_time
+        metrics_dict['num_endpoints'] = num_endpoints
+        metrics_dict['success_rate'] = metrics_dict['num_successes']/metrics_dict['num_endpoints']
+        metrics_dict['splits'] = splits
         # results['output_size'] = sys.getsizeof( results.pop['tensor'])
-        results['batch_size'] = batch_size
-        results['sequence_length'] = sequence_length
-        results['num_tokens'] = batch_size*sequence_length
+        metrics_dict['batch_size'] = batch_size
+        metrics_dict['sequence_length'] = sequence_length
+        metrics_dict['num_tokens'] = batch_size*sequence_length
+
         if success_only and len(success_indices) == 0:
             return {}
-        for is_success in [True, False]:
-            for m in ['min', 'max', 'mean', 'std']:
-                if is_success:
-                    if len(success_indices)>0:
-                        results[f'success_latency_{m}'] = getattr(torch, m)(results['latency'][success_indices]).item()
-                    else:
-                        results[f'success_latency_{m}'] = 0
-                else:
-                    results[f'latency_{m}'] = getattr(torch, m)(results['latency']).item()
 
-
-
-        result_keys = ['tensor', 'latency', 'code', 'uid']
+        result_keys = ['tensor', 'code', 'uid']
 
         # results['code'] = list(map(self.errorcode2name, results['code'].tolist()))
-
 
 
         graph_state_dict = self.graph.state_dict()
@@ -324,23 +327,58 @@ class Sandbox(Module):
                 else:
                     results[k] = []
 
-        if return_type in ['metric', 'metrics']:
-            results = {k:v for k,v  in results.items() if k not in graph_keys+result_keys }
-
-        elif return_type in ['results', 'result']:
-            results = {k:v for k,v  in results.items()\
-                             if k in (graph_keys+result_keys) }
-
-            results['input'] = inputs
-
-
-        else:
-            raise Exception(f'{return_type} not supported')
         
         self.sample_example = results
 
-        
-        return results
+
+        output = dict(info=metrics_dict, output=results, input=input_dict)
+
+        singleton_result_dict = {}
+        for k,v in output['output'].items():
+            
+            if len(v.shape) == 1:
+                for endpoint_batch_tensor in torch.split(v, split_size_or_sections=1, dim=0 ):
+                    endpoint_batch_tensor = endpoint_batch_tensor.squeeze(0).item()
+                    if k in singleton_result_dict:
+                        singleton_result_dict[k].append( endpoint_batch_tensor)
+                    else:
+                        singleton_result_dict[k] = [ endpoint_batch_tensor]
+        single_results_dict = {}
+
+        for k,v in output['output'].items():
+            if len(v.shape)>1:
+                for endpoint_batch_tensor in torch.split(v, split_size_or_sections=1, dim=1 ):
+                    endpoint_batch_tensor = endpoint_batch_tensor.squeeze(1)
+                    endpoint_batch_list = torch.split(endpoint_batch_tensor, split_size_or_sections=1, dim=0 )
+                    if k in single_results_dict:
+                        single_results_dict[k].append( endpoint_batch_list)
+                    else:
+                        single_results_dict[k] = [endpoint_batch_list]
+
+        single_results_list = []
+
+        for i in range(len(list(single_results_dict.values())[0])):
+            row_dict = {**{k:v[i] for k,v in single_results_dict.items()} , **singleton_result_dict}
+            st.write(i)
+            single_results_list.append(row_dict)
+            
+
+        for i in range(len(idx_list)):
+            idx = idx_list[i]
+            if not split in self.sampleidx2result:
+                self.sampleidx2result[split] = {}
+            if idx not in self.sampleidx2result[split]:
+                self.sampleidx2result[split][idx] = []
+            for e in range(len(single_results_list[i].values())):
+                self.sampleidx2result[split][idx] += [{k:v[e] for k,v in single_results_list[i].items()}]
+
+
+
+        st.write(self.sampleidx2result)
+
+    
+
+        return output
 
     def sample_generator(self, num_endpoints=10, 
                         sequence_length=10,
@@ -348,7 +386,7 @@ class Sandbox(Module):
                         num_batches=10,
                          max_tasks=10,
                          min_successes=10,
-                          *args, **kwargs):
+                         *args, **kwargs):
 
         jobs = []
         kwargs.update(dict(sequence_length=sequence_length, batch_size=batch_size, num_endpoints=num_endpoints, min_successes=min_successes))
@@ -363,15 +401,25 @@ class Sandbox(Module):
             finished_results = []
             for i in range(num_batches):
                 st.write(i)
-                finished_results.append(self.get_sample())
+                finished_results.append(self.get_sample(max_tasks=max_tasks))
+
+
+            st.write(finished_results[0]['tensor'].shape)
+        
         
             metrics_dict['seconds'] = t.seconds
             metrics_dict['successes'] = len(finished_results)
             metrics_dict['input'] = dict(num_batches=num_batches, num_endpoints=num_endpoints, max_tasks=max_tasks)
-            metrics_dict['samples'] = sum([fr['tensor'].shape[0] for fr in finished_results if 'tensor' in fr])
+        
+            metrics_dict['samples'] = sum([fr['tensor'].shape[0] * fr['tensor'].shape[1] for fr in finished_results if 'tensor' in fr])
+            metrics_dict['successful_endpoints'] = sum([fr['tensor'].shape[0] for fr in finished_results if 'tensor' in fr])
+
+
             metrics_dict['samples_per_batch'] = metrics_dict['samples']/num_batches
-            metrics_dict['success_rate'] = metrics_dict['samples']/num_endpoints
-            metrics_dict['tokens'] = sum([fr['tensor'].shape[1]*fr['tensor'].shape[0] for fr in finished_results if 'tensor' in fr])
+            metrics_dict['success_rate'] = metrics_dict['samples']/(num_endpoints*num_batches)
+            metrics_dict['min_success_rate'] = metrics_dict['samples']/(min_successes*num_batches)
+            metrics_dict['tokens'] = sum([fr['tensor'].shape[0]*fr['tensor'].shape[1] * sequence_length for fr in finished_results if 'tensor' in fr])
+            metrics_dict['elapsed_time'] = sum( [fr['elapsed_time'] for fr in finished_results if 'elapsed_time' in fr])/len([fr for fr in finished_results if 'elapsed_time' in fr])
         
         for k in list(metrics_dict.keys()):
             if k not in ['seconds', 'success_rate', 'samples_per_batch','input']:
@@ -380,26 +428,32 @@ class Sandbox(Module):
 
 
     async def async_submit_job(self, fn, max_tasks=10, *args, **kwargs):
+        await self.task_queue.put(dict(fn=fn, args=args, kwargs=kwargs))
 
+    async def async_get_sample(self, max_tasks=10):
+
+        if len(self.sample_cache) > 0:
+            return self.sample_cache.pop(0)
 
         # ensure there is enough space
-        while len(self.tasks) >= max_tasks:
-            finished_tasks, tasks = await asyncio.wait(self.tasks, return_when=asyncio.FIRST_COMPLETED)
-            finished_tasks, self.tasks = list(finished_tasks), list(tasks)
-            for finished_task in finished_tasks:
-                self.sample_cache.append(finished_task.result())
-        
-        self.tasks.append(fn(*args, **kwargs))
+        free_task_slots = max_tasks - len(self.tasks) 
+        if free_task_slots>0:
+            for i in range(free_task_slots):
+                if self.task_queue.empty() == True:
+                    continue
+                task_meta = await self.task_queue.get()
 
-    async def async_get_sample(self):
-        if len(self.sample_cache) == 0:
-            while len(self.tasks)>0:
-                finished_tasks, tasks = await asyncio.wait(self.tasks, return_when=asyncio.FIRST_COMPLETED)
-                finished_tasks, self.tasks = list(finished_tasks), list(tasks)
-                for finished_task in finished_tasks:
-                    self.sample_cache.append(finished_task.result())
-                
+                self.tasks.append(task_meta['fn'](*task_meta['args'], **task_meta['kwargs']))
+
+        finished_tasks, tasks = await asyncio.wait(self.tasks, return_when=asyncio.FIRST_COMPLETED)
+        finished_tasks, self.tasks = list(finished_tasks), list(tasks)
+
+        for finished_task in finished_tasks:
+            self.sample_cache.append(finished_task.result())
+
+        assert len(self.sample_cache) > 0
         return self.sample_cache.pop(0)
+        
 
 
 
@@ -427,7 +481,7 @@ class Sandbox(Module):
         return finished_results
 
     def process_results(self, results):
-        results_dict = {'tensor':[], 'code':[], 'latency':[], 'uid': []}
+        results_dict = {'tensor':[], 'code':[], 'uid': []}
 
         num_responses = len(results[0])
         for i in range(num_responses):
@@ -438,18 +492,15 @@ class Sandbox(Module):
 
             results_dict['tensor'].append(tensor[...,:2])
             results_dict['code'].append(code)
-            results_dict['latency'].append(latency)
             results_dict['uid'].append(endpoint)
 
         if len(results_dict['tensor'])>0:
             results_dict['tensor'] = torch.stack(results_dict['tensor'])
             results_dict['code'] = torch.tensor(results_dict['code'])
-            results_dict['latency'] = torch.tensor(results_dict['latency'])
             results_dict['uid'] = torch.tensor(results_dict['uid'])
         else:
             results_dict['tensor'] = torch.tensor([])
             results_dict['code'] = torch.tensor([])
-            results_dict['latency'] = torch.tensor([])
             results_dict['uid'] =  torch.tensor([])
 
         return results_dict
@@ -480,7 +531,6 @@ class Sandbox(Module):
                                     synapse = synapse,
                                     num_endpoints = num_endpoints,
                                     success_only= False,
-                                    return_type='metric',
                                     splits=splits
                                 )]
         random.shuffle(sample_kwargs_list)
@@ -639,13 +689,16 @@ class AyncioManager:
 if __name__ == '__main__':
     # Sandbox.ray_start()
     module = Sandbox.deploy(actor=False, wrap=True)
+    
+    module.sample(idx_list = [0,2,5,6,4,3])
 
-    st.write(module.sample_generator(num_endpoints=60, 
-                        sequence_length=256,
-                        batch_size=32,
-                        timeout = 4,
-                        num_batches=100,
-                        min_successes=20,
-                        max_tasks=20))
+    # st.write(module.dataset.sample(idx_list=[0,1,2]))
+    # st.write(module.sample_generator(num_endpoints=100, 
+    #                     sequence_length=20,
+    #                     batch_size=10,
+    #                     timeout = 6,
+    #                     num_batches=30,
+    #                     min_successes=50,
+    #                     max_tasks=10))
 
 

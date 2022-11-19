@@ -29,11 +29,12 @@ import bittensor
 from bittensor._endpoint import endpoint
 import bittensor.utils.networking as net
 from concurrent.futures import ThreadPoolExecutor
+import commune
 
 logger = logger.opt(colors=True)
 
 
-class ReceptorPool ( torch.nn.Module ):
+class ReceptorPool ( torch.nn.Module):
     """ Manages a pool of grpc connections as receptors
     """
     def __init__(

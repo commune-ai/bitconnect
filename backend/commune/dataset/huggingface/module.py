@@ -29,7 +29,8 @@ class DatasetModule(Module):
         self.load_tokenizer(tokenizer)
         self.load_dataset(dataset)
 
-
+    def size(self):
+        return sum([v for v in self.dataset.values()])
     def load_tokenizer(self, tokenizer=None): 
         tokenizer = tokenizer if tokenizer else self.config['tokenizer']
         
@@ -114,14 +115,14 @@ class DatasetModule(Module):
 
         return final_sample
 
-    def sample(self, batch_size=10, sequence_length=16, random=True, idx_list = None, tokenize=True, padding=True,  **kwargs):
+    def sample(self, batch_size=10, sequence_length=16, split='train',random=True, idx_list = None, tokenize=True, padding=True,  **kwargs):
         if idx_list != None:
             assert isinstance(idx_list, list)
             batch_size = len(idx_list)
-            samples =  [self.__getitem__(idx=idx_list[i] ,**kwargs) for i in range(batch_size)]
+            samples =  [self.__getitem__(idx=idx_list[i] , split=split,**kwargs) for i in range(batch_size)]
 
         elif idx_list == None:
-            samples =  [self.__getitem__(idx=None if random else i,**kwargs) for i in range(batch_size)]
+            samples =  [self.__getitem__(idx=None if random else i,**kwargs, split=split) for i in range(batch_size)]
         else:
             raise NotImplementedError(type(idx_list))
 
