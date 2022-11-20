@@ -62,12 +62,57 @@ class Sandbox(Module):
         self.dataset = self.set_dataset(dataset)
         self.tokenizer = self.set_tokenizer(tokenizer)
             
-        self.sampleidx2result = {}
+        self.dataset_id = '.'.join([self.dataset.path, self.dataset.name, self.split])
+
+        self.sample_ids = [f'{self.dataset_id}.{i}' for i in range(self.idx_bounds[0], self.idx_bounds[1]) ]
+        
+        self.sampleidx2result = {i:[] for i in self.sample_ids}
+        
+        
         self.tasks = []
         self.sample_cache = []
         self.task_queue = asyncio.Queue()
         self.sync_the_async()
     
+    @property
+    def sample_probability(self):
+        # sample inversly proportional
+        max_sample_size =self.max_sample_size
+        sample_size_array = self.sample_size_array
+        pre_normalized = (max_sample_size - sample_size_array)**2 +  1e-10
+        normalized = pre_normalized / np.sum(pre_normalized)
+
+        st.write(normalized)
+
+        return normalized
+    
+    @property
+    def sampleidx2size(self):
+        x = {k:len(v) for k,v in self.sampleidx2result.items()}
+        return x
+
+    @property
+    def sample_size_array(self):
+        return np.array(list(self.sampleidx2size.values()))
+    @property
+    def total_sample_size(self):
+        return int(np.sum(self.sample_size_array))
+
+    @property
+    def max_sample_size(self):
+        return int(np.max(self.sample_size_array))
+
+    @property
+    def min_sample_size(self):
+        return int(np.min(self.sample_size_array))
+
+
+
+    @property
+    def split(self):
+        if 'split' not in self.config:
+            self.config['split'] = 'train'
+        return self.config['split']
 
     def set_tokenizer(self):
         tokenizer = self.launch(**self.config['tokenizer'])
@@ -217,7 +262,9 @@ class Sandbox(Module):
             splits=1, 
         ):
 
-        idx_list = list(map(int, (list(np.random.randint(self.idx_bounds[0], self.idx_bounds[1], batch_size)))))
+        idx_list = np.random.choice(np.arange(self.idx_bounds[0], self.idx_bounds[1]), batch_size, p=self.sample_probability).tolist()
+        
+
         # inputs = torch.zeros([batch_size, sequence_length], dtype=torch.int64)
         raw_inputs = self.dataset.sample( batch_size=batch_size, idx_list = idx_list, split=split, sequence_length=sequence_length, tokenize= False)['text']
         inputs = self.tokenizer(raw_inputs, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt")["input_ids"]
@@ -336,15 +383,8 @@ class Sandbox(Module):
         for i in range(len(idx_list)):
             idx = idx_list[i]
             for e in range(len(list(single_results_list[i].values())[0])):
-                key = f'{split}.{idx}'
-                if key not in self.sampleidx2result:
-                    self.sampleidx2result[key] = []
+                key = f'{self.dataset_id}.{idx}'
                 self.sampleidx2result[key] += [{k:v[e] for k,v in single_results_list[i].items()}]
-
-
-
-    
-
         return output
 
     def sample_generator(self, num_endpoints=10, 
@@ -629,29 +669,20 @@ class AyncioManager:
 if __name__ == '__main__':
     # Sandbox.ray_start()
     module = Sandbox.deploy(actor=False)
-    
-    for i in range(100):
-        module.sample(batch_size=32)
-        st.write(len(module.sampleidx2result))
+    for i in range(10):
+        module.sample(batch_size=32, num_endpoints=5)
+
 
         metrics = dict(
-                total_bin_size = sum([len(v) for v in module.sampleidx2result.values()]),
-                min_bin_size = min([len(v) for v in module.sampleidx2result.values()]), 
-                max_bin_size = max([len(v) for v in module.sampleidx2result.values()]),
+                total_bin_size = module.total_sample_size,
+                min_bin_size = module.min_sample_size, 
+                max_bin_size = module.max_sample_size,
                 num_samples = len(module.sampleidx2result)
                 
                 )
         metrics['mean_bin_size'] = metrics['total_bin_size'] / metrics['num_samples']
 
         st.write(metrics)
-        
-    # st.write(module.dataset.sample(idx_list=[0,1,2]))
-    # st.write(module.sample_generator(num_endpoints=100, 
-    #                     sequence_length=20,
-    #                     batch_size=10,
-    #                     timeout = 6,
-    #                     num_batches=30,
-    #                     min_successes=50,
-    #                     max_tasks=10))
 
+    
 

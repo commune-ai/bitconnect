@@ -6,7 +6,9 @@ wallet:
 
 client: [local]
 
-idx_bounds: [0, 1000]
+split: train
+
+idx_bounds: [0, 20]
 
 dataset:
   module: commune.dataset.text.huggingface
