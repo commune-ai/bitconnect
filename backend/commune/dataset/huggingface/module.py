@@ -157,7 +157,7 @@ class DatasetModule(Module):
         assert x.shape[1] == seqeunce_length
 
 if __name__ == '__main__':
-    module = DatasetModule.deploy(actor={'refresh': False}, load=True, wrap=True)
+    module = DatasetModule.deploy(actor={'refresh': False}, load=True)
     generator = DatasetModule.ray_job_generator([module.sample(batch_size=32, sequence_length=256, ray_get=False) for i in range(100)])
     for x in generator:
         st.write(x.shape)

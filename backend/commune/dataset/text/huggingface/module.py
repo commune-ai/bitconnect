@@ -25,30 +25,35 @@ import bittensor
 import datasets
 
 class DatasetModule(Module):
-    def __init__(self,config=None, tokenizer=None, dataset=None, load=True,**kwargs):
+    def __init__(self,
+                path:str=None,
+                name:str = None,
+                split:str=None,
+                tokenizer:'tokenizer'=None, 
+                config: dict=None, 
+                **kwargs):
         Module.__init__(self, config=config, **kwargs)
-        if load:
-            self.load_tokenizer(tokenizer)
-            self.load_dataset(dataset)
+        self.load_tokenizer(tokenizer=tokenizer)
+        self.load_dataset(path=path, name=name, split=split)
 
     def load_tokenizer(self, tokenizer=None): 
         tokenizer = tokenizer if tokenizer else self.config['tokenizer']
-        
         self.tokenizer = self.launch_module(**tokenizer)
         return self.tokenizer
 
+    def load_dataset(self, path:str=None, name:str=None, split:str=None):
+        
+        self.path = path if path  else self.path
+        self.name = name if name  else self.name
+        self.split = split if split  else self.split
 
+        kwargs = {'name': self.name, 'path': self.path, 'split': self.split}
 
-    def load_dataset(self, dataset=None):
-
-
-        dataset = dataset if dataset else {'path': self.path, 'name': self.name, 'split': self.splits}
-
-        datasets = self.launch_module(module='datasets.load_dataset', kwargs=dataset)
+        dataset_list = self.launch_module(module='datasets.load_dataset', kwargs=kwargs)
+        dataset_map = {}
         self.dataset = {}
-        for dataset in datasets:
-            self.dataset[dataset.split] = dataset
-        self.dataset = Munch(self.dataset)
+        for dataset in dataset_list: 
+            self.dataset[str(dataset.split)] = dataset
         return self.dataset
 
     def filter_dataset(self, fn, dataset=None):
@@ -60,11 +65,11 @@ class DatasetModule(Module):
 
     @property
     def info(self):
-        return self.dataset[self.splits[0]]._info.__dict__
+        return self.dataset[self.split[0]]._info.__dict__
 
     @property
     def features(self):
-        return self.dataset[self.splits[0]]._info.__dict__['features']
+        return self.dataset[self.split[0]]._info.__dict__['features']
 
     @property
     def device(self):
@@ -90,44 +95,52 @@ class DatasetModule(Module):
         device = kwargs.pop('device', self.device)
         return torch.tensor(self.tokenizer(text=text, padding=padding)['input_ids']).to(device)
 
+
+    default_split = ['train']
     @property
-    def splits(self):
-        splits = self.config.get('splits', ['train'])
+    def split(self):
+        split = self.config.get('split', self.default_split)
+        st.write(self.config['split'])
+        return split
 
-        return splits
+    @split.setter
+    def split(self, value):
+        st.write(value, 'split')
+        if isinstance(value, str):
+            value = [value]
+        assert isinstance(value, list), f'{value} should be a string'
+        self.config['split'] = value
 
-
-
-    def split_size(self, split=None):
-        if split == None:
-            split = self.splits[0]
+    def split_size(self, split):
         return len(self.dataset[split])
 
     def split_size_map(self):
-        return {split: self.dataset[split] for split in self.splits}
+        return {split: self.dataset[split] for split in self.split}
+
+    def resolve_split(self, split):
+        if split == None:
+            split = self.split[0]
+        return split
 
     def __getitem__(self, idx=None, split='train', sequence_length=128):
         
+        split = self.resolve_split(split) 
         dataset_length =  self.split_size(split)
         if idx == None:
             idx = random.randint(1,dataset_length-1)    
 
         final_sample  = ''
         while len(final_sample.split()) < sequence_length:
-            if split == None:
-                split = self.splits[0]
-                
+            split = self.resolve_split(split)
             sample = self.dataset[split][idx].get(self.text_field)
             assert sample != None, f'Please specify a valid text_field {self.dataset[split][idx]}'
 
             final_sample += sample if len(final_sample) == 0 else '\n' + sample
             idx = (idx + 1 ) % dataset_length
-        
         final_sample = ' '.join(final_sample.split()[:sequence_length])
-
         return final_sample
 
-    def sample(self, batch_size=10, sequence_length=16, random=True, idx_list = None, tokenize=True, padding=True,  split=None)->dict:
+    def sample(self, batch_size=10, sequence_length=16, random=True, idx_list = None, tokenize=False, padding=True,  split=None)->dict:
         
         if idx_list != None:
             assert isinstance(idx_list, list)
@@ -138,31 +151,17 @@ class DatasetModule(Module):
             samples =  [self.__getitem__(idx=None if random else i, split=split) for i in range(batch_size)]
         else:
             raise NotImplementedError(type(idx_list))
-        output = {'text': samples}
 
+        sample_dict = {'text': samples}
         if tokenize:
-            samples = self.tokenize(samples, padding=padding)
-            sample_tokens = samples[:,:sequence_length]
-            remainder = sequence_length - samples.shape[1]
-            if remainder > 0:
-                filler = torch.full(size=(samples.shape[0], remainder),fill_value=0).to(samples.device)
-                samples = torch.cat([samples, filler], dim=1)
-            output['tokens'] = sample_tokens
-
-
-        return output
+            sample_dict['input_ids'] = self.tokenizer(sample_dict['text'], padding=padding,  max_length=sequence_length, truncation=True, return_tensors='pt')['input_ids']
+            
+        return sample_dict
     
     def resolve_device(self, device=None):
         if device == None:
             device = self.device
         return device
-
-    @staticmethod
-    def ray_job_generator(running_jobs):
-        while running_jobs:
-            finished_jobs, running_jobs = ray.wait(running_jobs)
-            for finished_job in finished_jobs:
-                yield ray.get(finished_job)
 
     classmethod
     def test_model_sample(cls):
@@ -285,8 +284,6 @@ class DatasetModule(Module):
         return df    
 
 
-
-
     @staticmethod
     def load_dataset_builder( path:str=None, factory_module_path:str=None):
         if factory_module_path == None:
@@ -319,16 +316,29 @@ class DatasetModule(Module):
     def path(self):
         return self.config['path']
 
+    @path.setter
+    def path(self, value):
+        self.config['path'] = value
+
     @property
     def text_field(self):
         return self.config['text_field']
+
+    @text_field.setter
+    def text_field(self, value):
+        self.config['text_field'] = value
 
     @property
     def name(self):
         if 'name' in self.config:
             return self.config['name']
         else:
-            return self.configs[0]
+            self.config['name'] = self.configs[0]
+
+    @name.setter
+    def name(self, value):
+        self.config['name'] = value
+
 
     def list_configs(self):
         return self.config_map
@@ -356,7 +366,7 @@ class DatasetModule(Module):
 
 
 if __name__ == '__main__':
-    module = DatasetModule.deploy(actor=False, load=True, wrap=True)
+    module = DatasetModule( split='test')
 
     st.write(module.sample())
     

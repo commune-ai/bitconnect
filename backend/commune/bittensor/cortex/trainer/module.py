@@ -83,7 +83,7 @@ class TrainerModule(Module):
         dataset_config = self.config['dataset']
         dataset_config['actor']['refresh'] = refresh
         dataset_class = self.get_object(dataset_config.get('module'))
-        self.dataset = dataset_class.deploy(actor=dataset_config['actor'], wrap=True)
+        self.dataset = dataset_class.deploy(actor=dataset_config['actor'])
 
 
     @property
@@ -248,7 +248,7 @@ class TrainerModule(Module):
 
 if __name__ == '__main__':
 
-    module = TrainerModule.deploy(actor={'refresh':False}, wrap=True)
+    module = TrainerModule.deploy(actor={'refresh':False, 'wrap':True})
 
     st.write(module.sample())
 

@@ -15,8 +15,8 @@ class RayModule(Module):
         **kwargs
     ):
         Module.__init__(self, config=config,  **kwargs)
-        self.queue = self.launch(**self.config['servers']['queue'], wrap=True)
-        self.object  = self.launch(**self.config['servers']['object'], wrap=True)
+        self.queue = self.launch(**self.config['servers']['queue'])
+        self.object  = self.launch(**self.config['servers']['object'])
 
 
 
@@ -27,7 +27,7 @@ class RayModule(Module):
 
 if __name__ == '__main__':
     import streamlit as st
-    module = RayModule.deploy(actor={'refresh': False},wrap=True)
+    module = RayModule.deploy(actor={'refresh': False, 'wrap': True})
     st.write(module.actor._ray_method_signatures['__init__'][0])
 
 

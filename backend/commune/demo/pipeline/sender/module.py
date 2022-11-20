@@ -6,7 +6,7 @@ class SenderModule(Module):
     def __init__(self, *args, **kwargs):
         Module.__init__(self, *args, **kwargs)
         st.write(self.list_actor_names())
-        self.queue =  self.load_module('commune.asyncio.queue_server', actor={'refresh': False}, wrap=True  )
+        self.queue =  self.load_module('commune.asyncio.queue_server', actor={'refresh': False, 'wrap':True}  )
         # st.write(self.queue)
     def put(self, key='bro', value={'bro': [1,3,4,5]}):
         return self.queue.put(key, value)
@@ -17,7 +17,7 @@ if __name__ == '__main__':
     import streamlit as st
     # st.write(Module)
     # Module.new_loop()
-    module = SenderModule.deploy(actor={'refresh': False}, wrap=True)
+    module = SenderModule.deploy(actor={'refresh': False, 'wrap':True})
 
     put_button = st.button('Put')
     send_object = {'bro': [10]*10}

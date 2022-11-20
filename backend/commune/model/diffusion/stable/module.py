@@ -413,7 +413,7 @@ class DiffuserModule(Module, DiffusionPipeline):
         import streamlit as st
 
         with st.form('Prompt'):
-            module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_cpus': 2, 'num_gpus': 0.6}}, wrap=True)
+            module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_cpus': 2, 'num_gpus': 0.6, 'wrap':True}}, )
 
             # text = st.input_text('Input Text', 'd')
             text = st.text_input('Input Prompt','a malibu beach house with a ferarri in the driveway' )
@@ -472,12 +472,10 @@ class DiffuserModule(Module, DiffusionPipeline):
 if __name__ == '__main__':
     import ray
     st.write(torch.cuda.is_available())
-    # module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_gpus': 0.4, 'num_cpus': 2}}, wrap=True)
     Module.init_ray()
     Module.kill_actor('model.diffusion.stable')
     st.write(Module.list_actors())
     # Module.kill_actor('DiffuserModule')
-    # module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_gpus': 0.4, 'num_cpus': 2}}, wrap=True)
     # # st.write(module)
     # # st.write(module.device)
     # st.image(module.__call__(prompt='a malibu beach house with a ferarri in the driveway',num_inference_steps=20, output_type='pil')['image'])

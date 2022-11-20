@@ -227,21 +227,13 @@ class APIModule(Module):
     def st_test():
 
         import streamlit as st
-        module = APIModule.deploy(actor={'refresh': True}, wrap=True)
+        module = APIModule.deploy(actor={'refresh': True, 'wrap':True})
 
         st.write(module.getattr('module_tree'))
         st.write(module.list_actors())
-        # actor = module.add_actor('algovera.base', refresh=True, wrap=True)
         st.write(module.actor_info_map())
         st.write(module.actor_resource_map())
         st.write(module.actor_df())
-        # st.write(actor.get_name(), actor.get_resources())
-        # st.write(actor.get_id())
-        # st.write(module.getattr('actor_map'))
-
-        # module.add_actor('algovera.base-2')
-        # st.write(module.getattr('actor_map'))
-
 
     def remove_all_actors(self):
         for actor in self.actor_names:

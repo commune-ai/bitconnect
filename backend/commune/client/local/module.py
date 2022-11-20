@@ -71,6 +71,7 @@ class LocalModule(LocalFileSystem):
         else:
             raise NotImplementedError(f"{data_type}, is not supported")
 
+
     def get_json(self, path, handle_error = False, return_type='dict', **kwargs):
         try:
             data = json.loads(self.cat(path))
@@ -140,13 +141,97 @@ class LocalModule(LocalFileSystem):
         
         return config
 
-if __name__ == '__main__':
-    # module = LocalModule()
-    # st.write(module)
-    # module.put_json(path='/tmp/commune/bro.json', data={'bro': 1})
-    # module.put_pickle(path='/tmp/commune/bro.pkl', data={'bro': 1})
+    @classmethod
+    def test_json(cls):
+        self = cls()
+        obj = {'bro': 1}
+        dummy_path = '/tmp/commune/bro.json'
+        self.put_json(path=dummy_path, data=obj)
+        loaded_obj = self.get_json(path=dummy_path)
+        assert json.dumps(loaded_obj) == json.dumps(obj)
+        return loaded_obj
+    @classmethod
+    def test_pickle(cls):
+        self = cls()
+        obj = {'bro': 1}
+        dummy_path = '/tmp/commune/bro.json'
+        self.put_pickle(path=dummy_path, data=obj)
+        loaded_obj = self.get_pickle(path=dummy_path)
+        assert json.dumps(loaded_obj) == json.dumps(obj)
+        return loaded_obj
 
-    # st.write(module.get_pickle(path='/tmp/commune/bro.pkl'))
-    # st.write(module.get_json(path='/tmp/commune/bro.json'))
-    # # st.write(module.glob('/tmp/commune/**'))
-    pass
+    @classmethod
+    def test(cls):
+        import streamlit as st
+        for attr in dir(cls):
+            if attr[:len('test_')] == 'test_':
+                getattr(cls, attr)()
+                st.write('PASSED',attr)
+
+    def put_json(self, path, data):
+            # Directly from dictionary
+        self.ensure_path(path)
+        data_type = type(data)
+        if data_type in [dict, list, tuple, set, float, str, int]:
+            with open(path, 'w') as outfile:
+                json.dump(data, outfile)
+        elif data_type in [pd.DataFrame]:
+            with open(path, 'w') as outfile:
+                data.to_json(outfile)
+        else:
+            raise NotImplementedError(f"{data_type}, is not supported")
+
+
+import aiofiles
+async def async_read(path, mode='r'):
+    async with aiofiles.open(path, mode=mode) as f:
+        data = await f.read()
+    return data
+async def async_write(path, data,  mode ='w'):
+    async with aiofiles.open(path, mode=mode) as f:
+        await f.write(data)
+
+async def async_get_json(path, return_type='dict'):
+    try:  
+        
+        data = json.loads(await async_read(path))
+    except FileNotFoundError as e:
+        if handle_error:
+            return None
+        else:
+            raise e
+
+    if return_type in ['dict', 'json']:
+        data = data
+    elif return_type in ['pandas', 'pd']:
+        data = pd.DataFrame(data)
+    elif return_type in ['torch']:
+        torch.tensor
+    return data
+
+async def async_put_json( path, data):
+        # Directly from dictionary
+    data_type = type(data)
+    if data_type in [dict, list, tuple, set, float, str, int]:
+        json_str = json.dumps(data)
+    elif data_type in [pd.DataFrame]:
+        json_str = json.dumps(data.to_dict())
+    else:
+        raise NotImplementedError(f"{data_type}, is not supported")
+    
+    return await async_write(path, json_str)
+
+if __name__ == '__main__':
+    import commune
+    
+    import asyncio
+    path = '/tmp/asyncio.txt'
+    data = {'bro': [1,2,4,5,5]}
+    with commune.timer() as t:
+        async_put_json(path, data)
+        asyncio.run(async_get_json(path))
+        st.write(t.seconds)
+
+
+    # module = LocalModule()
+    # st.write(module.test())

@@ -30,14 +30,12 @@ from datasets import load_dataset, Dataset, load_dataset_builder
 
 class HubModule(Module):
     
-    def __init__(self, config=None):
-        Module.__init__(self, config=config)
+    def __init__(self):
+        Module.__init__(self)
         self.hf_api = HfApi(self.config.get('hub'))
  
-    def list_datasets(self,return_type = 'dict', filter_fn=None, *args, **kwargs):
-
-
-        datasets = self.get_json('datasets',default={})
+    def list_datasets(self,return_type = 'dict', filter_fn=None, refresh_cache =False, *args, **kwargs):
+        datasets = {} if refresh_cache else self.get_json('datasets',default={})
         if len(datasets) == 0:
             datasets =  self.hf_api.list_datasets(*args,**kwargs)
             filter_fn = self.resolve_filter_fn(filter_fn=filter_fn)

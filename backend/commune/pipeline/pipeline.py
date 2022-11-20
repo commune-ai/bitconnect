@@ -36,8 +36,10 @@ class Pipeline:
             launch_kwargs = dict(
                 module = process_block['module'],
                 fn = process_block.get('init_fn', None),
+                kwargs = process_block.get('init_kwargs', {}),
                 actor =  process_block['actor']
             )
+
             module_block = commune.launch(**launch_kwargs)
             process_block['module'] = module_block
             process_block['function'] = getattr(module_block, process_block.get('fn', process_block.get('function', '__call__' )))
@@ -61,13 +63,16 @@ class Pipeline:
             fn_args = block.get('args', [])
             fn_kwargs = block.get('kwargs', {})
             input_key_map = block.get('input_key_map', {})
-            input = {input_key_map.get(k, k):v for k,v in input.items()}
-            fn_kwargs = {**input, **fn_kwargs}
+            if isinstance(input, dict):
+                input = {input_key_map.get(k, k):v for k,v in input.items()}
+                fn_kwargs.update(input)
+            else:
+                fn_args = [input, *fn_args]
+
             output = fn(*fn_args, **fn_kwargs)
             output_key_map = block.get('output_key_map', {})
-            output = {output_key_map.get(k, k):v for k,v in output.items()}
-            
-
+            if isinstance(output, dict):
+                output = {output_key_map.get(k, k):v for k,v in output.items()}
             input = output
 
         return output
@@ -78,14 +83,14 @@ class Pipeline:
         pipeline_blocks = [
         {
             'module': 'dataset.text.huggingface',
-            'actor': {'cpus': 0.2, 'gpus': 0, 'refresh': True },
+            'actor': {'cpus': 0.2, 'gpus': 0, 'refresh': True, 'wrap': True },
             'fn': 'sample',
             'kwargs': {'tokenize': False},
             'output_key_map': {'text': 'input'}
          }, 
          {
             'module': 'model.transformer',
-            'actor': {'gpus': 0.1},
+            'actor': {'gpus': 0.1, 'wrap': True},
             'fn': 'forward',
             'output_key_map': {'input': 'text'}
         }
@@ -100,9 +105,8 @@ class Pipeline:
         commune.init_ray()
         pipeline_blocks = [
         {
-            'module': 'dataset.text.huggingface',
-            'actor': {'cpus': 0.2, 'gpus': 0, 'refresh': False },
-            # 'actor': False,
+            'module': 'commune.dataset.text.huggingface',
+            'actor': {'cpus': 0.1, 'gpus': 0, 'refresh': False , 'wrap': True},
             'fn': 'sample',
             'kwargs': {'tokenize': False},
          }, 
@@ -111,8 +115,8 @@ class Pipeline:
             'module': 'commune.Aggregator',
             'kwargs': {'blocks': [
                                 {
-                                    'module': 'model.transformer',
-                                    'actor': {'gpus': 0.1, 'tag': f'{i}'},
+                                    'module': 'commune.model.transformer',
+                                    'actor': {'gpus': 0.1, 'tag': f'{i}', 'wrap': True},
                                     'fn': 'forward',
                                     'kwargs': {'ray_get': True},
                                 } for i in range(3)] },
@@ -120,22 +124,12 @@ class Pipeline:
         
 
         pipeline = Pipeline(pipeline_blocks)
-        st.write(pipeline.run())
 
 
 if __name__ == '__main__':
 
     Pipeline.test_sequential_pipeline()
     Pipeline.test_aggregator_pipeline()
-
-    # st.write(commune.list_actors())
-    # st.write(commune.actor_resources())
-    # st.write(commune.total_resources())
-
-
-    
-    # st.write(commune.list_actor_names())
-
 
 
         

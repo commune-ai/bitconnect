@@ -416,7 +416,7 @@ class ReceptorPoolModule (Module, torch.nn.Module ):
 
         with st.sidebar.expander('Receptor Pool', True):
             refresh = st.button('Refresh')
-            receptor_pool = ReceptorPoolModule.deploy(actor={'refresh': refresh}, wallet=None, wrap=True)
+            receptor_pool = ReceptorPoolModule.deploy(actor={'refresh': refresh, 'wrap':True}, wallet=None,)
 
         with st.expander('Text', False):
             input_text = st.text_area('Input Text')

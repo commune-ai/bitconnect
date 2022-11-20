@@ -691,5 +691,3 @@ if __name__ == "__main__":
     else:
         module_proxy = GradioModule()
         module_proxy.launch(module=args.module, port=args.port)
-    # module_proxy = GradioModule.deploy(actor=True, wrap=False)
-    # st.write(module_proxy.module_path)

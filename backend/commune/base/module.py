@@ -512,11 +512,10 @@ class Module:
     module_tree = module_list
 
     @classmethod
-    def launch(cls, module:str, fn:str=None ,kwargs:dict={}, args=[], actor=False, wrap=True, **additional_kwargs):
+    def launch(cls, module:str, fn:str=None ,kwargs:dict={}, args=[], actor=False, **additional_kwargs):
         try:
             module_class =  cls.load_module(module)
         except Exception as e:
-            st.write(e)
             module_class = cls.import_object(module)
 
         module_init_fn = fn
@@ -538,9 +537,7 @@ class Module:
 
                 actor['name'] = actor.get('name', default_actor_name )
                 module_object = cls.create_actor(cls=module_class, cls_kwargs=module_kwargs, cls_args=module_args, **actor)
-                module_object.actor_name = actor['name']
-                if wrap == True: 
-                    module_object = cls.wrap_actor(module_object)
+
             else:
                 module_object =  module_class(*module_args,**module_kwargs)
 
@@ -608,14 +605,12 @@ class Module:
 
         if config == None:
             config_path =  os.path.join(os.getenv('PWD'), self.get_config_path())
-            print(config_path, 'CONFIG')
             assert type(config_path) in [str, dict, Munch], f'CONFIG type {type(config)} no supported'
             config = self.load_config(config=config_path, 
                                 override=override, 
                                 return_munch=return_munch)
         assert isinstance(config, dict), type(config)
         return config
-        # st.write(config)
         
 
 
@@ -711,21 +706,10 @@ class Module:
 
 
 
-    @staticmethod
-    def add_actor_metadata(actor):
-        # actor_id = Module.get_actor_id(actor)
-        # actor.config_set.remote('actor.id', actor_id)
-
-        # actor_name = ray.get(actor.getattr.remote('actor_name'))
-        # setattr(actor, 'actor_id', actor_id)
-        # setattr(actor, 'actor_name', actor_name)
-        # setattr(actor, 'id', actor_id)
-        # setattr(actor, 'name', actor_name)
-        return actor
 
 
     @classmethod 
-    def deploy(cls, actor=False , skip_ray=False, wrap=False,  **kwargs):
+    def deploy(cls, actor=False ,  **kwargs):
         """
         deploys process as an actor or as a class given the config (config)
         """
@@ -754,19 +738,13 @@ class Module:
                 config['actor'] = actor_config
                 kwargs['config'] = config
                 actor = cls.create_actor(cls=cls,  cls_kwargs=kwargs, **actor_config)
-                
-                actor_id = cls.get_actor_id(actor)  
-                actor =  cls.add_actor_metadata(actor)
+
             except ray.exceptions.RayActorError:
                 actor_config['refresh'] = True
                 config['actor'] = actor_config
                 kwargs['config'] = config
                 actor = cls.create_actor(cls=cls, cls_kwargs=kwargs, **actor_config)
-                actor_id = cls.get_actor_id(actor)  
-                actor =  cls.add_actor_metadata(actor)
 
-            if wrap:
-                actor = cls.wrap_actor(actor)
 
             return actor 
         else:
@@ -815,6 +793,7 @@ class Module:
                  redundant=False,
                  tag_seperator = '-',
                  tag = None,
+                 wrap = False,
                  **kwargs):
 
         if cpus > 0:
@@ -855,8 +834,13 @@ class Module:
             actor_class = ray.remote(cls)
             actor_handle = actor_class.options(**options_kwargs).remote(*cls_args, **cls_kwargs)
 
-        
-        return Module.get_actor(name)
+        actor = Module.get_actor(name)
+
+
+        if wrap:
+            actor = Module.wrap_actor(actor)
+
+        return actor
 
 
 
@@ -1023,7 +1007,6 @@ class Module:
         
         fn_map = {}
         for fn_key in obj.get_functions(obj):
-            # st.write(fn)
             fn = getattr(obj, fn_key)
             if not callable(fn) or isinstance(fn, type) or isinstance(fn, types.BuiltinFunctionType):
                 continue
@@ -1287,7 +1270,7 @@ class Module:
 
     @property
     def tmp_dir(self):
-        return f'/tmp/{self.root_dir}/{self.name}'
+        return f'/tmp/{self.root_dir}/{self.class_name}'
 
     @staticmethod
     def get_actor_id( actor):
@@ -1308,6 +1291,10 @@ class Module:
     @property
     def pid(self):
         return os.getpid()
+
+    ###########################
+    #   MEMORY MONITORING LAND
+    ###########################
 
     def memory_usage(self, mode='gb'):
         '''
@@ -1399,6 +1386,10 @@ class Module:
         return memory_info
 
 
+    ##############
+    #   RAY LAND
+    ##############
+
     @staticmethod
     def list_objects( *args, **kwargs):
         return ray.experimental.state.api.list_objects(*args, **kwargs)
@@ -1451,9 +1442,6 @@ class Module:
             kwargs['filters'] = filters
 
         return ray.experimental.state.api.list_tasks(*args, **kwargs)
-
-
-
 
     @classmethod
     def get_module_path(cls, obj=None,  simple=True):
@@ -1548,6 +1536,13 @@ class Module:
 
         getattr(cls, input_args.function)(*args, **kwargs)
     
+    @classmethod
+    def test(cls):
+        import streamlit as st
+        for attr in dir(cls):
+            if attr[:len('test_')] == 'test_':
+                getattr(cls, attr)()
+                st.write('PASSED',attr)
 
 
 if __name__ == '__main__':

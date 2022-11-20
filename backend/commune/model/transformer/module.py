@@ -54,7 +54,7 @@ class TransformerModel(Module):
 
     def streamlit_pipeline(self):
         dataset = Module.launch('dataset.text', actor={'cpus':1})
-        model = Module.launch('model.transformer', actor={'gpus': 0.1, 'cpus':1}, wrap=True)
+        model = Module.launch('model.transformer', actor={'gpus': 0.1, 'cpus':1, 'wrap':True} )
         st.write(model.get_default_actor_name())
         st.write(model.actor_name)
         x = dataset.sample(tokenize=False)
