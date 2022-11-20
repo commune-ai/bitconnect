@@ -6,11 +6,11 @@ wallet:
 
 client: [local]
 
-dataset:
-  module: commune.dataset.huggingface
-  actor: {refresh: False}
-  wrap: True
+idx_bounds: [0, 1000]
 
+dataset:
+  module: commune.dataset.text.huggingface
+  actor: {refresh: False, wrap: True}
 
 tokenizer:
   module: bittensor.tokenizer

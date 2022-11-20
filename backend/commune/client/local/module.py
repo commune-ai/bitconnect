@@ -226,11 +226,11 @@ if __name__ == '__main__':
     
     import asyncio
     path = '/tmp/asyncio.txt'
-    data = {'bro': [1,2,4,5,5]*10000}
+    data = {'bro': [1,2,4,5,5]*100}
     with commune.timer() as t:
         async_put_json(path, data)
         asyncio.run(async_get_json(path))
-        st.write(t.seconds)
+        st.write(sys.getsizeof(data)/t.seconds)
 
 
     # module = LocalModule()
