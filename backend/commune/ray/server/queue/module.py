@@ -227,7 +227,7 @@ class RayActorClient:
 if __name__ == '__main__':
     import streamlit as st
     actor_name =  'queue_server'
-    module = QueueServer.deploy(actor={'refresh':True, 'name': actor_name}, wrap=False)
+    module = QueueServer.deploy(actor={'refresh':True, 'name': actor_name})
     
     x = ['fam']*1000
     st.write(ray.get(module.put_batch.remote('fam',[x]*1000)))

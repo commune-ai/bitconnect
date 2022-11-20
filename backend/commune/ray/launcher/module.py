@@ -183,17 +183,14 @@ class Launcher(Module):
 
     @staticmethod
     def st_test():
-        # Module.new_loop()
-        # module = Launcher.deploy(actor=False, wrap=True)
-  
-        # async_server = module.launch_module(module='commune.asyncio.queue_server', actor={'refresh': False}, wrap=True)
+ 
         # # # # async_server = module.import_object('commune.asyncio.queue_server.AsyncQueueServer')()
 
         st.write(Module.list_actor_names())
 
         # st.write(Module.get_function_schemas())
 
-        async_server = Launcher.get_actor('AsyncQueueServer', wrap=True)
+        async_server = Launcher.get_actor('AsyncQueueServer')
         
         # st.write(async_server.functions)
         # st.write(async_server)

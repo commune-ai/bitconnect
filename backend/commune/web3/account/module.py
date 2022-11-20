@@ -293,7 +293,7 @@ class AccountModule(Module):
     @classmethod
     def streamlit(cls):
         st.write(f'### {cls.__name__}')
-        self = cls.deploy(actor={'refresh': False}, wrap=True)
+        self = cls.deploy(actor={'refresh': False, 'wrap': True})
 
 
     def replicate(self, private_key, web3=None):

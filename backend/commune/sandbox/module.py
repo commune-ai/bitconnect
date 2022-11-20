@@ -688,7 +688,7 @@ class AyncioManager:
 
 if __name__ == '__main__':
     # Sandbox.ray_start()
-    module = Sandbox.deploy(actor=False, wrap=True)
+    module = Sandbox.deploy(actor=False)
     
     module.sample(idx_list = [0,2,5,6,4,3])
 

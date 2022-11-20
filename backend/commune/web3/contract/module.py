@@ -418,7 +418,7 @@ class ContractManagerModule(Module):
         st.write("## "+cls.__name__)
         ContractManagerModule.new_event_loop()
 
-        self =  ContractManagerModule.deploy(actor=False, wrap=True)
+        self =  ContractManagerModule.deploy(actor=False)
         self.set_network('local.main')
         self.set_account('bob')
         contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=True)

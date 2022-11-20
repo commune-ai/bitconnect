@@ -41,6 +41,9 @@ RUN python3 -m pip install -e /app/bittensor
 
 
 
+
+
+# we add sprinkle of npm for hardhat smart contract tings
 ENV NODE_VERSION=16.17.1
 RUN apt install -y curl
 RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
@@ -51,11 +54,8 @@ RUN . "$NVM_DIR/nvm.sh" && nvm alias default v${NODE_VERSION}
 ENV PATH="/root/.nvm/versions/node/v${NODE_VERSION}/bin/:${PATH}"
 RUN node --version
 RUN npm --version
-
-
 RUN npm install --save-dev hardhat
 RUN npm install --save-dev @nomicfoundation/hardhat-toolbox
-
 COPY hardhat.config.js .
 RUN npx hardhat
 RUN npm install @openzeppelin/contracts
@@ -65,5 +65,10 @@ RUN npm install @uniswap/v2-periphery
 
 COPY ./scripts .
 
+
 RUN pip install jupyterlab
+RUN pip install aiofiles
+
+# lets add a sprinkle of rust
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"

@@ -371,5 +371,5 @@ class Sandbox(Module):
 if __name__ == '__main__':
     # Sandbox.ray_restart()
     Module.new_event_loop()
-    module = Sandbox.deploy(actor=False, wrap=True, load=True)
+    module = Sandbox.deploy(actor=False, load=True)
     module.streamlit()
