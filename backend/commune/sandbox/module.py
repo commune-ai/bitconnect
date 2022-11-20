@@ -670,7 +670,7 @@ if __name__ == '__main__':
     # Sandbox.ray_start()
     module = Sandbox.deploy(actor=False)
     for i in range(10):
-        module.sample(batch_size=32, num_endpoints=5)
+        module.sample(batch_size=128, num_endpoints=10, timeout=4)
 
 
         metrics = dict(

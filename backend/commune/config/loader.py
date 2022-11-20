@@ -68,7 +68,7 @@ class ConfigLoader:
             self.cfg = self.resolver_methods(cfg=self.cfg)
         if return_munch:
             return Munch(self.cfg)
-
+        assert isinstance(self.cfg, Munch)  if return_munch else isinstance(self.cfg, dict)
         return self.cfg
 
     # def get_base_cfg(self, cfg,  key_path, local_key_path=[]):
@@ -169,12 +169,15 @@ class ConfigLoader:
         """
 
         variable_object = input
-
-
         if isinstance(input, str):
 
-            variable_path = re.compile('^(local_copy)\((.+)\)').search(input)
-
+            variable_path = None
+            if '::' in input:
+                assert len(input.split('::')) == 2
+                function_name, variable_path = input.split('::')
+            else:
+                variable_path = re.compile('^(local_copy)\((.+)\)').search(input)
+            
             if variable_path:
                 variable_path = variable_path.group(2)
 
@@ -223,20 +226,7 @@ class ConfigLoader:
         
         return variable_object
 
-
-    def get_inner_variable(self, input, key_path):
-        pattern = re.compile('.*?\${(\w+)}.*?')
-
-
-
-        if isinstance(input, str):
-            match = pattern.findall(input)  # to find all env variables in line
-
-            for g in match:
-                full_value = input.replace(
-                    f'${{{g}}}', self.resolve_variable(cfg=input, root_key_path= key_path)
-                )
-        return full_value
+    
     def get_variable(self, input, key_path):
 
         output = self.copy(input=input, key_path=key_path)

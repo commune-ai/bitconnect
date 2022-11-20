@@ -19,85 +19,26 @@ import argparse
 import psutil
 import asyncio
 from ray.experimental.state.api import list_actors, list_objects, list_tasks
-
-def cache(self, **kwargs):
-
-    if 'keys' in kwargs:
-        key_dict = {k: kwargs.get('keys') for k in ['save', 'load']}
-    else:
-        key_dict = dict(save=dict_any(x=input_kwargs, keys=['save', 'write'], default=[]),
-                        load= dict_any(x=input_kwargs, keys=['load', 'read'], default=[]))
-
-    def wrap_fn(fn):
-        def new_fn(self, *args, **kwargs):
-            [setattr(self, k, self.get_json(k)) for k in key_dict['load']]
-            fn(self, *args, **kwargs)
-            [self.put_json(k, getattr(self, k)) for k in key_dict['save']]
-        return new_fn
-    
-    return wrap_fn
-def enable_cache(**input_kwargs):
-    load_kwargs = dict_any(x=input_kwargs, keys=['load', 'read'], default={})
-    if isinstance(load_kwargs, bool):
-        load_kwargs = dict(enable=load_kwargs)
-
-    save_kwargs = dict_any(x=input_kwargs, keys=['save', 'write'], default={})
-    if isinstance(save_kwargs, bool):
-        save_kwargs = dict(enable=save_kwargs)
-
-    refresh = dict_any(x=input_kwargs, keys=['refresh', 'refresh_cache'], default=False)
-    assert isinstance(refresh, bool), f'{type(refresh)}'
-
-    def wrapper_fn(fn):
-        def new_fn(self, *args, **kwargs):
-
-            if refresh: 
-                self.cache = {}
-            else:
-                self.load_cache(**load_kwargs)
-
-            output = fn(self, *args, **kwargs)
-            self.save_cache(**save_kwargs)
-            return output
-        
-        return new_fn
-    return wrapper_fn
-
-
-
 import streamlit as st
 import nest_asyncio
+from .utils import enable_cache
+
 class Module:
     client = None
     client_module_class_path = 'client.manager.module.ClientModule'
-    # assumes Module is .../{src}/base/module.py
     root_dir = __file__[len(os.getenv('PWD'))+1:].split('/')[0]
     root_path = os.path.join(os.getenv('PWD'), root_dir)
     root = root_path
-    default_ray_env = {'address': 'auto', 'namespace': 'default'}
-    ray_context = None
     config_loader = ConfigLoader(load_config=False)
 
-    def __init__(self, config=None, override={}, client=None , loop=None, init_ray=True, **kwargs):
+    def __init__(self, config=None, override={}, client=None , **kwargs):
         
-
-        # nest_asyncio.apply()
-
-        self.config = self.resolve_config(config)
-        self.override_config(override=override)
+        self.config = self.resolve_config(config=config, override=override)
+        self.client = self.get_clients(client=client) 
         self.start_timestamp =self.current_timestamp
-        # for passing down the client to  submodules to avoid replicating a client for every submodule
-
-        if self.class_name != 'client.manager':
-            self.client = self.get_clients(client=client) 
         self.get_submodules(get_submodules_bool = kwargs.get('get_submodules', True))
-
-        # self.
         self.cache = {}
-        # set asyncio loop
-        # self.loop = self.new_event_loop()
-        # self.set_event_loop(loop=self.get_event_loop())
-        # self.loop = self.new_event_loop()
+
     @property
     def registered_clients(self):
         return self.clients.registered_clients if self.clients else []
@@ -109,22 +50,12 @@ class Module:
                 return client_config
         return client_config
 
-    running_actors_dir = '/tmp/commune/running_actors'
-    def register_actor(self):
-        if self.actor_running:
-            self.client.local.put_json(path=f'{running_actors_dir}/{self.actor_name}/config.json', data=data, **kwargs)
-
-    def deregister_actor(self):
-        if self.actor_running:
-
-            self.client.local.rm(path=f'{running_actors_dir}/{self.actor_name}/config.json', recursive=True)
-
     def get_clients(self, client=None):
-
+        if self.class_name == 'client.manager':
+            # if this is the client manager, do not return clients
+            return None
         if client == False:
             return None
-        elif client == True:
-            pass
         elif client == None:
             if self.client_config == None and client == None:
                 return None
@@ -137,104 +68,24 @@ class Module:
                 client_config  = self.client_config
             elif self.client_config == None:
                 return 
+            return client_module_class(client_config)
         elif isinstance(client, client_module_class):
             return client
         elif isinstance(client, dict):
+            client_module_class = self.get_object(self.client_module_class_path)
             client_config = client
+            return client_module_class(client_config)
         elif isinstance(client, list):
-            # this is a list of clients
-            assert all([isinstance(c, str)for c in client]), f'all of the clients must be string if you are passing a list'
+            client_module_class = self.get_object(self.client_module_class_path)
             client_config['include'] = client
+            return client_module_class(client_config)
         else:
             raise NotImplementedError
-        return client_module_class(config=client_config)
             
-    # def get_config(self, config=None):
-    #     if getattr(self, 'config') != None:
-    #         assert isinstance(self,dict)
-    #     if config == None:
-
-    #         assert self.default_config_path != None
-    #         config = self.config_loader.load(path=self.default_config_path)
-    #     return config
-    
-
-    def get_submodules(self, submodule_configs=None, get_submodules_bool=True):
-        
-        if get_submodules_bool == False:
-            return None
-        '''
-        input: dictionary of modular configs
-        '''
-        if submodule_configs == None:
-            submodule_configs = self.config.get('submodule',self.config.get('submodules',{}))
-    
-        assert isinstance(submodule_configs, dict)
-        for submodule_name, submodule in submodule_configs.items():
-            submodule_kwargs, submodule_args = {},[]
-            if isinstance(submodule, str):
-                submodule_kwargs = {'module':submodule }
-            elif isinstance(submodule, list):
-                submodule_args = submodule
-            elif isinstance(submodule, dict):
-                submodule_kwargs = submodule
-                
-            submodule = self.get_module(*submodule_args,**submodule_kwargs)
-            dict_put(self.__dict__, submodule_name, submodule)
-
-    ############ LOCAL CACHE LAND ##############
-
-    ############################################
-
-    cache = {}
-
-    @enable_cache()
-    def put_cache(self, k, v, **kwargs):
-        dict_put(self.cache, k, v)
-    
-
-    @enable_cache()
-    def get_cache(self, k, default=None, **kwargs):
-        return dict_get(self.cache, k,default)
-
-    @enable_cache(save= {'disable':True})
-    def in_cache(self, k):
-        return dict_has(self,cache, k)
-    has_cache = in_cache
-    @enable_cache()
-    def pop_cache(self, k):
-        return dict_pop(self.cache, k)
-
-
-    del_cache = delete_cache = pop_cache 
-
-    has_cache = cache_has = cache_exists = exists_cache =in_cache
-
-    last_saved_timestamp=0
-    @property
-    def state_staleness(self):
-        return self.current_timestamp - self.last_saved_timestamp
-
-    def resolve_args_kwargs(x):
-        if isinstsance(x, dict):
-            return [], x
-        elif type(x) in [list,tuple,set]:
-            return x , {}
-        else:
-            raise NotImplementedError(type(x))
 
     @staticmethod
-    def enable_cache(**input_kwargs):
-        return enable_cache(**input_kwargs)
-
-    @classmethod
-    def cache(cls,keys=None,**kwargs):
-        return cache(keys=keys, **kwargs)
-    enable_cache = cache_enable = cache_wrap = enable_cache
-
-    @property
-    def cache_path(self):
-        return os.path.join(self.tmp_dir, 'cache.json')
+    def dict_override(*args, **kwargs):
+        return dict_override(*args,**kwargs)
 
     def resolve_path(self, path, extension = '.json'):
         path = path.replace('.', '/')
@@ -244,6 +95,8 @@ class Module:
         if path[-len(extension):] != extension:
             path = path + extension
         return path
+
+    ############ JSON LAND ###############
 
     def get_json(self,path, default=None, **kwargs):
         path = self.resolve_path(path=path)
@@ -288,59 +141,6 @@ class Module:
     def refresh_json(self):
         self.rm_json()
 
-    def load_cache(self, **kwargs):
-        enable_bool =  kwargs.get('enable', True)
-        assert isinstance(enable_bool, bool), f'{disable_bool}'
-        if not enable_bool:
-            return None
-        path = kwargs.get('path',  self.cache_path)
-
-
-        
-        self.client.local.makedirs(os.path.dirname(path), True)
-        data = self.client.local.get_json(path=path, handle_error=True)
-        
-        if data == None:
-            data  = {}
-        self.cache = data
-
-
-    def save_cache(self, **kwargs):
-        enable_bool =  kwargs.get('enable', True)
-        assert isinstance(enable_bool, bool), f'{disable_bool}'
-        if not enable_bool:
-            return None
-
-        path = kwargs.get('path',  self.cache_path)
-
-        staleness_period=kwargs.get('statelness_period', 100)
-  
-        self.client.local.makedirs(os.path.dirname(path), True)
-        data =  self.cache
-        self.client.local.put_json(path=path, data=data)
-
-    save_state = save_cache
-    load_state = load_cache
-    
-    @property
-    def refresh_cache_bool(self):
-        refresh_bool = self.config.get('refresh_cache', False)
-        if refresh_bool == False:
-            refresh_bool = self.config.get('cache', False)
-        
-        return refresh_bool
-
-    def init_cache(self):
-        if self.refresh_cache_bool:
-            self.cache = {}
-            self.save_cache()
-        self.load_cache()
-
-    def reset_cache(self):
-        self.cache = {}
-        self.save_cache()
-
-
     def put_config(self, path=None):
         if path ==  None:
             path = 'config'
@@ -358,13 +158,6 @@ class Module:
         config = self.get_json(path, handle_error=handle_error)
         if isinstance(config, dict):
             self.config = config
-
-    def put_state_dict(self, path=None, exclude=None, include=None):
-        if path == None:
-            path = 'state_dict'
-
-        state_dict = self.__dict__
-        return self.put_json(path, state_dict)
 
     @property
     def module2path(self):
@@ -384,13 +177,6 @@ class Module:
 
         return module_fs
 
-    def get_state_dict(self, path=None):
-        if path == None:
-            path = 'state_dict'
-
-        state_dict =  self.get_json(path)
-        self.__dict__ =  state_dict
-
     @property
     def simple_module_list(self):
         return self.list_modules()
@@ -406,7 +192,6 @@ class Module:
     @property
     def module2simple(self):
         return {v:k for k,v in self.simple2module.items()}
-
 
     @staticmethod
     def simple2path( simple):
@@ -429,7 +214,6 @@ class Module:
         else:
             raise Exception(f'({module}) not in options {list(self.simple2module.keys())} (short) and {list(self.simple2module.values())} (long)')
         
-        
         if self.root_dir != module_path[:len(self.root_dir)]:
             module_path = '.'.join([self.root_dir, module_path])
         module_class= self.import_object(module_path)
@@ -448,7 +232,6 @@ class Module:
                 except Exception as e:
                     cfg = {}
 
-
                 module_path = root.lstrip(os.environ['PWD']).replace('/', '.')
                 module_path = '.'.join(module_path.split('.')[1:])
                 module_path = self.root_dir + '.'+ module_path
@@ -460,8 +243,6 @@ class Module:
                     raise NotImplemented(root)
 
         return modules
-
-
 
     def submit_fn(self, fn:str, queues:dict={}, block:bool=True,  *args, **kwargs):
 
@@ -508,7 +289,6 @@ class Module:
             output_dict  = self.submit_fn(fn=fn, *fn_args, **fn_kwargs)
             self.queue.put(topic=out_queue,item=output_dict)
 
-
     module_tree = module_list
 
     @classmethod
@@ -533,14 +313,12 @@ class Module:
                     default_actor_name = module_class.get_default_actor_name()
                 else:
                     default_actor_name = module_class.__name__
-                
 
                 actor['name'] = actor.get('name', default_actor_name )
                 module_object = cls.create_actor(cls=module_class, cls_kwargs=module_kwargs, cls_args=module_args, **actor)
 
             else:
                 module_object =  module_class(*module_args,**module_kwargs)
-
 
         else:
             module_init_fn = getattr(module_class,module_init_fn)
@@ -549,13 +327,7 @@ class Module:
 
         return module_object
     launch_module = launch
-    #############
 
-    # RAY ACTOR TINGS, TEHE
-    #############
-
-
-    root_dir = 'commune'
     @classmethod
     def load_module(cls, path):
         prefix = f'{cls.root_dir}.'
@@ -566,15 +338,15 @@ class Module:
         return module_class
 
 
+
+    ############# TIME LAND ############
     @property
     def current_timestamp(self):
         return self.get_current_timestamp()
 
-
     def current_datetime(self):
         datetime.datetime.fromtimestamp(self.current_timestamp)
     
-
     def start_datetime(self):
         datetime.datetime.fromtimestamp(self.start_timestamp)
     
@@ -586,6 +358,8 @@ class Module:
     def get_current_timestamp():
         return  datetime.datetime.utcnow().timestamp()
 
+
+    ############# CONFIG LAND ############
 
 
     @classmethod
@@ -599,21 +373,21 @@ class Module:
             config_path = config_path.replace('.py', '.yaml')
         return config_path
 
+    @staticmethod
+    def check_config(config):
+        assert isinstance(config, dict)
+        assert 'module' in config
+
     def resolve_config(self, config, override={}, recursive=True ,return_munch=False, **kwargs):
-        
-
-
+    
         if config == None:
             config_path =  os.path.join(os.getenv('PWD'), self.get_config_path())
             assert type(config_path) in [str, dict, Munch], f'CONFIG type {type(config)} no supported'
             config = self.load_config(config=config_path, 
                                 override=override, 
                                 return_munch=return_munch)
-        assert isinstance(config, dict), type(config)
-        return config
-        
 
-
+            return config
 
         if config == None:
             config = 'base'
@@ -622,9 +396,19 @@ class Module:
                         recursive=recursive,
                         return_munch=return_munch)
             # assert isinstance(config, dict),  f'bruh the config should be {type(config)}'
-            # self.save_config(config=config)
+            self.save_config(config=config)
 
         return config
+
+
+    def config_set(self,k,v, **kwargs):
+        return dict_put(self.config, k,v)
+
+    def config_get(self,k, ):
+        return dict_get(self.config, k,v)
+
+    def override_config(self,override:dict={}):
+        self.dict_override(input_dict=self.config, override=override)
 
     @classmethod
     def load_config(cls, config=None, override={}, recursive=True, return_munch=False):
@@ -658,16 +442,6 @@ class Module:
     config_template = default_cfg
     _config = default_cfg
 
-    @classmethod
-    def deploy_module(cls, module:str, **kwargs):
-        module_class = cls.get_object(module)
-        return module_class.deploy(**kwargs)
-    get_module = deploy_module
-
-    @staticmethod
-    def check_config(config):
-        assert isinstance(config, dict)
-        assert 'module' in config
     @staticmethod
     def get_object(path:str, prefix = 'commune'):
         return get_object(path=path, prefix=prefix)
@@ -686,6 +460,426 @@ class Module:
         obj = getattr(module, object_name)
         return obj
 
+
+    def get(self, key):
+        return self.getattr(key)
+
+    def getattr(self, key):
+        return getattr(self, key)
+
+    def hasattr(self, key):
+        return hasattr(self, key)
+
+    def setattr(self, key, value):
+        return self.__setattr__(key,value)
+
+    def deleteattr(self, key):
+        del self.__dict__[key]
+        return key
+    
+    rmattr = rm = delete = deleteattr
+
+    
+    @property
+    def module(self):
+        return self.config['module']
+
+    @property
+    def name(self):
+        return self.config.get('name', self.module)
+    
+    def class_name(self):
+        return self.__class__.__name__
+
+
+
+    ################# ATTRIBUTE LAND ####################
+    #####################################################
+
+    def mapattr(self, from_to_attr_dict={}):
+        '''
+        from_to_attr_dict: dict(from_key:str->to_key:str)
+        '''
+        for from_key, to_key in from_to_attr_dict.items():
+            self.copyattr(from_key=from_key, to_key=to_key)
+
+    def copyattr(self, from_key, to_key):
+        '''
+        copy from and to a desintatio
+        '''
+        attr_obj = getattr(self, from_key)  if hasattr(self, from_key) else None
+        setattr(self, to, attr_obj)
+
+    def dict_keys(self):
+        return self.__dict__.keys()
+
+    @staticmethod
+    def is_hidden_function(fn):
+        if isinstance(fn, str):
+            return fn.startswith('__') and fn.endswith('__')
+        else:
+            raise NotImplemented(f'{fn}')
+
+    @staticmethod
+    def get_functions(object):
+        functions = get_functions(object)
+        return functions
+
+    @staticmethod
+    def get_function_schema( fn, *args, **kwargs):
+        return get_function_schema(fn=fn, *args, **kwargs)
+
+    @classmethod
+    def get_function_schemas(cls, obj=None, *args,**kwargs):
+        if obj == None:
+            obj = cls
+        
+        fn_map = {}
+        for fn_key in obj.get_functions(obj):
+            fn = getattr(obj, fn_key)
+            if not callable(fn) or isinstance(fn, type) or isinstance(fn, types.BuiltinFunctionType):
+                continue
+            fn_map[fn_key] = cls.get_function_schema(fn=fn, *args, **kwargs)
+        return fn_map
+    
+
+    def is_parent(child, parent):
+        return bool(parent in Module.get_parents(child))
+
+    @classmethod
+    def get_parents(cls, obj=None):
+        if obj == None:
+            obj = cls
+
+        return list(obj.__mro__[1:-1])
+
+    @classmethod
+    def is_module(cls, obj=None):
+        if obj == None:
+            obj = cls
+        return Module in cls.get_parents(obj)
+
+    @classmethod
+    def functions(cls, obj=None, return_type='str', **kwargs):
+        if obj == None:
+            obj = cls
+        functions =  get_functions(obj=obj, **kwargs)
+        if return_type in ['str', 'string']:
+            return functions
+        
+        elif return_type in ['func', 'fn','functions']:
+            return [getattr(obj, f) for f in functions]
+        else:
+            raise NotImplementedError
+
+    @classmethod
+    def hasfunc(cls, key):
+        fn_list = cls.functions()
+        return bool(len(list(filter(lambda f: f==key, fn_list)))>0)
+
+    @classmethod
+    def filterfunc(cls, key):
+        fn_list = cls.functions()
+        ## TODO: regex
+        return list(filter(lambda f: key in f, fn_list))
+
+    @classmethod
+    def get_module_filepath(cls, obj=None, include_pwd=True):
+        if obj == None:
+            obj = cls
+        filepath = inspect.getfile(obj)
+        if not include_pwd:
+            filepath = cls.get_module_filepath().replace(os.getenv('PWD')+'/', '')
+        return filepath
+
+    ############ STREAMLIT LAND #############
+
+    @classmethod
+    def run_streamlit(cls, port=8501):
+        filepath = cls.get_module_filepath(include_pwd=False)
+        cls.run_command(f'streamlit run {filepath} --server.port={port} -- -fn=streamlit')
+
+    @classmethod
+    def streamlit(cls):
+        st.write(f'HELLO from {cls.__name__}')
+
+
+    @classmethod
+    def describe(cls, obj=None, streamlit=False, sidebar=True,**kwargs):
+        if obj == None:
+            obj = cls
+
+        assert is_class(obj)
+
+        fn_list = cls.functions(return_type='fn', obj=obj, **kwargs)
+        
+        fn_dict =  {f.__name__:f for f in fn_list}
+        if streamlit:
+            import streamlit as st
+            for k,v in fn_dict.items():
+                with (st.sidebar if sidebar else st).expander(k):
+                    st.write(k,v)
+        else:
+            return fn_dict
+        
+    ############ GRADIO LAND #############
+
+    @classmethod
+    def gradio(cls):
+        functions, names = [], []
+
+        fn_map = {
+            'fn1': lambda x :  int(x),
+            'fn2': lambda x :  int(x) 
+        }
+
+        for fn_name, fn in fn_map.items():
+            inputs = [gr.Textbox(label='input', lines=3, placeholder=f"Enter here...")]
+            outputs = [gr.Number(label='output', precision=None)]
+            names.append(fn_name)
+            functions.append(gr.Interface(fn=fn, inputs=inputs, outputs=outputs))
+        
+        return gr.TabbedInterface(functions, names)
+
+
+    @classmethod
+    def run_gradio(cls, port=8501, host='0.0.0.0'):
+        filepath = cls.get_module_filepath(include_pwd=False)
+        interface = cls.gradio()
+ 
+        interface.launch(server_port=port,
+                        server_name=host,
+                        inline= False,
+                        share= None,
+                        debug=False,
+                        enable_queue= None,
+                        max_threads=10,
+                        auth= None,
+                        auth_message= None,
+                        prevent_thread_lock= False,
+                        show_error= True,
+                        show_tips= False,
+                        height= 500,
+                        width= 900,
+                        encrypt= False,
+                        favicon_path= None,
+                        ssl_keyfile= None,
+                        ssl_certfile= None,
+                        ssl_keyfile_password= None,
+                        quiet= False)
+        
+
+
+    @classmethod
+    def run_python(cls):
+        cls.run_command(f'python {filepath}')
+
+    @classmethod
+    def argparse(cls):
+        parser = argparse.ArgumentParser(description='Gradio API and Functions')
+        parser.add_argument('-fn', '--function', dest='function', help='run a function from the module', type=str, default="streamlit")
+        parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='arguments to the function', type=str, default="{}")  
+        parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
+        return parser.parse_args()
+
+
+    @classmethod
+    def parents(cls):
+        return get_parents(cls)
+
+    # timer
+    timer = Timer
+
+    @classmethod
+    def describe_module_schema(cls, obj=None, **kwargs):
+        if obj == None:
+            obj = cls
+        return get_module_function_schema(obj, **kwargs)
+
+    
+    @staticmethod
+    def import_object(path):
+        module = '.'.join(path.split('.')[:-1])
+        object_name = path.split('.')[-1]
+        return getattr(import_module(module), object_name)
+
+
+    @property
+    def module_path(self):
+        return self.get_module_path()
+
+        
+    @staticmethod
+    def run_command(command:str):
+
+        process = subprocess.run(shlex.split(command), 
+                            stdout=subprocess.PIPE, 
+                            universal_newlines=True)
+        
+        return process
+
+
+    def resolve(self, key=None, value=None):
+        if value == None:
+            return getattr(self, key)
+        else:
+            return getattr(self, key)
+
+
+    @property
+    def tmp_dir(self):
+        return f'/tmp/{self.root_dir}/{self.class_name}'
+
+
+    @classmethod
+    def get_module_path(cls, obj=None,  simple=True):
+        if obj == None:
+            obj = cls
+        module_path =  inspect.getmodule(obj).__file__
+        # convert into simple
+        if simple:
+            module_path = os.path.dirname(module_path.replace(Module.root, '')).replace('/', '.')[1:]
+
+        return module_path
+
+
+
+    ###########################
+    #   RESOURCE LAND
+    ###########################
+    @staticmethod
+    def check_pid(pid):        
+        return check_pid(pid)
+
+    @staticmethod
+    def kill_pid(pid):        
+        return kill_pid(pid)
+    @property
+    def pid(self):
+        return os.getpid()
+
+    def memory_usage(self, mode='gb'):
+        '''
+        get memory usage of current process in bytes
+        '''
+        import os, psutil
+        process = psutil.Process(self.pid)
+        usage_bytes = process.memory_info().rss
+        usage_percent = process.memory_percent()
+        mode_factor = 1
+
+        if mode  in ['gb']:
+            mode_factor = 1e9
+        elif mode in ['mb']:
+            mode_factor = 1e6
+        elif mode in ['b']:
+            mode_factor = 1
+        elif mode in ['percent','%']:
+            return usage_percent
+        elif mode in ['ratio', 'fraction', 'frac']: 
+            return usage_percent / 100
+        else:
+            raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
+
+        return usage_bytes / mode_factor
+
+
+    @staticmethod
+    def memory_available(mode ='percent'):
+
+        memory_info = Module.memory_info()
+        available_memory_bytes = memory_info['available']
+        available_memory_ratio = (memory_info['available'] / memory_info['total'])
+    
+        mode_factor = 1
+        if mode  in ['gb']:
+            mode_factor = 1e9
+        elif mode in ['mb']:
+            mode_factor = 1e6
+        elif mode in ['b']:
+            mode_factor = 1
+        elif mode in ['percent','%']:
+            return  available_memory_ratio*100
+        elif mode in ['fraction','ratio']:
+            return available_memory_ratio
+        else:
+            raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
+
+        return usage_bytes / mode_factor
+
+
+    @staticmethod
+    def memory_used(mode ='percent'):
+
+        memory_info = Module.memory_info()
+        available_memory_bytes = memory_info['used']
+        available_memory_ratio = (memory_info['used'] / memory_info['total'])
+    
+        mode_factor = 1
+        if mode  in ['gb']:
+            mode_factor = 1e9
+        elif mode in ['mb']:
+            mode_factor = 1e6
+        elif mode in ['b']:
+            mode_factor = 1
+        elif mode in ['percent','%']:
+            return  available_memory_ratio*100
+        elif mode in ['fraction','ratio']:
+            return available_memory_ratio
+        else:
+            raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
+
+        return usage_bytes / mode_factor
+
+    @staticmethod
+    def memory_info():
+        virtual_memory = psutil.virtual_memory()
+        return {k:getattr(virtual_memory,k) for k in ['available', 'percent', 'used', 'shared', 'free', 'total', 'cached']}
+
+    @staticmethod
+    def get_memory_info(pid:int = None):
+        if pid == None:
+            pid = os.getpid()
+        # return the memory usage in percentage like top
+        process = psutil.Process(pid)
+        memory_info = process.memory_full_info()._asdict()
+        memory_info['percent'] = process.memory_percent()
+        memory_info['ratio'] = memory_info['percent'] / 100
+        return memory_info
+
+
+    def resource_usage(self):
+        resource_dict =  self.config.get('actor', {}).get('resources', None)
+        resource_dict = {k.replace('num_', ''):v for k,v in resource_dict.items()}
+        resource_dict['memory'] = self.memory_usage(mode='ratio')
+        return  resource_dict
+
+
+    ##############
+    #   RAY LAND
+    ##############
+    @classmethod
+    def get_default_actor_name(cls):
+        return cls.get_module_path(simple=True)
+
+
+    @classmethod
+    def ray_stop(cls):
+        cls.run_command('ray stop')
+
+    @classmethod
+    def ray_start(cls):
+        cls.run_command('ray start --head')
+
+    @classmethod
+    def ray_restart(cls):
+        cls.ray_stop()
+        cls.ray_start()
+
+    @classmethod
+    def ray_status(cls):
+        cls.run_command('ray status')
+
     @staticmethod
     def ray_initialized():
         return ray.is_initialized()
@@ -696,6 +890,7 @@ class Module:
 
     def get_id(self):
         return dict_get(self.config, 'actor.id')
+        
     def get_name(self):
         return dict_get(self.config, 'actor.name')
 
@@ -703,9 +898,6 @@ class Module:
         actor_info_dict = dict_get(self.config, 'actor')
         actor_info_dict['resources'] = self.resource_usage()
         return actor_info_dict
-
-
-
 
 
     @classmethod 
@@ -845,27 +1037,35 @@ class Module:
 
 
 
+    @staticmethod
+    def get_actor_id( actor):
+        assert isinstance(actor, ray.actor.ActorHandle)
+        return actor.__dict__['_ray_actor_id'].hex()
 
-    def get(self, key):
-        return self.getattr(key)
 
-    def getattr(self, key):
-        return getattr(self, key)
+    @classmethod
+    def create_pool(cls, replicas=3, actor_kwargs_list=[], **kwargs):
+        if actor_list == None:
+            actor_kwargs_list = [kwargs]*replicas
 
-    def hasattr(self, key):
-        return hasattr(self, key)
+        actors = []
+        for actor_kwargs in actor_kwargs_list:
+            actors.append(cls.deploy(**a_kwargs))
 
-    def setattr(self, key, value):
-        return self.__setattr__(key,value)
+        return ActorPool(actors=actors)
 
-    def deleteattr(self, key):
-        del self.__dict__[key]
-        return key
-    
-    rmattr = rm = delete = deleteattr
 
-    def down(self):
-        self.kill_actor(self.config['actor']['name'])
+    @classmethod
+    def wrap_actor(cls, actor):
+        wrapper_module_path = 'ray.client.module.ClientModule'
+        return Module.get_module(module=wrapper_module_path, server=actor)
+
+
+    @classmethod
+    def deploy_module(cls, module:str, **kwargs):
+        module_class = cls.get_object(module)
+        return module_class.deploy(**kwargs)
+    get_module = deploy_module
 
     @staticmethod
     def kill_actor(actor, verbose=True):
@@ -888,8 +1088,6 @@ class Module:
         
         return return_list
             
-
-
     @staticmethod
     def actor_exists(actor):
         if isinstance(actor, str):
@@ -956,439 +1154,7 @@ class Module:
         if not hasattr(self, '_actor_handle'):
             self._actor_handle = self.get_actor(self.actor_name)
         return self._actor_handle
-    @property
-    def module(self):
-        return self.config['module']
 
-    @property
-    def name(self):
-        return self.config.get('name', self.module)
-    
-    def class_name(self):
-        return self.__class__.__name__
-
-    def mapattr(self, from_to_attr_dict={}):
-        '''
-        from_to_attr_dict: dict(from_key:str->to_key:str)
-        '''
-        for from_key, to_key in from_to_attr_dict.items():
-            self.copyattr(from_key=from_key, to_key=to_key)
-
-    def copyattr(self, from_key, to_key):
-        '''
-        copy from and to a desintatio
-        '''
-        attr_obj = getattr(self, from_key)  if hasattr(self, from_key) else None
-        setattr(self, to, attr_obj)
-
-    def dict_keys(self):
-        return self.__dict__.keys()
-
-    @staticmethod
-    def is_hidden_function(fn):
-        if isinstance(fn, str):
-            return fn.startswith('__') and fn.endswith('__')
-        else:
-            raise NotImplemented(f'{fn}')
-
-    @staticmethod
-    def get_functions(object):
-        functions = get_functions(object)
-        return functions
-
-    @staticmethod
-    def get_function_schema( fn, *args, **kwargs):
-        return get_function_schema(fn=fn, *args, **kwargs)
-
-    @classmethod
-    def get_function_schemas(cls, obj=None, *args,**kwargs):
-        if obj == None:
-            obj = cls
-        
-        fn_map = {}
-        for fn_key in obj.get_functions(obj):
-            fn = getattr(obj, fn_key)
-            if not callable(fn) or isinstance(fn, type) or isinstance(fn, types.BuiltinFunctionType):
-                continue
-            fn_map[fn_key] = cls.get_function_schema(fn=fn, *args, **kwargs)
-        return fn_map
-    
-
-    def is_parent(child, parent):
-        return bool(parent in Module.get_parents(child))
-
-    @classmethod
-    def get_parents(cls, obj=None):
-        if obj == None:
-            obj = cls
-
-        return list(obj.__mro__[1:-1])
-
-    @classmethod
-    def is_module(cls, obj=None):
-        if obj == None:
-            obj = cls
-        return Module in cls.get_parents(obj)
-
-    @classmethod
-    def functions(cls, obj=None, return_type='str', **kwargs):
-        if obj == None:
-            obj = cls
-        functions =  get_functions(obj=obj, **kwargs)
-        if return_type in ['str', 'string']:
-            return functions
-        
-        elif return_type in ['func', 'fn','functions']:
-            return [getattr(obj, f) for f in functions]
-        else:
-            raise NotImplementedError
-
-
-    @classmethod
-    def describe(cls, obj=None, streamlit=False, sidebar=True,**kwargs):
-        if obj == None:
-            obj = cls
-
-        assert is_class(obj)
-
-        fn_list = cls.functions(return_type='fn', obj=obj, **kwargs)
-        
-        fn_dict =  {f.__name__:f for f in fn_list}
-        if streamlit:
-            import streamlit as st
-            for k,v in fn_dict.items():
-                with (st.sidebar if sidebar else st).expander(k):
-                    st.write(k,v)
-        else:
-            return fn_dict
-        
-
-    @classmethod
-    def hasfunc(cls, key):
-        fn_list = cls.functions()
-        return bool(len(list(filter(lambda f: f==key, fn_list)))>0)
-
-    @classmethod
-    def filterfunc(cls, key):
-        fn_list = cls.functions()
-        ## TODO: regex
-        return list(filter(lambda f: key in f, fn_list))
-
-    @classmethod
-    def get_module_filepath(cls, obj=None, include_pwd=True):
-        if obj == None:
-            obj = cls
-        filepath = inspect.getfile(obj)
-        if not include_pwd:
-            filepath = cls.get_module_filepath().replace(os.getenv('PWD')+'/', '')
-        return filepath
-
-    @classmethod
-    def run_streamlit(cls, port=8501):
-        filepath = cls.get_module_filepath(include_pwd=False)
-        cls.run_command(f'streamlit run {filepath} --server.port={port} -- -fn=streamlit')
-
-
-    @classmethod
-    def gradio(cls):
-        functions, names = [], []
-
-        fn_map = {
-            'fn1': lambda x :  int(x),
-            'fn2': lambda x :  int(x) 
-        }
-
-        for fn_name, fn in fn_map.items():
-            inputs = [gr.Textbox(label='input', lines=3, placeholder=f"Enter here...")]
-            outputs = [gr.Number(label='output', precision=None)]
-            names.append(fn_name)
-            functions.append(gr.Interface(fn=fn, inputs=inputs, outputs=outputs))
-        
-        return gr.TabbedInterface(functions, names)
-
-
-    @classmethod
-    def run_gradio(cls, port=8501, host='0.0.0.0'):
-        filepath = cls.get_module_filepath(include_pwd=False)
-        interface = cls.gradio()
- 
-        interface.launch(server_port=port,
-                        server_name=host,
-                        inline= False,
-                        share= None,
-                        debug=False,
-                        enable_queue= None,
-                        max_threads=10,
-                        auth= None,
-                        auth_message= None,
-                        prevent_thread_lock= False,
-                        show_error= True,
-                        show_tips= False,
-                        height= 500,
-                        width= 900,
-                        encrypt= False,
-                        favicon_path= None,
-                        ssl_keyfile= None,
-                        ssl_certfile= None,
-                        ssl_keyfile_password= None,
-                        quiet= False)
-        
-
-
-
-
-
-    @classmethod
-    def run_python(cls):
-        cls.run_command(f'python {filepath}')
-
-    @classmethod
-    def argparse(cls):
-        parser = argparse.ArgumentParser(description='Gradio API and Functions')
-        parser.add_argument('-fn', '--function', dest='function', help='run a function from the module', type=str, default="streamlit")
-        parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='arguments to the function', type=str, default="{}")  
-        parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
-
-        return parser.parse_args()
-
-
-
-
-    @classmethod
-    def parents(cls):
-        return get_parents(cls)
-
-
-
-
-    @staticmethod
-    def timeit(fn, trials=1, time_type = 'seconds', timer_kwargs={} ,*args,**kwargs):
-        
-        elapsed_times = []
-        results = []
-        
-        for i in range(trials):
-            with Timer(**timer_kwargs) as t:
-                result = fn(*args, **kwargs)
-                results.append(result)
-                elapsed_times.append(t.elapsed_time)
-        return dict(mean=np.mean(elapsed_times), std=np.std(elapsed_times), trials=trials, results=[])
-
-    time = timeit
-    # timer
-    timer = Timer
-
-    @classmethod
-    def describe_module_schema(cls, obj=None, **kwargs):
-        if obj == None:
-            obj = cls
-        return get_module_function_schema(obj, **kwargs)
-
-    def config_set(self,k,v, **kwargs):
-        return dict_put(self.config, k,v)
-
-    def config_get(self,k, ):
-        return dict_get(self.config, k,v)
-
-
-    def override_config(self,override:dict={}):
-        self.dict_override(input_dict=self.config, override=override)
-    
-    @staticmethod
-    def dict_override(*args, **kwargs):
-        return dict_override(*args,**kwargs)
-    
-    @staticmethod
-    def import_object(path):
-        module = '.'.join(path.split('.')[:-1])
-        object_name = path.split('.')[-1]
-        return getattr(import_module(module), object_name)
-
-
-    @property
-    def module_path(self):
-        return self.get_module_path()
-
-
-    @classmethod
-    def get_default_actor_name(cls):
-        return cls.get_module_path(simple=True)
-
-
-    @classmethod
-    def ray_stop(cls):
-        cls.run_command('ray stop')
-
-    @classmethod
-    def ray_start(cls):
-        cls.run_command('ray start --head')
-
-    @classmethod
-    def ray_restart(cls):
-        cls.ray_stop()
-        cls.ray_start()
-
-    @classmethod
-    def ray_status(cls):
-        cls.run_command('ray status')
-
-        
-    @staticmethod
-    def run_command(command:str):
-
-        process = subprocess.run(shlex.split(command), 
-                            stdout=subprocess.PIPE, 
-                            universal_newlines=True)
-        
-        return process
-
-
-    def resolve(self, key=None, value=None):
-        if value == None:
-            return getattr(self, key)
-        else:
-            return getattr(self, key)
-
-    @classmethod
-    def create_pool(cls, replicas=3, actor_kwargs_list=[], **kwargs):
-        if actor_list == None:
-            actor_kwargs_list = [kwargs]*replicas
-
-        actors = []
-        for actor_kwargs in actor_kwargs_list:
-            actors.append(cls.deploy(**a_kwargs))
-
-        return ActorPool(actors=actors)
-
-    @staticmethod
-    def check_pid(pid):        
-        return check_pid(pid)
-
-    @staticmethod
-    def kill_pid(pid):        
-        return kill_pid(pid)
-
-    @property
-    def tmp_dir(self):
-        return f'/tmp/{self.root_dir}/{self.class_name}'
-
-    @staticmethod
-    def get_actor_id( actor):
-        assert isinstance(actor, ray.actor.ActorHandle)
-        return actor.__dict__['_ray_actor_id'].hex()
-
-    def resource_usage(self):
-        resource_dict =  self.config.get('actor', {}).get('resources', None)
-        resource_dict = {k.replace('num_', ''):v for k,v in resource_dict.items()}
-        resource_dict['memory'] = self.memory_usage(mode='ratio')
-        return  resource_dict
-
-    @classmethod
-    def wrap_actor(cls, actor):
-        wrapper_module_path = 'ray.client.module.ClientModule'
-        return Module.get_module(module=wrapper_module_path, server=actor)
-
-    @property
-    def pid(self):
-        return os.getpid()
-
-    ###########################
-    #   MEMORY MONITORING LAND
-    ###########################
-
-    def memory_usage(self, mode='gb'):
-        '''
-        get memory usage of current process in bytes
-        '''
-        import os, psutil
-        process = psutil.Process(self.pid)
-        usage_bytes = process.memory_info().rss
-        usage_percent = process.memory_percent()
-        mode_factor = 1
-
-        if mode  in ['gb']:
-            mode_factor = 1e9
-        elif mode in ['mb']:
-            mode_factor = 1e6
-        elif mode in ['b']:
-            mode_factor = 1
-        elif mode in ['percent','%']:
-            return usage_percent
-        elif mode in ['ratio', 'fraction', 'frac']: 
-            return usage_percent / 100
-        else:
-            raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
-
-        return usage_bytes / mode_factor
-
-
-    @staticmethod
-    def memory_available(mode ='percent'):
-
-        memory_info = Module.memory_info()
-        available_memory_bytes = memory_info['available']
-        available_memory_ratio = (memory_info['available'] / memory_info['total'])
-    
-        mode_factor = 1
-        if mode  in ['gb']:
-            mode_factor = 1e9
-        elif mode in ['mb']:
-            mode_factor = 1e6
-        elif mode in ['b']:
-            mode_factor = 1
-        elif mode in ['percent','%']:
-            return  available_memory_ratio*100
-        elif mode in ['fraction','ratio']:
-            return available_memory_ratio
-        else:
-            raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
-
-        return usage_bytes / mode_factor
-
-
-    @staticmethod
-    def memory_used(mode ='percent'):
-
-        memory_info = Module.memory_info()
-        available_memory_bytes = memory_info['used']
-        available_memory_ratio = (memory_info['used'] / memory_info['total'])
-    
-        mode_factor = 1
-        if mode  in ['gb']:
-            mode_factor = 1e9
-        elif mode in ['mb']:
-            mode_factor = 1e6
-        elif mode in ['b']:
-            mode_factor = 1
-        elif mode in ['percent','%']:
-            return  available_memory_ratio*100
-        elif mode in ['fraction','ratio']:
-            return available_memory_ratio
-        else:
-            raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
-
-        return usage_bytes / mode_factor
-
-    @staticmethod
-    def memory_info():
-        virtual_memory = psutil.virtual_memory()
-        return {k:getattr(virtual_memory,k) for k in ['available', 'percent', 'used', 'shared', 'free', 'total', 'cached']}
-
-    @staticmethod
-    def get_memory_info(pid:int = None):
-        if pid == None:
-            pid = os.getpid()
-        # return the memory usage in percentage like top
-        process = psutil.Process(pid)
-        memory_info = process.memory_full_info()._asdict()
-        memory_info['percent'] = process.memory_percent()
-        memory_info['ratio'] = memory_info['percent'] / 100
-        return memory_info
-
-
-    ##############
-    #   RAY LAND
-    ##############
 
     @staticmethod
     def list_objects( *args, **kwargs):
@@ -1443,20 +1209,24 @@ class Module:
 
         return ray.experimental.state.api.list_tasks(*args, **kwargs)
 
-    @classmethod
-    def get_module_path(cls, obj=None,  simple=True):
-        if obj == None:
-            obj = cls
-        module_path =  inspect.getmodule(obj).__file__
-        # raise(obj)
-        if simple:
-            module_path = os.path.dirname(module_path.replace(Module.root, '')).replace('/', '.')[1:]
-
-        return module_path
 
     @staticmethod
     def list_nodes( *args, **kwargs):
         return list_nodes(*args, **kwargs)
+
+    @staticmethod
+    def ray_get(self, *jobs):
+        return ray.get(jobs)
+
+    @staticmethod
+    def ray_wait( *jobs):
+        finished_jobs, running_jobs = ray.wait(jobs)
+        return finished_jobs, running_jobs
+
+    @staticmethod
+    def ray_put(*items):
+        return [ray.put(i) for i in items]
+
 
     ##############
     #   ASYNCIO
@@ -1468,15 +1238,7 @@ class Module:
             asyncio.set_event_loop(loop)
         return loop
     new_loop = new_event_loop 
-    # @property
-    # def loop(self):
-    #     return getattr(self, '_loop',asyncio.get_event_loop())
-    # @loop.setter
-    # def loop(self, loop):
-        # if loop == None:
-        #     loop = asyncio.get_event_loop()
-        # self._loop = loop
-        # return loop
+
     def set_event_loop(self, loop=None, new=False):
         if loop == None:
             loop = self.new_event_loop()
@@ -1489,9 +1251,6 @@ class Module:
             loop = self.loop
         return loop.run_until_complete(job)
 
-
-    # async def async_default(self):
-    #     pass
     @staticmethod
     def port_connected( port : int,host:str='0.0.0.0'):
         """
@@ -1501,27 +1260,6 @@ class Module:
         result = s.connect_ex((host, int(port)))
         return result == 0
 
-
-    #### RAY HELPERS
-
-    @staticmethod
-    def ray_get(self, *jobs):
-        return ray.get(jobs)
-
-    @staticmethod
-    def ray_wait( *jobs):
-        finished_jobs, running_jobs = ray.wait(jobs)
-        return finished_jobs, running_jobs
-
-
-        
-    @staticmethod
-    def ray_put(*items):
-        return [ray.put(i) for i in items]
-
-    @classmethod
-    def streamlit(cls):
-        st.write(f'HELLO from {cls.__name__}')
 
 
     @classmethod
@@ -1536,6 +1274,13 @@ class Module:
 
         getattr(cls, input_args.function)(*args, **kwargs)
     
+
+
+
+    ############ TESTING LAND ##############
+
+    ############################################
+
     @classmethod
     def test(cls):
         import streamlit as st
@@ -1543,6 +1288,126 @@ class Module:
             if attr[:len('test_')] == 'test_':
                 getattr(cls, attr)()
                 st.write('PASSED',attr)
+
+
+    ##### SOON TO BE REMOVED ##########
+
+
+    def get_submodules(self, submodule_configs=None, get_submodules_bool=True):
+        
+        if get_submodules_bool == False:
+            return None
+        '''
+        input: dictionary of modular configs
+        '''
+        if submodule_configs == None:
+            submodule_configs = self.config.get('submodule',self.config.get('submodules',{}))
+    
+        assert isinstance(submodule_configs, dict)
+        for submodule_name, submodule in submodule_configs.items():
+            submodule_kwargs, submodule_args = {},[]
+            if isinstance(submodule, str):
+                submodule_kwargs = {'module':submodule }
+            elif isinstance(submodule, list):
+                submodule_args = submodule
+            elif isinstance(submodule, dict):
+                submodule_kwargs = submodule
+                
+            submodule = self.get_module(*submodule_args,**submodule_kwargs)
+            dict_put(self.__dict__, submodule_name, submodule)
+
+
+    @property
+    def state_staleness(self):
+        return self.current_timestamp - self.last_saved_timestamp
+
+    ############ LOCAL CACHE LAND ##############
+
+    ############################################
+
+    cache = {}
+
+    @enable_cache()
+    def put_cache(self, k, v, **kwargs):
+        dict_put(self.cache, k, v)
+    @enable_cache()
+    def get_cache(self, k, default=None, **kwargs):
+        return dict_get(self.cache, k,default)
+
+    @enable_cache(save= {'disable':True})
+    def in_cache(self, k):
+        return dict_has(self,cache, k)
+    has_cache = in_cache
+    @enable_cache()
+    def pop_cache(self, k):
+        return dict_pop(self.cache, k)
+
+
+    def load_cache(self, **kwargs):
+        enable_bool =  kwargs.get('enable', True)
+        assert isinstance(enable_bool, bool), f'{disable_bool}'
+        if not enable_bool:
+            return None
+        path = kwargs.get('path',  self.cache_path)
+
+        self.client.local.makedirs(os.path.dirname(path), True)
+        data = self.client.local.get_json(path=path, handle_error=True)
+        
+        if data == None:
+            data  = {}
+        self.cache = data
+
+    def save_cache(self, **kwargs):
+        enable_bool =  kwargs.get('enable', True)
+        assert isinstance(enable_bool, bool), f'{disable_bool}'
+        if not enable_bool:
+            return None
+
+        path = kwargs.get('path',  self.cache_path)
+
+        staleness_period=kwargs.get('statelness_period', 100)
+  
+        self.client.local.makedirs(os.path.dirname(path), True)
+        data =  self.cache
+        self.client.local.put_json(path=path, data=data)
+
+    save_state = save_cache
+    load_state = load_cache
+    
+    @property
+    def refresh_cache_bool(self):
+        refresh_bool = self.config.get('refresh_cache', False)
+        if refresh_bool == False:
+            refresh_bool = self.config.get('cache', False)
+        
+        return refresh_bool
+
+    def init_cache(self):
+        if self.refresh_cache_bool:
+            self.cache = {}
+            self.save_cache()
+        self.load_cache()
+
+    def reset_cache(self):
+        self.cache = {}
+        self.save_cache()
+
+
+    del_cache = delete_cache = pop_cache 
+    has_cache = cache_has = cache_exists = exists_cache =in_cache
+    last_saved_timestamp=0
+    @staticmethod
+    def enable_cache(**input_kwargs):
+        return enable_cache(**input_kwargs)
+
+    @classmethod
+    def cache(cls,keys=None,**kwargs):
+        return cache(keys=keys, **kwargs)
+    enable_cache = cache_enable = cache_wrap = enable_cache
+
+    @property
+    def cache_path(self):
+        return os.path.join(self.tmp_dir, 'cache.json')
 
 
 if __name__ == '__main__':

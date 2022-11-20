@@ -420,9 +420,9 @@ class ContractManagerModule(Module):
 
         self =  ContractManagerModule.deploy(actor=False)
         self.set_network('local.main')
-        self.set_account('bob')
-        contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=True)
-        st.write(gradio_inferface)
+        self.set_account('alice')
+        contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=True, args=['BRO', 'BROCOIN'])
+        st.write(contract)
 
 
 if __name__ == '__main__':
