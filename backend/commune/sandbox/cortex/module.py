@@ -133,7 +133,6 @@ class Sandbox(Module):
 
     def set_dataset(self, dataset=None):
         if dataset==None:
-            st.write(self.config['dataset'])
             dataset = self.launch_module(**self.config['dataset'])
         
         self.dataset = dataset
@@ -666,14 +665,6 @@ class AyncioManager:
 if __name__ == '__main__':
     # Sandbox.ray_start()
     module = Sandbox.deploy(actor=False)
-    # st.write(module.get_module_config_paths())
-    # # st.write(Sandbox.simple2config_map())
-    # st.write(Sandbox.import_object('commune.model.transformer'))
-    import commune
-    # st.write(commune.load_yaml(Sandbox.get_config_path()))
-    # commune.put_yaml('/tmp/yaml_file', {'bro': 'whadup'})
-    # st.write(commune.load_yaml('/tmp/yaml_file'))
-
     for i in range(10):
         module.sample(batch_size=128, num_endpoints=10, timeout=4)
 

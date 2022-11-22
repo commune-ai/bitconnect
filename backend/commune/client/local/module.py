@@ -181,45 +181,45 @@ class LocalModule(LocalFileSystem):
         else:
             raise NotImplementedError(f"{data_type}, is not supported")
 
+    # async stuff
+    async def async_read(path, mode='r'):
+        async with aiofiles.open(path, mode=mode) as f:
+            data = await f.read()
+        return data
+    async def async_write(path, data,  mode ='w'):
+        async with aiofiles.open(path, mode=mode) as f:
+            await f.write(data)
 
-import aiofiles
-async def async_read(path, mode='r'):
-    async with aiofiles.open(path, mode=mode) as f:
-        data = await f.read()
-    return data
-async def async_write(path, data,  mode ='w'):
-    async with aiofiles.open(path, mode=mode) as f:
-        await f.write(data)
+    async def async_get_json(path, return_type='dict'):
+        try:  
+            
+            data = json.loads(await async_read(path))
+        except FileNotFoundError as e:
+            if handle_error:
+                return None
+            else:
+                raise e
 
-async def async_get_json(path, return_type='dict'):
-    try:  
-        
-        data = json.loads(await async_read(path))
-    except FileNotFoundError as e:
-        if handle_error:
-            return None
+        if return_type in ['dict', 'json']:
+            data = data
+        elif return_type in ['pandas', 'pd']:
+            data = pd.DataFrame(data)
+        elif return_type in ['torch']:
+            torch.tensor
+        return data
+
+    async def async_put_json( path, data):
+            # Directly from dictionary
+        data_type = type(data)
+        if data_type in [dict, list, tuple, set, float, str, int]:
+            json_str = json.dumps(data)
+        elif data_type in [pd.DataFrame]:
+            json_str = json.dumps(data.to_dict())
         else:
-            raise e
+            raise NotImplementedError(f"{data_type}, is not supported")
+        
+        return await async_write(path, json_str)
 
-    if return_type in ['dict', 'json']:
-        data = data
-    elif return_type in ['pandas', 'pd']:
-        data = pd.DataFrame(data)
-    elif return_type in ['torch']:
-        torch.tensor
-    return data
-
-async def async_put_json( path, data):
-        # Directly from dictionary
-    data_type = type(data)
-    if data_type in [dict, list, tuple, set, float, str, int]:
-        json_str = json.dumps(data)
-    elif data_type in [pd.DataFrame]:
-        json_str = json.dumps(data.to_dict())
-    else:
-        raise NotImplementedError(f"{data_type}, is not supported")
-    
-    return await async_write(path, json_str)
 
 if __name__ == '__main__':
     import commune

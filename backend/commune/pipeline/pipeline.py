@@ -1,4 +1,4 @@
-
+from __future__ import annotations
 from munch import Munch
 import commune
 import streamlit as st
@@ -124,12 +124,24 @@ class Pipeline:
         
 
         pipeline = Pipeline(pipeline_blocks)
+    
+    @staticmethod
+    def dummy(a:dict) -> dict:
+        return a
+
+
+def get_annotations(fn:callable):
+    return fn.__annotations__
 
 
 if __name__ == '__main__':
 
-    Pipeline.test_sequential_pipeline()
-    Pipeline.test_aggregator_pipeline()
+    # st.write(commune.Module.get_module_python_paths())
+    st.write(commune.Module.simple2import('commune.sandbox.paper'))
+
+
+    # Pipeline.test_sequential_pipeline()
+    # Pipeline.test_aggregator_pipeline()
 
 
         

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from commune.utils import get_object, dict_any, dict_put, dict_get, dict_has, dict_pop, deep2flat, Timer, dict_override, get_functions, get_function_schema, kill_pid
 import datetime
 from commune.config.loader import ConfigLoader
@@ -21,13 +22,18 @@ import asyncio
 from ray.experimental.state.api import list_actors, list_objects, list_tasks
 import streamlit as st
 import nest_asyncio
+from typing import *
+from glob import glob
+
 from .utils import enable_cache
+
 
 class Module:
     client = None
-    client_module_class_path = 'client.manager.module.ClientModule'
-    root_dir = __file__[len(os.getenv('PWD'))+1:].split('/')[0]
-    root_path = os.path.join(os.getenv('PWD'), root_dir)
+    pwd = os.getenv('PWD')
+    client_module_class_path = 'commune.client.manager.module.ClientModule'
+    root_dir = __file__[len(pwd)+1:].split('/')[0]
+    root_path = os.path.join(pwd, root_dir)
     root = root_path
     config_loader = ConfigLoader(load_config=False)
 
@@ -59,7 +65,7 @@ class Module:
         elif client == None:
             if self.client_config == None and client == None:
                 return None
-            client_module_class = self.get_object(self.client_module_class_path)
+            client_module_class = self.import_object(self.client_module_class_path)
             client_config = client_module_class.default_config()
             # does the config have clients
             if isinstance(self.client_config, list):
@@ -72,17 +78,16 @@ class Module:
         elif isinstance(client, client_module_class):
             return client
         elif isinstance(client, dict):
-            client_module_class = self.get_object(self.client_module_class_path)
+            client_module_class = self.import_object(self.client_module_class_path)
             client_config = client
             return client_module_class(client_config)
         elif isinstance(client, list):
-            client_module_class = self.get_object(self.client_module_class_path)
+            client_module_class = self.import_object(self.client_module_class_path)
             client_config['include'] = client
             return client_module_class(client_config)
         else:
             raise NotImplementedError
             
-
     @staticmethod
     def dict_override(*args, **kwargs):
         return dict_override(*args,**kwargs)
@@ -132,11 +137,12 @@ class Module:
     
         return self.client.local.rm(path,recursive=recursive, **kwargs)
 
+    
     def glob_json(self, pattern ='**',  tmp_dir=None):
         if tmp_dir == None:
             tmp_dir = self.tmp_dir
-        paths =  self.client.local.glob(tmp_dir+'/'+pattern)
-        return list(filter(lambda f:self.client.local.isfile(f), paths))
+        paths =  glob(tmp_dir+'/'+pattern)
+        return list(filter(lambda f:os.path.isfile(f), paths))
     
     def refresh_json(self):
         self.rm_json()
@@ -159,39 +165,6 @@ class Module:
         if isinstance(config, dict):
             self.config = config
 
-    @property
-    def module2path(self):
-        module2path = {}
-        for k in self.simple_module_list:
-            module2path[k] =  '/'.join([self.root_path, k.replace('.', '/')])
-
-        return module2path
-    @property
-    def module_fs(self):
-        module_fs = {}
-        for k in self.simple2module.keys():
-            
-            module_path = '/'.join([os.getenv('PWD'), 'commune',k.replace('.', '/')])
-            file_list = self.client.local.ls(module_path)
-            dict_put(module_fs,k, file_list)
-
-        return module_fs
-
-    @property
-    def simple_module_list(self):
-        return self.list_modules()
-    module_list = simple_module_list
-
-    def list_modules(self):
-        return list(self.simple2module.keys())
-
-    @property
-    def simple2module(self):
-        return {'.'.join(k.split('.')[:-2]):k for k in self.full_module_list}
-
-    @property
-    def module2simple(self):
-        return {v:k for k,v in self.simple2module.items()}
 
     @staticmethod
     def simple2path( simple):
@@ -202,47 +175,63 @@ class Module:
         full_path = '.'.join([Module.root_dir, simple,'module', module_name])
         return full_path
 
-    def get_module_class(self,module:str):
-        if module[:len(self.root_dir)] != self.root_dir:
-            module = '.'.join([self.root_dir, module])
+    @classmethod
+    def simple2path(cls, simple:str, mode:str='config') -> str: 
+        simple2path_map = getattr(cls, f'simple2{mode}_map')()
+        module_path = simple2path_map[simple]
+        return module_path
 
-        if module in self.simple2module:
-            module_path = self.simple2module[module]
+    @classmethod
+    def path2simple(cls, path:str) -> str:
+        return os.path.dirname(path)[len(cls.pwd)+1:].replace('/', '.')
 
-        elif module in self.module2simple:
-            module_path = module
-        else:
-            raise Exception(f'({module}) not in options {list(self.simple2module.keys())} (short) and {list(self.simple2module.values())} (long)')
-        
-        if self.root_dir != module_path[:len(self.root_dir)]:
-            module_path = '.'.join([self.root_dir, module_path])
-        module_class= self.import_object(module_path)
-        return module_class
+    @classmethod
+    def simple2import(cls, simple:str) -> str:
+        config_path = cls.simple2path(simple, mode='config')
+        module_basename = os.path.basename(config_path).split('.')[0]
+        config = cls.config_loader.load(config_path)
+        obj_name = config.get('module', config.get('name'))
+        st.write(obj_name, 'bro', simple)
+        module_path = '.'.join([simple, module_basename,obj_name])
 
+        return module_path
+
+    @classmethod
+    def get_simple_paths(cls) -> List[str]:
+        return [cls.path2simple(f) for f in cls.get_module_python_paths()]
+    list_modules = get_simple_paths
     @property
-    def full_module_list(self):
+    def module_tree(self): 
+        return self.list_modules()
+
+    module_list = module_tree
+    @classmethod
+    def simple2python_map(cls) -> Dict[str, str]:
+        return {cls.path2simple(f):f for f in cls.get_module_python_paths()}
+
+    @classmethod
+    def simple2config_map(cls) -> Dict[str, str]:
+        return {cls.path2simple(f):f for f in cls.get_module_config_paths()}
+
+
+    @classmethod
+    def get_module_python_paths(cls) -> List[str]:
         modules = []
         failed_modules = []
-        for root, dirs, files in os.walk(self.root_path):
-            if all([f in files for f in ['module.py', 'module.yaml']]):
-                try:
-                    cfg = self.config_loader.load(root)   
-                    if cfg == None:
-                        cfg = {}           
-                except Exception as e:
-                    cfg = {}
 
-                module_path = root.lstrip(os.environ['PWD']).replace('/', '.')
-                module_path = '.'.join(module_path.split('.')[1:])
-                module_path = self.root_dir + '.'+ module_path
-
-                if isinstance(cfg.get('module'), str):
-                    module_name = cfg.get('module').split('.')[-1]
-                    modules.append(f"{module_path}.module.{module_name}")
-                elif module_path == None: 
-                    raise NotImplemented(root)
-
+        for f in glob(Module.root_path + '/**/*.py', recursive=True):
+            if os.path.isdir(f):
+                continue
+            file_path, file_ext =  os.path.splitext(f)
+            if file_ext == '.py':
+                if os.path.exists(file_path+'.yaml'):
+                    modules.append(f)
         return modules
+
+
+    @staticmethod
+    def get_module_config_paths() -> List[str]:
+        return [f.replace('.py', '.yaml')for f in  Module.get_module_python_paths()]
 
     def submit_fn(self, fn:str, queues:dict={}, block:bool=True,  *args, **kwargs):
 
@@ -289,14 +278,11 @@ class Module:
             output_dict  = self.submit_fn(fn=fn, *fn_args, **fn_kwargs)
             self.queue.put(topic=out_queue,item=output_dict)
 
-    module_tree = module_list
+
 
     @classmethod
     def launch(cls, module:str, fn:str=None ,kwargs:dict={}, args=[], actor=False, **additional_kwargs):
-        try:
-            module_class =  cls.load_module(module)
-        except Exception as e:
-            module_class = cls.import_object(module)
+        module_class = cls.import_object(module)
 
         module_init_fn = fn
         module_kwargs = {**kwargs}
@@ -337,8 +323,6 @@ class Module:
         module_class =  cls.import_object(module_path)
         return module_class
 
-
-
     ############# TIME LAND ############
     @property
     def current_timestamp(self):
@@ -364,10 +348,11 @@ class Module:
 
     @classmethod
     def get_config_path(cls, simple=False):
-        module_path = cls.get_module_path(simple=simple)
-        if os.getenv('PWD') != module_path[len(os.getenv('PWD'))]:
 
+        config_path = cls.get_module_path(simple=simple)
+        if os.getenv('PWD') != config_path[:len(os.getenv('PWD'))]:
             config_path = os.path.join(os.getenv('PWD'), cls.get_module_path(simple=simple))
+
 
         if simple == False:
             config_path = config_path.replace('.py', '.yaml')
@@ -442,23 +427,41 @@ class Module:
     config_template = default_cfg
     _config = default_cfg
 
-    @staticmethod
-    def get_object(path:str, prefix = 'commune'):
-        return get_object(path=path, prefix=prefix)
-
-    import_module_class = get_object
     
-    @staticmethod
-    def import_module(key):
-        return import_module(key)
+    @classmethod
+    def import_module(cls, import_path:str) -> 'Object':
+        # imports a python module or a module
+        try:
+            import_path = cls.simple2import(import_path)
+            return cls.import_object(import_path)
+        except KeyError as e:
+            return import_module(import_path)
 
-    @staticmethod
-    def import_object(key):
-        module_path = '.'.join(key.split('.')[:-1])
-        module = import_module(module_path)
+    @classmethod
+    def import_object(cls, key:str)-> 'Object':
+        try:
+            key = cls.simple2import(key)
+        except KeyError as e:
+            pass
+
+        module = '.'.join(key.split('.')[:-1])
         object_name = key.split('.')[-1]
-        obj = getattr(module, object_name)
-        return obj
+        return getattr(import_module(module), object_name)
+    get_object = import_object
+    
+    @property
+    def module(self):
+        return self.config.get('module', self.config.get('name'))
+
+    @property
+    def name(self):
+        return self.config.get('name', self.module)
+    
+    def class_name(self):
+        return self.__class__.__name__
+
+    ################# ATTRIBUTE LAND ####################
+    #####################################################
 
 
     def get(self, key):
@@ -479,24 +482,8 @@ class Module:
     
     rmattr = rm = delete = deleteattr
 
-    
-    @property
-    def module(self):
-        return self.config['module']
 
-    @property
-    def name(self):
-        return self.config.get('name', self.module)
-    
-    def class_name(self):
-        return self.__class__.__name__
-
-
-
-    ################# ATTRIBUTE LAND ####################
-    #####################################################
-
-    def mapattr(self, from_to_attr_dict={}):
+    def mapattr(self, from_to_attr_dict:dict={}) -> Dict :
         '''
         from_to_attr_dict: dict(from_key:str->to_key:str)
         '''
@@ -542,7 +529,10 @@ class Module:
             fn_map[fn_key] = cls.get_function_schema(fn=fn, *args, **kwargs)
         return fn_map
     
-
+    @staticmethod
+    def get_annotations(fn:callable) -> dict:
+        return fn.__annotations__
+    
     def is_parent(child, parent):
         return bool(parent in Module.get_parents(child))
 
@@ -584,20 +574,20 @@ class Module:
         return list(filter(lambda f: key in f, fn_list))
 
     @classmethod
-    def get_module_filepath(cls, obj=None, include_pwd=True):
+    def get_module_path(cls, obj=None, include_pwd=True):
         if obj == None:
             obj = cls
-        filepath = inspect.getfile(obj)
+        path = inspect.getfile(obj)
         if not include_pwd:
-            filepath = cls.get_module_filepath().replace(os.getenv('PWD')+'/', '')
-        return filepath
+            path = cls.get_module_path().replace(os.getenv('PWD')+'/', '')
+        return path
 
     ############ STREAMLIT LAND #############
 
     @classmethod
     def run_streamlit(cls, port=8501):
-        filepath = cls.get_module_filepath(include_pwd=False)
-        cls.run_command(f'streamlit run {filepath} --server.port={port} -- -fn=streamlit')
+        path = cls.get_module_path(include_pwd=False)
+        cls.run_command(f'streamlit run {path} --server.port={port} -- -fn=streamlit')
 
     @classmethod
     def streamlit(cls):
@@ -644,7 +634,7 @@ class Module:
 
     @classmethod
     def run_gradio(cls, port=8501, host='0.0.0.0'):
-        filepath = cls.get_module_filepath(include_pwd=False)
+        path = cls.get_module_path(include_pwd=False)
         interface = cls.gradio()
  
         interface.launch(server_port=port,
@@ -672,7 +662,7 @@ class Module:
 
     @classmethod
     def run_python(cls):
-        cls.run_command(f'python {filepath}')
+        cls.run_command(f'python {path}')
 
     @classmethod
     def argparse(cls):
@@ -696,12 +686,7 @@ class Module:
             obj = cls
         return get_module_function_schema(obj, **kwargs)
 
-    
-    @staticmethod
-    def import_object(path):
-        module = '.'.join(path.split('.')[:-1])
-        object_name = path.split('.')[-1]
-        return getattr(import_module(module), object_name)
+
 
 
     @property
@@ -738,7 +723,7 @@ class Module:
         module_path =  inspect.getmodule(obj).__file__
         # convert into simple
         if simple:
-            module_path = os.path.dirname(module_path.replace(Module.root, '')).replace('/', '.')[1:]
+            module_path = cls.path2simple(path=module_path)
 
         return module_path
 
@@ -1057,13 +1042,13 @@ class Module:
 
     @classmethod
     def wrap_actor(cls, actor):
-        wrapper_module_path = 'ray.client.module.ClientModule'
+        wrapper_module_path = 'commune.ray.client.module.ClientModule'
         return Module.get_module(module=wrapper_module_path, server=actor)
 
 
     @classmethod
     def deploy_module(cls, module:str, **kwargs):
-        module_class = cls.get_object(module)
+        module_class = cls.import_object(module)
         return module_class.deploy(**kwargs)
     get_module = deploy_module
 
@@ -1412,4 +1397,4 @@ class Module:
 
 if __name__ == '__main__':
     Module.run()
-    st.write(Module.get_module_filepath().replace(os.getenv('PWD')+'/', ''))
+    st.write(Module.get_module_path().replace(os.getenv('PWD')+'/', ''))

@@ -1,20 +1,20 @@
 
 from .asyncio import async_read, async_write, sync_wrapper
 import asyncio
-import json
+import yaml
 import os
 
-async def async_get_json(path, return_type='dict'):
+async def async_get_yaml(path, return_type='dict'):
     try:  
         
-        data = json.loads(await async_read(path))
+        data = yaml.load(await async_read(path))
     except FileNotFoundError as e:
         if handle_error:
             return None
         else:
             raise e
 
-    if return_type in ['dict', 'json']:
+    if return_type in ['dict', 'yaml']:
         data = data
     elif return_type in ['pandas', 'pd']:
         data = pd.DataFrame(data)
@@ -22,22 +22,22 @@ async def async_get_json(path, return_type='dict'):
         torch.tensor
     return data
 
-read_json = load_json = get_json = sync_wrapper(async_get_json)
+read_yaml = load_yaml = get_yaml = sync_wrapper(async_get_yaml)
 
-async def async_put_json( path, data):
+async def async_put_yaml( path, data):
         # Directly from dictionary
     path = ensure_path(path)
     data_type = type(data)
     if data_type in [dict, list, tuple, set, float, str, int]:
-        json_str = json.dumps(data)
+        yaml_str = yaml.dump(data)
     elif data_type in [pd.DataFrame]:
-        json_str = json.dumps(data.to_dict())
+        yaml_str = yaml.dump(data.to_dict())
     else:
         raise NotImplementedError(f"{data_type}, is not supported")
     
-    return await async_write(path, json_str)
+    return await async_write(path, yaml_str)
 
-put_json = save_json = sync_wrapper(async_put_json)
+put_yaml = save_yaml = sync_wrapper(async_put_yaml)
 
 def path_exists(path:str):
     return os.path.exists(path)

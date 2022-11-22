@@ -15,12 +15,12 @@ class ClientModule(Module):
         self.register_clients(clients=self.include_clients)
     def get_default_clients(self):
         client_path_dict = dict(
-        ipfs = 'client.ipfs.module.IPFSModule',
-        local = 'client.local.module.LocalModule',
-        s3 = 'client.s3.module.S3Module',
-        estuary = 'client.estuary.module.EstuaryModule',
-        pinata = 'client.pinata.module.PinataModule',
-        rest = 'client.rest.module.RestModule',
+        ipfs = 'commune.client.ipfs.module.IPFSModule',
+        local = 'commune.client.local.module.LocalModule',
+        s3 = 'commune.client.s3.module.S3Module',
+        estuary = 'commune.client.estuary.module.EstuaryModule',
+        pinata = 'commune.client.pinata.module.PinataModule',
+        rest = 'commune.client.rest.module.RestModule',
         # ray='client.ray.module.RayModule'
         )
         return client_path_dict

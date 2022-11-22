@@ -1,6 +1,6 @@
 module: 'Module'
 
-client: {}
+client: []
 
 actor:
   name: local_copy::module
