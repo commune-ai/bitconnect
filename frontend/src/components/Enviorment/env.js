@@ -69,8 +69,8 @@ export default function Flow() {
     // Changes
     // =======================
     const onNodesChange = useCallback(
-      (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
-      [setNodes]
+      (changes) => setNodes((nds) => applyNodeChanges(changes, nds))
+      [setNodes, reactFlowInstance]
     );
   
     const onEdgesChange = useCallback(
@@ -214,7 +214,7 @@ export default function Flow() {
     // Delete Node
     // ==================
     const deleteNode = useCallback((_) =>{
-
+      setNodes((nds) => nds.filter(n => n.id !== _[0].id ))
       if (_[0].type === "customInput"){
         // const bundle_connection = nodes.filter(nds => nds.type === "bundle" && nds.data.args.map(c => c.id).includes(_[0].id)).map(n => n.id)
         setNodes((nds)=>{
@@ -247,31 +247,30 @@ export default function Flow() {
         return // end function 
       
       } else {
+
         fetch(`http://localhost:8000/ls_ports`, {method : "GET", mode: 'cors'}).then(res => res.json()).then((r) => {
           r.forEach((port) => {
-            console.log(!nodes.map((node) => node.data.port).includes(port) )
+            console.log(nodes.map((node) => node))
             if (! nodes.map((node) => node.data.port).includes(port)){
               fetch(`http://localhost:8000/rm?${new URLSearchParams({port: port})}`, {method : "GET", mode: 'cors'})
+              fetch(`http://localhost:8000/kill_port?${new URLSearchParams({port: +port})}`, {method : "GET", mode: 'cors'})
             }
           })
         })
-          const node = reactFlowInstance.getNode(_[0].id)
-          setNodes((nds) => nds.filter(n => n.id !== node.id ))
-          let p = new Promise(async (resolve, reject) => {
-                setTimeout(() => {
-                  if (node.data.port === undefined){
+        console.log(_[0])
+        setTimeout(() => {
+                  if (_[0].data.port === undefined){
 
                   } else {
-                    resolve(node.data.port)
-                    fetch(`http://localhost:8000/rm?${new URLSearchParams({module: node.data.module, port: node.data.port})}`, {method : "GET", mode: 'cors'}).then(res => res.json())
-
+                    fetch(`http://localhost:8000/rm?${new URLSearchParams({module: _[0].data.module, port: +_[0].data.port})}`, {method : "GET", mode: 'cors'})
+                    fetch(`http://localhost:8000/kill_port?${new URLSearchParams({port: +_[0].data.port})}`, {method : "GET", mode: 'cors'})
                   }
                   }, 1000)
-          })          
+
           return // end function 
 
       }
-    }, [nodes, edges, setEdges, setNodes])
+    }, [nodes, edges, setEdges, setNodes, reactFlowInstance])
 
     // =======================
     // Edge's Connection
@@ -401,9 +400,10 @@ export default function Flow() {
           const style = JSON.parse(event.dataTransfer.getData('application/style'));
           
           const newNode = {
-            id: `${item}__custom-${uuidv4()}`,
+            id: `${item}__custom__module-${uuidv4()}`,
             type,
             position,
+            deletable : false,
             dragHandle : `#draggable`,
             data: { 
                     label  : `${item}`,
@@ -459,7 +459,7 @@ export default function Flow() {
               id: `input-node__custom-${uuidv4()}`,
               type,
               position,
-              data: { dtype: "String", value: "" },};
+              data: { dtype: "String", value: ""}};
               setNodes((nds) => nds.concat(newNode));                  
           }
 

@@ -432,6 +432,7 @@ class GradioModule(commune.Module):
             print(f'rm: {port} is already deleted')
             return None
         return self.subprocess_manager.rm(key=port)
+
     def rm_all(self):
         for port in self.port2module:
             self.rm(port=port)
@@ -655,8 +656,15 @@ async def module_rm(module:str=None, port:str=None, name:str=None):
         for link in value:
             if f"{module}-{port}" in link:
                 value.remove(link)
-        
-    return self.rm(port=port)
+    self.rm(port=port)
+
+    for proc in process_iter():
+        for conns in proc.connections(kind='inet'):
+            if conns.laddr.port == port:
+                proc.send_signal(SIGKILL) # or SIGKILL
+
+
+    return self.port_connected(port)
 
 @app.get("/rm_all")
 async def module_rm_all(module:str=None, ):

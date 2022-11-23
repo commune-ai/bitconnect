@@ -54,8 +54,7 @@ export default function InputCompnent({ id, data }) {
     getOutgoers(node, getNodes(), getEdges()).forEach((nde) => {
         if (["custom", "process"].includes(nde.type)){
             modules.push(nde)
-          }
-        
+          }   
       })
     
     // Have all the nodes needed to process now we process them and cache them
@@ -64,7 +63,6 @@ export default function InputCompnent({ id, data }) {
       // Get the args then
       // check if mod is custom or process
       var output;
-      console.log(mod)
       if (mod.type === "custom"){
       //    fetch using host and concat  `${data.host}/run/predict` (1st Iteration)
         output = await fetch(`${mod.data.host}/run/predict`, 
@@ -110,7 +108,7 @@ export default function InputCompnent({ id, data }) {
     );
   }, [item, id, setNodes, store])
 
-  return (<div className="w-[300px] border-2 rounded-lg shadow-lg border-black bg-white dark:bg-stone-800 dark:border-white p-2 duration-300">
+  return (<div className="w-[300px] border-2 rounded-lg shadow-lg border-black bg-white dark:bg-stone-800 dark:border-white p-2 duration-300" onKeyDown={(e) => { console.log(e.target.value) }}>
    <div className="flex">
     <button id="dropdownDefault" onClick={(e) => { setOpen((open) => !open); }} data-dropdown-toggle="dropdown" className={` w-full  text-white bg-[#7b3fe4] focus:ring-4 focus:outline-none focus:ring-[#F48CF4] font-medium rounded-lg ${open ? 'shadow-lg' : ''} text-sm px-4 py-2.5 text-center inline-flex items-center dark:bg-[#7b3fe4] dark:focus:ring-blue-800 hover:shadow-lg duration-300`} type="button">{item}
       <svg className={`ml-2 w-4 h-4 right-14 absolute ${open ? '' : 'rotate-180'} duration-150`} aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg></button>
