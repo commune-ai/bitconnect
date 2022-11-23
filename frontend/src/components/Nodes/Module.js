@@ -112,13 +112,13 @@ export default function ModuleFrame({id, data}){
     return (
     <div className="w-auto h-auto">
       
-      <div id={'draggable'}className=" flex w-full h-10 top-0 cursor-pointer" onClick={() => {}}>
+      <div id={'draggable'}className=" flex w-full h-10 top-0 cursor-pointer">
       <div id={'draggable'} title={collapsed ? "Expand Node" : "Collaspse Node"} className=" flex-none duration-300 cursor-pointer shadow-xl border-2 border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Blue rounded-xl" onClick={ async () => { await handelServerRender()}}><CgLayoutGridSmall className="h-full w-full text-white p-1"/></div>
 
       <div className={` flex ${!collapsed ? '' : 'w-0 hidden'}`}>
                       <div title="Adjust Node Size" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Violet rounded-xl" onClick={() => {setSizeAdjuster((size) => !size)}}><TbResize className="h-full w-full text-white p-1"/></div>
                       <a href={data.host} target="_blank" rel="noopener noreferrer"><div title="Gradio Host Site" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Pink rounded-xl"><BiCube className="h-full w-full text-white p-1"/></div></a>
-                      <div title="Delete Node" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Red rounded-xl" onClick={() => data.delete([{id : id}])}><BsTrash className="h-full w-full text-white p-1"/></div>
+                      <div title="Delete Node" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Red rounded-xl" onClick={async () => data.delete([getNode(id)])}><BsTrash className="h-full w-full text-white p-1"/></div>
                       <div title="Refresh Node" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Orange rounded-xl"><BiRefresh className="h-full w-full text-white p-1"/></div>
         </div>
       </div>
@@ -158,7 +158,3 @@ export default function ModuleFrame({id, data}){
         }
       </div>)
 }
-<<<<<<< HEAD:frontend/src/components/Nodes/Custom.js
-
-=======
->>>>>>> fd926ecf2fa48a23e5fec18c84fb4cf28d09417f:frontend/src/components/Nodes/Module.js
