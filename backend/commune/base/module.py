@@ -191,7 +191,6 @@ class Module:
         module_basename = os.path.basename(config_path).split('.')[0]
         config = cls.config_loader.load(config_path)
         obj_name = config.get('module', config.get('name'))
-        st.write(obj_name, 'bro', simple)
         module_path = '.'.join([simple, module_basename,obj_name])
 
         return module_path
@@ -434,7 +433,9 @@ class Module:
         try:
             import_path = cls.simple2import(import_path)
             return cls.import_object(import_path)
+
         except KeyError as e:
+            raise e
             return import_module(import_path)
 
     @classmethod
@@ -573,25 +574,18 @@ class Module:
         ## TODO: regex
         return list(filter(lambda f: key in f, fn_list))
 
-    @classmethod
-    def get_module_path(cls, obj=None, include_pwd=True):
-        if obj == None:
-            obj = cls
-        path = inspect.getfile(obj)
-        if not include_pwd:
-            path = cls.get_module_path().replace(os.getenv('PWD')+'/', '')
-        return path
 
     ############ STREAMLIT LAND #############
 
     @classmethod
     def run_streamlit(cls, port=8501):
-        path = cls.get_module_path(include_pwd=False)
+        path = cls.get_module_path(simple=False)
         cls.run_command(f'streamlit run {path} --server.port={port} -- -fn=streamlit')
 
     @classmethod
     def streamlit(cls):
         st.write(f'HELLO from {cls.__name__}')
+        st.write(cls)
 
 
     @classmethod
@@ -686,30 +680,17 @@ class Module:
             obj = cls
         return get_module_function_schema(obj, **kwargs)
 
-
-
-
     @property
     def module_path(self):
         return self.get_module_path()
 
-        
     @staticmethod
     def run_command(command:str):
 
         process = subprocess.run(shlex.split(command), 
                             stdout=subprocess.PIPE, 
                             universal_newlines=True)
-        
         return process
-
-
-    def resolve(self, key=None, value=None):
-        if value == None:
-            return getattr(self, key)
-        else:
-            return getattr(self, key)
-
 
     @property
     def tmp_dir(self):
@@ -726,7 +707,6 @@ class Module:
             module_path = cls.path2simple(path=module_path)
 
         return module_path
-
 
 
     ###########################
@@ -767,7 +747,6 @@ class Module:
             raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
 
         return usage_bytes / mode_factor
-
 
     @staticmethod
     def memory_available(mode ='percent'):
@@ -948,8 +927,7 @@ class Module:
                 return cls.ray_runtime_context()
             else:
                 ray.shutdown()
-
-                
+  
         ray_context = ray.init(**init_kwargs)
         return ray_context
 
@@ -1013,20 +991,15 @@ class Module:
 
         actor = Module.get_actor(name)
 
-
         if wrap:
             actor = Module.wrap_actor(actor)
 
         return actor
 
-
-
-
     @staticmethod
     def get_actor_id( actor):
         assert isinstance(actor, ray.actor.ActorHandle)
         return actor.__dict__['_ray_actor_id'].hex()
-
 
     @classmethod
     def create_pool(cls, replicas=3, actor_kwargs_list=[], **kwargs):
@@ -1039,12 +1012,10 @@ class Module:
 
         return ActorPool(actors=actors)
 
-
     @classmethod
     def wrap_actor(cls, actor):
         wrapper_module_path = 'commune.ray.client.module.ClientModule'
         return Module.get_module(module=wrapper_module_path, server=actor)
-
 
     @classmethod
     def deploy_module(cls, module:str, **kwargs):
@@ -1085,6 +1056,7 @@ class Module:
             return actor_exists
         else:
             raise NotImplementedError
+
     @staticmethod
     def get_actor(actor_name, wrap=False):
         actor =  ray.get_actor(actor_name)
@@ -1256,11 +1228,7 @@ class Module:
 
         args = json.loads(input_args.args)
         assert isinstance(args, list)
-
         getattr(cls, input_args.function)(*args, **kwargs)
-    
-
-
 
     ############ TESTING LAND ##############
 
@@ -1395,6 +1363,20 @@ class Module:
         return os.path.join(self.tmp_dir, 'cache.json')
 
 
+    @staticmethod
+    def gradio_build_interface( fn_map:dict) -> 'gradio.TabbedInterface':
+        for fn_name, fn_obj in fn_map.items():
+            inputs = fn_obj.get('inputs', [])
+            outputs = fn_obj.get('outputs',[])
+            fn = fn_obj['fn']
+            names.append(fn_name)
+            functions.append(gradio.Interface(fn=fn, inputs=inputs, outputs=outputs))
+        
+        return gradio.TabbedInterface(functions, names)
+
+
+
+
 if __name__ == '__main__':
     Module.run()
-    st.write(Module.get_module_path().replace(os.getenv('PWD')+'/', ''))
+    Module.get_module_path().replace(os.getenv('PWD')+'/', '')

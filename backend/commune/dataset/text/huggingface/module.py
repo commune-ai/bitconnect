@@ -12,6 +12,7 @@ from commune import Module
 import ray
 import asyncio
 from munch import Munch
+from typing import Optional, Union, Any , Dict, List
 
 # from commune.bittensor.cortex.metric import causal_lm_loss, ranknet_loss
 from commune.utils import *
@@ -42,18 +43,12 @@ class DatasetModule(Module):
         return self.tokenizer
 
     def load_dataset(self, path:str=None, name:str=None, split:str=None):
-        
-        self.path = path if path  else self.path
-        self.name = name if name  else self.name
-        self.split = split if split  else self.split
+        kwargs = {}
+        kwargs['path'] = path if path  else self.path
+        kwargs['name'] = name if name  else self.config_name
+        kwargs['split'] = split if split  else self.split
 
-        kwargs = {'name': self.name, 'path': self.path, 'split': self.split}
-
-        dataset_list = self.launch_module(module='datasets.load_dataset', kwargs=kwargs)
-        dataset_map = {}
-        self.dataset = {}
-        for dataset in dataset_list: 
-            self.dataset[str(dataset.split)] = dataset
+        self.dataset = self.launch_module(module='datasets.load_dataset', kwargs=kwargs)
         return self.dataset
 
     def filter_dataset(self, fn, dataset=None):
@@ -65,11 +60,11 @@ class DatasetModule(Module):
 
     @property
     def info(self):
-        return self.dataset[self.split[0]]._info.__dict__
+        return self.dataset._info.__dict__
 
     @property
     def features(self):
-        return self.dataset[self.split[0]]._info.__dict__['features']
+        return self.dataset._info.__dict__['features']
 
     @property
     def device(self):
@@ -95,62 +90,65 @@ class DatasetModule(Module):
         device = kwargs.pop('device', self.device)
         return torch.tensor(self.tokenizer(text=text, padding=padding)['input_ids']).to(device)
 
+    @property
+    def splits(self):
+        available_splits =self.config['available_splits'] = self.config.get('available_splits', list(self.info['splits'].keys()))
+        return available_splits
+    available_splits = splits
 
-    default_split = ['train']
     @property
     def split(self):
-        split = self.config.get('split', self.default_split)
-        st.write(self.config['split'])
-        return split
+        return self.config['split']
 
     @split.setter
-    def split(self, value):
-        st.write(value, 'split')
-        if isinstance(value, str):
-            value = [value]
-        assert isinstance(value, list), f'{value} should be a string'
-        self.config['split'] = value
+    def split(self, split):
+        assert split in self.available_splits
+        self.config['split'] = split
+        self.load_dataset(split=split)
 
-    def split_size(self, split):
-        return len(self.dataset[split])
+    def __len__(self):
+        return len(self.dataset)
 
     def split_size_map(self):
-        return {split: self.dataset[split] for split in self.split}
+        info_dict = self.info
+        return {split: self.info_dict['splits'][split] for split in self.splits}
 
-    def resolve_split(self, split):
+    def resolve_split(self, split:Optional[str]) -> str:
         if split == None:
-            split = self.split[0]
+            split = self.split
+        else:
+            assert split in self.splits
         return split
+    
+    def resolve_idx(self, idx:int):
 
-    def __getitem__(self, idx=None, split='train', sequence_length=128):
+        if isinstance(idx, int):
+            assert idx > 0 and idx < len(self)
+        else:
+            idx = random.randint(1,len(self)-1) 
+
+        return idx
+
+    def __getitem__(self, idx:Optional[int]=None, sequence_length:int=128):
         
-        split = self.resolve_split(split) 
-        dataset_length =  self.split_size(split)
-        if idx == None:
-            idx = random.randint(1,dataset_length-1)    
+        idx = self.resolve_idx(idx=idx)
 
         final_sample  = ''
         while len(final_sample.split()) < sequence_length:
-            split = self.resolve_split(split)
-            sample = self.dataset[split][idx].get(self.text_field)
-            assert sample != None, f'Please specify a valid text_field {self.dataset[split][idx]}'
+            sample = self.dataset[idx].get(self.text_field)
+            assert sample != None, f'Please specify a valid text_field {self.dataset[idx]}'
 
             final_sample += sample if len(final_sample) == 0 else '\n' + sample
-            idx = (idx + 1 ) % dataset_length
+            idx = (idx + 1 ) % len(self)
         final_sample = ' '.join(final_sample.split()[:sequence_length])
         return final_sample
 
-    def sample(self, batch_size=10, sequence_length=16, random=True, idx_list = None, tokenize=False, padding=True,  split=None)->dict:
+    def sample(self, batch_size=10, sequence_length=16, random=True, idx_list = None, tokenize=False, padding=True)->dict:
         
-        if idx_list != None:
-            assert isinstance(idx_list, list)
-            batch_size = len(idx_list)
-            samples =  [self.__getitem__(idx=idx_list[i] ,split=split) for i in range(batch_size)]
+        if idx_list == None:
+            idx_list = [None for i in range(batch_size)]
 
-        elif idx_list == None:
-            samples =  [self.__getitem__(idx=None if random else i, split=split) for i in range(batch_size)]
-        else:
-            raise NotImplementedError(type(idx_list))
+        samples =  [self.__getitem__(idx=idx ) for idx in idx_list]
 
         sample_dict = {'text': samples}
         if tokenize:
@@ -230,8 +228,6 @@ class DatasetModule(Module):
         df = pd.DataFrame(self.list_datasets(return_type='dict'))
         return df
 
-
-
     def list_models(self,return_type = 'pandas',filter_fn=None, *args, **kwargs):
         models = self.hf_api.list_models(*args,**kwargs)
        
@@ -255,7 +251,6 @@ class DatasetModule(Module):
 
         return models
 
-
     @property
     def task_categories(self):
         return list(self.datasets['task_categories'].unique())
@@ -263,8 +258,6 @@ class DatasetModule(Module):
     def pipeline_tags(self): 
         df = self.list_models(return_type='pandas')
         return df['pipeline_tag'].unique()
-
-
 
     def dataset_tags(self, limit=10, **kwargs):
         df = self.list_datasets(limit=limit,return_type='pandas', **kwargs)
@@ -278,11 +271,9 @@ class DatasetModule(Module):
         indices =  df.apply(fn, axis=1)
         return df[indices]
 
-
     def list_datasets(self, *args, **kwargs):
         df = self.hf_api.list_datasets( *args, **kwargs)
         return df    
-
 
     @staticmethod
     def load_dataset_builder( path:str=None, factory_module_path:str=None):
@@ -329,24 +320,22 @@ class DatasetModule(Module):
         self.config['text_field'] = value
 
     @property
-    def name(self):
-        if 'name' in self.config:
-            return self.config['name']
-        else:
-            self.config['name'] = self.configs[0]
+    def config_name(self):
+        config_name = self.config['config_name'] = self.config.get('config_name', self.available_config_names[0])
+        return config_name
 
-    @name.setter
-    def name(self, value):
-        self.config['name'] = value
-
+    @config_name.setter
+    def config_name(self, config_name):
+        self.config['config_name'] = config_name
+        self.load_dataset(name=config_name)
 
     def list_configs(self):
         return self.config_map
 
     @property
-    def configs(self):
-        return list(self.config_map.keys())
-
+    def available_config_names(self):
+        available_config_names = self.config['available_config_names'] = self.config.get('available_config_names', list(self.config_map.keys()))
+        return available_config_names
 
     @property
     def config_map(self):
@@ -357,16 +346,76 @@ class DatasetModule(Module):
             configs =  [self.dataset_builder('default').info.__dict__]
             configs[0]['name'] = 'default'
 
-        config_map = {config['name']: config for config in configs}
-            
+        config_map = {config['name']: config for config in configs}     
 
         return config_map
     
 
+    @classmethod
+    def streamlit(cls):
+        self = cls()
 
+        st.write(f'## Dataset {self.path}-{self.config_name} : Split ({self.split})')
+
+
+        with st.sidebar.form('Config Name'):
+            config_name = st.selectbox('Select a Config Name', self.available_config_names, 0)
+            submit_button = st.form_submit_button('Sync Config Name')
+            if submit_button:
+                self.config_name = config_name
+
+        with st.sidebar.form('Split'):
+            split = st.selectbox('Select a Split', self.available_splits, 0)
+            submit_button = st.form_submit_button('Sync Split')
+            if submit_button:
+                self.split = split
+
+        with st.sidebar.form('Info'):
+            split = st.selectbox('Select a Split', self.available_splits, 0)
+            submit_button = st.form_submit_button('Sync Split')
+            if submit_button:
+                self.split = split
+
+        info = self.info
+        with  st.expander('Info'):
+            st.write(info)
+
+        with  st.expander('Features'):
+            st.write(info['features'])
+
+        with st.form('Sample'):
+            tokenize = st.checkbox('tokenize', False)
+            batch_size = st.slider('batch_size', 1,128, 32)
+            submit_button = st.form_submit_button('Sample Split')
+            st.write(self.sample(tokenize=tokenize, batch_size=batch_size))
+
+    @classmethod
+    def gradio(cls) -> 'gradio.Interface':
+  
+        self = cls()
+        import gradio 
+        functions, names = [], []
+
+        fn_map = {}
+        fn_map['Stake Tokens'] = {'fn': self.add_stake, 
+                        'inputs': [gradio.Slider(label='Stake Amount', minimum=1, maximum=1000 )],
+                        'outputs':[gradio.Label(label='Current Stake', value=self.get_stake(), show_label=True)]}
+        
+
+        fn_map['Buy Tokens'] = {'fn': self.buy , 
+                        'inputs': [gradio.Slider(label='Amount', minimum=1, maximum=1000 )],
+                        'outputs':[gradio.Label(label='Current Balance', value=self.get_stake(), show_label=True)]}
+        
+
+        fn_map['Vote'] = {'fn': self.set_votes, 
+                        'inputs':[gradio.CheckboxGroup(choices=[p for p in self.peers.keys()], value=[p for p in self.peers.keys()]),
+                                  gradio.Slider(label='Score', minimum=0, maximum=100 )],
+                        'outputs':[gradio.Label(label='Current Score Map', value=self.get_stake(), show_label=True)]}
+
+
+        gradio_interface = self.gradio_build_interface(fn_map=fn_map)
+
+        return gradio_interface
 
 if __name__ == '__main__':
-    module = DatasetModule( split='test')
-
-    st.write(module.sample())
-    
+    DatasetModule.run()

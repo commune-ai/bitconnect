@@ -8,7 +8,6 @@ import "contracts/openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import "contracts/openzeppelin/utils/Context.sol";
 import "./ERC20Manager.sol";
 
-
 struct DevState {
     uint256 stake;
     uint256 score;
@@ -19,7 +18,6 @@ struct VoteState {
     uint256 score;
     uint256 block_number;
 }
-
 
 contract ModelToken is Context, IERC20, IERC20Metadata {
     mapping(address => uint256) private _balances;
@@ -39,7 +37,6 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
     
     ERC20Manager public token_manager = new ERC20Manager();
 
-    
     // number of block
     uint256 block_step = 2;
 
@@ -67,13 +64,11 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
         return _name;
     }
 
-
     // addes stake to model
 
     function  is_dev(address dev) public view returns(bool){
         return bool(dev2voters[dev].length > 0);
     }
-
 
     function _ensure_dev(address dev) internal {
         // push dev to devs if it doesnt exist
@@ -83,8 +78,7 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
     }
 
     function add_stake(uint256 amount)  public {
-        
-        
+         
         _allowances[msg.sender][address(this)] +=  amount;
         dev2state[msg.sender].stake = allowance(msg.sender,address(this));
         _ensure_dev(msg.sender);
@@ -105,7 +99,6 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
         users2calls[msg.sender] += 1;
     }
 
-    
     function get_stake(address user) public view returns(uint256){
         return _allowances[user][address(this)];
     }
@@ -123,13 +116,11 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
         score = get_score(msg.sender);
     }
 
-
     function my_stake() public view returns(uint256 stake){
         stake = get_stake(msg.sender);
 
         return stake;
     }
-
 
     function remove_stake(uint256 amount) public  returns (uint256 removed_amount){
         if (amount > _allowances[msg.sender][address(this)]) {

@@ -3,17 +3,14 @@
 import os
 import sys
 from copy import deepcopy
-sys.path.append(os.environ['PWD'])
-from commune.utils import dict_put, get_object, dict_has
-from commune import Module
+import commune
 import streamlit as st
 from commune.web3.contract.pythonic_contract_wrapper import PythonicContractWrapper
-import gradio
 
-class ContractManagerModule(Module):
+class ContractManagerModule(commune.module):
     def __init__(self, config=None, contract=None, network=None, account=None, compile=True, **kwargs):
 
-        Module.__init__(self, config=config, network=None, **kwargs)
+        commune.module.__init__(self, config=config, network=None, **kwargs)
 
         if compile:
             self.compile()
@@ -33,7 +30,6 @@ class ContractManagerModule(Module):
     def function_names(self):
         return list(self.function_abi_map.keys())
 
-
     @property
     def accounts(self):
         return self.account.accounts
@@ -43,7 +39,6 @@ class ContractManagerModule(Module):
             args.append({'from': self.account})
         output = getattr(self.contract, function)(*args)
         return self.parseOutput(function=function, outputs=output)
-
 
     def parseOutput(self, function, outputs):
         output_abi_list = self.function_abi_map[function]['outputs']
@@ -83,7 +78,6 @@ class ContractManagerModule(Module):
     def contract2path(self):
         return dict(zip(self.contracts, self.contract_paths))
 
-
     def get_artifact(self, path):
         available_abis = self.contracts + self.interfaces
         path = self.resolve_contract_path(path)
@@ -98,7 +92,6 @@ class ContractManagerModule(Module):
         artifact_path = os.path.join(root_dir, path, json_name)
         artifact = self.client.local.get_json(artifact_path)
         return artifact
-
 
     def get_abi(self,path):
         return self.get_artifact(path)['abi']
@@ -117,12 +110,10 @@ class ContractManagerModule(Module):
     def interface2path(self):
         return dict(zip(self.interfaces, self.interface_paths))
 
-
     @property
     def artifact_paths(self): 
         full_path_list = list(filter(lambda f:f.endswith('.json') and not f.endswith('dbg.json') and os.path.dirname(f).endswith('.sol'),
                             self.client.local.glob(f'{self.artifacts_path}**')))
-        
         
         return full_path_list
     
@@ -134,7 +125,6 @@ class ContractManagerModule(Module):
             simple_path = simple_path.replace(self.artifacts_path, '')
             artifacts.append(simple_path)
         return artifacts
-
 
     def connected(self):
         return bool( self.web3.__class__.__name__ == 'Web3')
@@ -154,7 +144,6 @@ class ContractManagerModule(Module):
                 network = self.config['network']
             self.network = self.launch(**network)
         
-
         self.web3 = self.network.web3
 
     connect_network = set_network
@@ -181,7 +170,6 @@ class ContractManagerModule(Module):
         interfaces = list(filter(lambda f: f.startswith('interfaces'), self.artifacts))
         return list(map(lambda f:os.path.dirname(f.replace('interfaces/', '')), interfaces))
 
-
     def resolve_web3(self, web3):
         if web3 == None:
             web3 = self.web3
@@ -202,18 +190,14 @@ class ContractManagerModule(Module):
             if self.account != None:
                 self.account.set_web3(self.web3)
         
-    
     def get_contract_address(self, contract, version=-1):
         return self.contract2addresses.get(self.network_name, {}).get(contract,[None])[version]
-        
 
-
-    def deploy_contract(self, contract , args,  new=True, refresh=False, **kwargs):
+    def deploy_contract(self, contract , args,  new=False, refresh=False, **kwargs):
         
         simple_contract_path = contract
         contract_path = self.resolve_contract_path(simple_contract_path)
         contract_address =  self.get_contract_address(contract)
-
 
         network = self.resolve_network(kwargs.get('network'))
         web3 = self.resolve_web3(kwargs.get('web3'))
@@ -257,8 +241,6 @@ class ContractManagerModule(Module):
     def contract2addresses(self):
         return self.registered_contracts
 
-
-
     def set_contract(self,contract=None, address=None, web3=None, account=None, version=-1):
         if isinstance(contract, str) or isinstance(address, str):
             contract = self.get_contract(contract=contract, address=address , web3=web3, account=account, version=-1)
@@ -271,8 +253,6 @@ class ContractManagerModule(Module):
 
         self.contract = contract
         return self.contract
-
-
 
     def contract_exists(self, contract=''):
         is_address = isinstance(self.address2contract.get(contract), str)
@@ -291,7 +271,6 @@ class ContractManagerModule(Module):
             contract_version = int(contract_version)
             contract_address = address
 
-
         else:
             contract_path = contract
             contract_version_addresses = self.get_contract_address(contract, version)
@@ -300,8 +279,6 @@ class ContractManagerModule(Module):
             else:
                 raise NotImplemented(contract_address)
       
-
-
         contract_artifact = self.get_artifact(contract_path)
         contract = web3.eth.contract(address=contract_address, abi=contract_artifact['abi'])
         if pythonic:

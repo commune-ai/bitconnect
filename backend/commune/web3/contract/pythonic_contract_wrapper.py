@@ -93,7 +93,6 @@ class PythonicContractWrapper:
                 continue 
 
             try:
-                st.write(fn_obj)
                 inp, out = self.package(fn_obj["inputs"], fn_obj["outputs"] if "outputs" in fn_obj else [])
             except KeyError:
                 continue

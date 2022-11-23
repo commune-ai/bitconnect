@@ -1,10 +1,5 @@
-import Processor from './components/Enviorment/Processor'
+import Flow from './components/Enviorment/env'
 // import Module from './components/ReactFlow/Module'
 export default function App() {
-  return(
-      <>
-        <Processor/>
-      </>
-      
-  )
+  return(<Flow/>)
 };

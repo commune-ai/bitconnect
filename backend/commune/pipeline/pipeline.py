@@ -82,14 +82,14 @@ class Pipeline:
         commune.init_ray()
         pipeline_blocks = [
         {
-            'module': 'dataset.text.huggingface',
+            'module': 'commune.dataset.text.huggingface',
             'actor': {'cpus': 0.2, 'gpus': 0, 'refresh': True, 'wrap': True },
             'fn': 'sample',
             'kwargs': {'tokenize': False},
             'output_key_map': {'text': 'input'}
          }, 
          {
-            'module': 'model.transformer',
+            'module': 'commune.model.transformer',
             'actor': {'gpus': 0.1, 'wrap': True},
             'fn': 'forward',
             'output_key_map': {'input': 'text'}
@@ -137,11 +137,10 @@ def get_annotations(fn:callable):
 if __name__ == '__main__':
 
     # st.write(commune.Module.get_module_python_paths())
-    st.write(commune.Module.simple2import('commune.sandbox.paper'))
+    # st.write(commune.Module.simple2import('commune.sandbox.paper'))
 
-
-    # Pipeline.test_sequential_pipeline()
-    # Pipeline.test_aggregator_pipeline()
+    Pipeline.test_sequential_pipeline()
+    Pipeline.test_aggregator_pipeline()
 
 
         
