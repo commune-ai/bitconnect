@@ -1,0 +1,3 @@
+module: gradio.pipline.module.TestGradio
+
+client : {}

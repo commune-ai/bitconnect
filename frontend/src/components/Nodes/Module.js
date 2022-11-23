@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
-import { Handle, Position } from "react-flow-renderer"
+import { Handle, Position, getOutgoers, useReactFlow, useStoreApi } from "react-flow-renderer"
 import {TbResize} from 'react-icons/tb'
 import {BiCube, BiRefresh} from 'react-icons/bi'
 import {BsTrash} from 'react-icons/bs'
@@ -13,23 +13,17 @@ const MINIMUM_HEIGHT = 600;
 const MINIMUM_WIDTH = 540; 
 
 
-//create your forceUpdate hook
-// function useForceUpdate(){
-//     console.log("called")
-//     const [value, setValue] = useState(0); // integer state
-//     return () => setValue(value => value + 1); // update state to force render
-//     // An function that increment 👆🏻 the previous state like here 
-//     // is better than directly setting `value + 1`
-// }
-
 export default function ModuleFrame({id, data}){
     const [collapsed, setCollapsible] = useState(true)
-    const [{width, height}, api] = useSpring(() => ({width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT }))
     const [sizeAdjuster, setSizeAdjuster] = useState(true)
     const [reachable ,setReachable] = useState(false)
-    // const forceUpdate = useForceUpdate();
+    const [{width, height}, api] = useSpring(() => ({width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT }))
     const dragElement = useRef()
 
+    const store = useStoreApi()
+    const { setNodes, getNode , getEdges, getNodes} = useReactFlow();
+
+    // console.log(data)
     const bind = useDrag((state) => {
       const isResizing = (state?.event.target === dragElement.current);
       if (isResizing) {
@@ -48,9 +42,44 @@ export default function ModuleFrame({id, data}){
       },
     });
 
+    useEffect(() => {
+      if (data.output === []) return
+      console.log("DATA CHANGE HERE", data.output)
+      const node = getNode(id);
+      var modules = [];
 
-    const isFetchable = useCallback(async () => {
-      return fetch(data.host, {mode: 'no-cors'}).then((res) => {
+      getOutgoers(node, getNodes(), getEdges()).forEach((nde) => {
+        if (["custom", "process"].includes(nde.type)){
+            modules.push(nde)
+          }   
+      })
+      modules.forEach(async (mod) => {
+        var output;
+        if (mod.type === "custom"){
+        //    fetch using host and concat  `${data.host}/run/predict` (1st Iteration)
+          output = await fetch(`${mod.data.host}/run/predict`, 
+          { method: 'POST',
+            mode : 'cors',
+            headers: {'Content-Type': 'application/json' },
+            body : JSON.stringify({ data : [...data.output]}) })
+            .then((response) => response.json())
+            .then((res) => {setNodes((nds) => nds.map((node) => {
+              if (node.id === mod.id){
+                node.data = {
+                  ...node.data,
+                  output : res.data
+                }
+              } 
+              return node
+            }))})
+        //    ...fetch tablular function   `${data.host}/run/predict_n`(2nd Iteration)
+        }
+      })
+    },[data.output])
+
+    const isFetchable = useCallback(async (host) => {
+      if (host === '') return false
+      return fetch(host, {mode: 'no-cors'}).then((res) => {
         return true
       }).catch((err)=>{
         return false
@@ -58,24 +87,26 @@ export default function ModuleFrame({id, data}){
     },[data])
 
     const handelServerRender = useCallback(async () => {
+      
       if (!collapsed){
         return setCollapsible((clps) => !clps)
       } else {
-          const reach = await isFetchable()
+          const reach = await isFetchable(data.host)
           return reach ? setCollapsible((clps) => !clps) : data.notification()
       }
     }, [isFetchable, setCollapsible, collapsed, data] )
 
     useEffect(() => {
-      const fetched = setInterval(
-        async () => {
-          const fetch = await isFetchable()
-          if (fetch){
-            setReachable(true)
-            clearInterval(fetched)
-          }
-        },1000) 
-    },[isFetchable])
+      var trials = 0;
+          const fetched = setInterval(
+          async () => {
+            const fetch = await isFetchable(data.host)
+                if (fetch || trials > 10){
+                  fetch && setReachable(true)
+                      clearInterval(fetched)} 
+                    trials++},1000) 
+              
+    },[getNode(id).data.host])
 
 
     return (
@@ -94,7 +125,7 @@ export default function ModuleFrame({id, data}){
 
       { !collapsed && reachable && <>
           <animated.div className={`border-dashed  ${sizeAdjuster ? 'border-4 dark:border-white border-black' : ''} relative top-0 left-0 z-[1000] touch-none shadow-lg rounded-xl`} style={{width, height }} {...bind()}>
-            <div id="draggable" className={`absolute h-full w-full ${data.colour} shadow-2xl rounded-xl -z-20`}></div>
+            <div className={`absolute h-full w-full ${data.colour} shadow-2xl rounded-xl -z-20`}></div>
             <iframe id="iframe" 
                         src={data.host} 
                         title={data.label}
@@ -105,18 +136,18 @@ export default function ModuleFrame({id, data}){
             </animated.div>
             </>
         }
-
+        { data.module === "gradio" && 
+        <>
             <Handle type="target"
                     id="input"
                     position={Position.Left}
                     style={{"paddingRight" : "5px" , "marginTop" : "15px", "height" : "25px", "width" : "25px",  "borderRadius" : "3px", "zIndex" : "10000", "background" : "white", "boxShadow" : "3px 3px #888888"}}/>
                   
-                  {/*Output*/}
             <Handle type="source"
                     id="output"
                     position={Position.Right}
                     style={{"paddingLeft" : "5px", "marginTop" : "15px" ,"height" : "25px", "width" : "25px",  "borderRadius" : "3px", "zIndex" : "10000", "background" : "white", "boxShadow" : "3px 3px #888888", 'position' : 'absolute'}}/>
-                    
+        </>}           
         { collapsed  &&
               <div id={`draggable`}
                    className={` w-[340px] h-[140px]  text-white text-md flex flex-col text-center items-center cursor-grab shadow-lg

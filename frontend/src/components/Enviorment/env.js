@@ -2,8 +2,10 @@ import ReactFlow, { Background,
                     applyNodeChanges,
                     ReactFlowProvider,
                     addEdge,
+                    addNode,
                     updateEdge,
                     applyEdgeChanges,
+                    getOutgoers,
                     Controls,
                     MarkerType,
                     } from 'react-flow-renderer';
@@ -79,80 +81,87 @@ export default function Flow() {
     const onEdgeUpdate = useCallback(
       (oldEdge, newConnection) => {
 
-        // if the edges already exist then
-        // do not update the edge or if the 
-        // newConnection target is not a bundle-node-args__custom (bundle)
-        // then if the connection already contains a conection then do not
-        // update
-        if ((edges.filter((eds) => eds.source === newConnection.source && eds.target === newConnection.target).length === 1)||
-            (!newConnection.target.includes('bundle-node-args__custom-') && edges.filter((eds) => eds.target === newConnection.target).length === 1)) return 
+        // // if the edges already exist then
+        // // do not update the edge or if the 
+        // // newConnection target is not a bundle-node-args__custom (bundle)
+        // // then if the connection already contains a conection then do not
+        // // update
+        // if ((edges.filter((eds) => eds.source === newConnection.source && eds.target === newConnection.target).length === 1)||
+        //     (!newConnection.target.includes('bundle-node-args__custom-') && edges.filter((eds) => eds.target === newConnection.target).length === 1)) return 
         
-        // set the connection        
-        if (newConnection.target.includes("bundle-node-args__custom") ){
+        // // set the connection        
+        // if (newConnection.target.includes("bundle-node-args__custom") ){
           
-          // if the new connection is bundle then
-          // update the arguments and add new
-          // node.
+        //   // if the new connection is bundle then
+        //   // update the arguments and add new
+        //   // node.
           
-          setNodes((nds) => nds.filter((node) => {
-            if (node.id === newConnection.target){
-                node.data = {
-                  ...node.data,
-                  args: [...node.data.args, nds.find((n)=> newConnection.source === n.id)],
-                };
-                if (node.data.args.length === 0){
-                  setEdges((eds) => eds.filter(edge => edge.source !== node.id))
-                  setNodes((nds) => nds.filter(n => n.id !== node.id))                
-                  return false
-                }
-              } 
-              return true
-            }))
+        //   setNodes((nds) => nds.filter((node) => {
+        //     if (node.id === newConnection.target){
+        //         node.data = {
+        //           ...node.data,
+        //           args: [...node.data.args, nds.find((n)=> newConnection.source === n.id)],
+        //         };
+        //         if (node.data.args.length === 0){
+        //           setEdges((eds) => eds.filter(edge => edge.source !== node.id))
+        //           setNodes((nds) => nds.filter(n => n.id !== node.id))                
+        //           return false
+        //         }
+        //       } 
+        //       return true
+        //     }))
           
-        }
+        // }
         
-        if (oldEdge.target.includes('bundle-node-args__custom')){
-            // if the old connection is a bundle also
-            // a bundle then delete the connection from 
-            // the arguments
-            setNodes((nds) => nds.filter((node) => {
-            if (node.id === oldEdge.target){
-              node.data = {
-                ...node.data,
-                args: node.data.args.filter((n) => n.id !== oldEdge.source)
-              }
-              if (node.data.args.length === 0){
-                setEdges((eds) => eds.filter(edge => edge.source !== node.id))
-                setNodes((nds) => nds.filter(n => n.id !== node.id))                
-                return false
-              }
-            }
-            return true
-             }))
+        // if (oldEdge.target.includes('bundle-node-args__custom')){
+        //     // if the old connection is a bundle also
+        //     // a bundle then delete the connection from 
+        //     // the arguments
+        //     setNodes((nds) => nds.filter((node) => {
+        //     if (node.id === oldEdge.target){
+        //       node.data = {
+        //         ...node.data,
+        //         args: node.data.args.filter((n) => n.id !== oldEdge.source)
+        //       }
+        //       if (node.data.args.length === 0){
+        //         setEdges((eds) => eds.filter(edge => edge.source !== node.id))
+        //         setNodes((nds) => nds.filter(n => n.id !== node.id))                
+        //         return false
+        //       }
+        //     }
+        //     return true
+        //      }))
 
-          }
+        //   }
           setEdges((els) => updateEdge(oldEdge, newConnection, els))
 
         },
-      [edges]
+      []
     );
 
     // =======================
     // Node's & Edge's Remove
     // ======================= 
-    const deleteEdge = useCallback(({id, source, target}) => {
-      setEdges((eds) => eds.filter(e => e.id !== id))
-      console.log(target)
-      if(target.includes("bundle-node-args__custom")) {
+    const deleteEdge = useCallback(async (edge, handle) => {
+      var connection = null
+      console.log(edge, handle)
+      try {
+         connection = reactFlowInstance.getNode(handle)
+      }catch(err) {
+        return 
+      }
+
+      console.log("Connection",connection)
+      if(connection.type === "bundle") {
         setNodes((nds) => {
           return nds.filter(node => {
-            if(node.id === target){
+            if(node.id === edge.target){
               node.data ={
                 ...node.data,
-                args : node.data.args.filter((n) => n.id !== source)
+                args : node.data.args.filter((n) => n.id !== edge.source)
               }
               if (node.data.args.length === 0){
-                setEdges((eds) => eds.filter(edge => edge.source !== node.id))
+                setEdges((eds) => eds.filter(edg => edg.source !== node.id))
                 setNodes((nds) => nds.filter(n => n.id !== node.id))
                 return false
               }
@@ -160,57 +169,107 @@ export default function Flow() {
             return true
           })
         })
-
-
-      } else {
-        fetch(`http://localhost:8000/rm_chain?${new URLSearchParams({a: source, b: target})}`, {method : "GET", mode: 'cors'}).then(res => res.json())
+      } else if (connection.type === "process") {
+        setNodes(nds => nds.filter((node) => {
+          if (node.id === connection.id){
+            
+            node.data = {
+              ...node.data,
+              args : node.data.args.filter((n) => n !== edge.source)
+            }
+            if (node.data.args.length === 0){
+              setEdges((eds) => eds.filter(edg => edg.source !== node.id))
+            }
+          }
+          return true
+        }))
+      } else if (connection.type === "custom") {
+        setNodes(nds => nds.filter((node) => {
+          if (node.id === connection.id){
+            node.data = {
+              ...node.data,
+              args : node.data.args.filter((n) => n !== edge.source)
+            }
+          }
+          return true
+        }))
       }
+       // else {
+      //   fetch(`http://localhost:8000/rm_chain?${new URLSearchParams({a: source, b: target})}`, {method : "GET", mode: 'cors'}).then(res => res.json())
+      // }
+      setEdges((eds) => eds.filter(e => e.id !== edge.id))
 
-    }, [setEdges, setNodes])
+    }, [setEdges, setNodes, reactFlowInstance])
 
+
+    const deleteEdges = useCallback((source) => {
+      const edges =  reactFlowInstance.getEdges().filter((eds) => (eds.source === source || eds.target === source))
+      edges.forEach((edge) => {
+        console.log(edge)
+        deleteEdge(edge, source === edge.source ? edge.target : edge.source)
+      })
+    }, [reactFlowInstance])
 
     // ==================
     // Delete Node
     // ==================
     const deleteNode = useCallback((_) =>{
-      
-      setEdges((eds) => eds.filter(e => e.target !== _[0].id || e.source !== _[0].id))
 
       if (_[0].type === "customInput"){
-
-        const bundle_connection = nodes.filter(nds => nds.type === "bundle" && nds.data.args.map(c => c.id).includes(_[0].id)).map(n => n.id)
+        // const bundle_connection = nodes.filter(nds => nds.type === "bundle" && nds.data.args.map(c => c.id).includes(_[0].id)).map(n => n.id)
         setNodes((nds)=>{
-          return nds.filter(node => {
-            if (node.id === _[0].id) return false
-            else if (bundle_connection.includes(node.id)){
-              
-              node.data = {
-                ...node.data,
-                args : node.data.args.filter(n => n.id !== _[0].id)
-              }
-              console.log(node.data.args, edges)
-
-              if (node.data.args.length === 0){
-                setEdges((eds) => eds.filter(e => e.source !== node.id))
-                return false
-              }
+          return nds.filter( async node => {
+            if (node.id === _[0].id) {
+              await deleteEdges(node.id)
+              return false
             }
             return true
           }) })
+
         return // end function
 
       } else if(_[0].type === "bundle"){
-
-        setNodes((nds) => nds.filter(n => n.id !== _[0].id ))
-        return // end function 
-      
-      } else{
         
-        const metadata = _[0].id.split("-")
-        fetch(`http://localhost:8000/rm?${new URLSearchParams({module: metadata[0], port: metadata[1]})}`, {method : "GET", mode: 'cors'}).then(res => res.json())
-        setNodes((nds) => nds.filter(n => n.id !== _[0].id ))
+        reactFlowInstance.getEdges(_[0].id).map((conn) => {
+          const node = reactFlowInstance.getNode(conn.target)
+          if(node.type === 'custom'){
+            setNodes(nds => nds.map((n) => {
+              if (n.id === conn.target){
+                n.data = {
+                  ...n.data,
+                  batch : n.data.batch.filter((b)=> b.includes(_[0].data.args))
+                }
+              }
+              return n
+            }))
+          }
+        })
         return // end function 
       
+      } else {
+        fetch(`http://localhost:8000/ls_ports`, {method : "GET", mode: 'cors'}).then(res => res.json()).then((r) => {
+          r.forEach((port) => {
+            console.log(!nodes.map((node) => node.data.port).includes(port) )
+            if (! nodes.map((node) => node.data.port).includes(port)){
+              fetch(`http://localhost:8000/rm?${new URLSearchParams({port: port})}`, {method : "GET", mode: 'cors'})
+            }
+          })
+        })
+          const node = reactFlowInstance.getNode(_[0].id)
+          setNodes((nds) => nds.filter(n => n.id !== node.id ))
+          let p = new Promise(async (resolve, reject) => {
+                setTimeout(() => {
+                  if (node.data.port === undefined){
+
+                  } else {
+                    resolve(node.data.port)
+                    fetch(`http://localhost:8000/rm?${new URLSearchParams({module: node.data.module, port: node.data.port})}`, {method : "GET", mode: 'cors'}).then(res => res.json())
+
+                  }
+                  }, 1000)
+          })          
+          return // end function 
+
       }
     }, [nodes, edges, setEdges, setNodes])
 
@@ -219,31 +278,17 @@ export default function Flow() {
     // ======================= 
     const onConnect = useCallback(
       (params) => {
-        
-       if ((params.source.includes('bundle-node-args__custom-') && params.target.includes('bundle-node-args__custom-'))
-       || (edges.filter((eds) => eds.source === params.source && eds.target === params.target).length === 1)
-       || ((!params.target.includes('bundle-node-args__custom-')
-       && edges.filter((eds) => eds.target === params.target).length === 1))) return 
-        
-        setEdges((els) => addEdge({...params, type: "custom", animated : true, style : {strokeWidth : "6"}, markerEnd: {type: MarkerType.ArrowClosed}, data : { delete : deleteEdge}}, els))
-        
-        // if (params.target.includes("bundle-node-args__custom-process-node__custom__")){
-        //   setNodes(nodes.map((nds) => {
-        //     if (nds.id === params.target){
-        //         const node = nodes.find((n) => n.id === params.source)
-        //         nds.data = {
-        //           ...nds.data,
-        //           args: [...nds.data.args, node], 
-        //         };
-        //       }
-        //       return nds
-        //   }))
-        // } else 
-        if (params.target.includes("bundle-node-args__custom")){
-          
+       const source = reactFlowInstance.getNode(params.source);
+       const target = reactFlowInstance.getNode(params.target);
+
+       if (source.type === "bundle" && target.type === "bundle") return
+       if (source.type === "bundle") return
+       setEdges((els) => addEdge({...params, type: "custom", animated : true, style : {strokeWidth : "6"}, markerEnd: {type: MarkerType.ArrowClosed}, data : { delete : deleteEdge}}, els))
+
+        if (target.type === "bundle"){
           setNodes(nodes.map((nds) => {
             if (nds.id === params.target){
-                const node = nodes.find((n) => n.id === params.source)
+              const node = reactFlowInstance.getNode(params.source)
                 nds.data = {
                   ...nds.data,
                   args: [...nds.data.args, node],
@@ -251,12 +296,41 @@ export default function Flow() {
               }
               return nds
           }))
-        }else {
-          fetch(`http://localhost:8000/add_chain?${new URLSearchParams({a : params.source, b : params.target})}`, {method : "GET", mode : 'cors', }).then( res => {res.json()}).catch(error => {console.error(error)})
+        } else if (target.type === "custom") {
+          setNodes((nodes) => nodes.map((nds) => {
+            if (nds.id === target.id){
+              const node = reactFlowInstance.getNode(params.source)
+              const batch = node.type === "bundle" ? node.data.args.map(arg => arg.id) : [node.id]
+              if (target.type === "bundle")
+                nds.data ={
+                ...nds.data,
+                batch : [...nds.data.batch, batch]
+              }
+              else 
+                nds.data ={
+                  ...nds.data,
+                  args : [...nds.data.args, ...batch]
+              }
+            }
+            return nds 
+          }))
+          //fetch(`http://localhost:8000/add_chain?${new URLSearchParams({a : params.source, b : params.target})}`, {method : "GET", mode : 'cors', }).then( res => {res.json()}).catch(error => {console.error(error)})
+        } else if (target.type === "process"){
+          setNodes((nodes) => nodes.map((nds) => {
+            if (nds.id === target.id){
+              const node = reactFlowInstance.getNode(params.source)
+              const batch = node.type === "bundle" ? node.data.args.map(arg => arg.id) : [node.id]
+              nds.data ={
+                ...nds.data,
+                args : [...nds.data.args, ...batch]
+              }
+            }
+            return nds 
+          }))
         }
         
       },
-      [setEdges, setNodes, nodes, edges, deleteEdge]
+      [setEdges, setNodes, deleteEdge, reactFlowInstance]
     );
 
     
@@ -307,7 +381,7 @@ export default function Flow() {
           event.preventDefault();
           
           // react flow bounds
-          const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
+          // const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
           
           const type = event.dataTransfer.getData('application/reactflow');
 
@@ -317,33 +391,52 @@ export default function Flow() {
           
           // postion of drop on the react flow environment 
           const position = reactFlowInstance.project({
-            x: event.clientX - reactFlowBounds.left,
-            y: event.clientY - reactFlowBounds.top,
+            x: event.clientX,
+            y: event.clientY,
           });
-       
+
           if(type === "custom"){
           
           const item  = event.dataTransfer.getData('application/item');
           const style = JSON.parse(event.dataTransfer.getData('application/style'));
+          
+          const newNode = {
+            id: `${item}__custom-${uuidv4()}`,
+            type,
+            position,
+            dragHandle : `#draggable`,
+            data: { 
+                    label  : `${item}`,
+                    host   : '',
+                    colour : `${style.colour}`,
+                    emoji  : `${style.emoji}`,
+                    module : `${style.stream}`,
+                    delete : deleteNode,
+                    batch  : [],
+                    args   : [],
+                    output   : [],
+                    notification : notify },};
+      setNodes((nds) => nds.concat(newNode));    
 
-          fetch(`http://localhost:8000/add?${new URLSearchParams({module: item, mode : style.stream})}`, {method : "GET", mode: 'cors'}).then(
-            (res) => res.json()).then( (data) =>{ 
-                const newNode = {
-                  id: `${item}-${data.port}-${uuidv4()}`,
-                  type,
-                  position,
-                  dragHandle : `#draggable`,
-                  data: { 
-                          label: `${item}`,
-                          host : `http://localhost:${data.port}`,
-                          colour : `${style.colour}`,
-                          emoji : `${style.emoji}`,
-                          delete : deleteNode,
-                          notification : notify },};
-                  setNodes((nds) => nds.concat(newNode));                  
-                })
+      fetch(`http://localhost:8000/add?${new URLSearchParams({module: newNode.data.label, mode : newNode.data.module})}`, {method : "GET", mode: 'cors'}).then(
+            (res) => res.json()).then( (data) =>{
+
+              
+              setNodes((nds) => nds.map((node) => {
+                  if (node.id === newNode.id){
+                    node.data = {
+                      ...node.data,
+                      host : `http://localhost:${data.port}`,
+                      port : data.port.toString(),
+                    }
+                  }
+                  return node
+                }))
+            })
+              
           
           } else if (type === "process"){
+
             const item  = event.dataTransfer.getData('application/item');
             const style = JSON.parse(event.dataTransfer.getData('application/style'));
 
@@ -351,7 +444,14 @@ export default function Flow() {
               id: `bundle-node-args__custom-process-node__custom__${item}__-${uuidv4()}`,
               type,
               position,
-              data: { module : item, fn : style.fn, args : [], kwargs : [], config : {actor : false, cpus : 0, gpus : 0 , refresh : false, fn : "" },  colour : style.colour, emoji : style.emoji}, };
+              data: { module : item,
+                      fn : style.fn,
+                      args : [], 
+                      kwargs : [], 
+                      batch : [], 
+                      config : {actor : false, cpus : 0, gpus : 0 , refresh : false, fn : "" }, 
+                      colour : style.colour,
+                      emoji : style.emoji}, };
               setNodes((nds) => nds.concat(newNode));  
 
           } else { 
@@ -359,7 +459,7 @@ export default function Flow() {
               id: `input-node__custom-${uuidv4()}`,
               type,
               position,
-              data: { dtype: "NoneType", value: null },};
+              data: { dtype: "String", value: "" },};
               setNodes((nds) => nds.concat(newNode));                  
           }
 
@@ -369,7 +469,7 @@ export default function Flow() {
     return (
       <div className={`${theme ? "dark" : ""}`}>          
         
-        <div className={` absolute text-center ${tool ? "h-[90px]" : "h-[41px]"} overflow-hidden w-[41px] text-4xl top-4 right-5 z-50 cursor-default select-none bg-white dark:bg-stone-900 rounded-full border border-black dark:border-white duration-500`}  >
+        <div className={` fixed text-center shadow-lg ${tool ? "h-[90px]" : "h-[41px]"} overflow-hidden w-[41px] text-4xl top-4 right-5 z-50 cursor-default select-none bg-white dark:bg-stone-900 rounded-full border border-black dark:border-white duration-500`}  >
           <CgMoreVerticalAlt className={` text-black dark:text-white ${tool ? "-rotate-0 mr-auto ml-auto mt-1" : " rotate-180 mr-auto ml-auto mt-1"}  duration-500`} onClick={() => setTool(!tool)}/>
           <h1 title={theme ? 'Dark Mode' : 'Light Mode'} className={`p-4 px-1 pb-2 ${tool ? "visible" : "invisible"} text-3xl`} onClick={() => setTheme(!theme)} >{theme  ? '🌙' : '☀️'}</h1> 
         </div>
@@ -385,12 +485,12 @@ export default function Flow() {
                          nodeTypes={NODE}
                          edgeTypes={EDGE}
                          onNodesChange={onNodesChange}
-                         onNodesDelete={deleteNode}
                          onEdgesChange={onEdgesChange}
                          onEdgeUpdate={onEdgeUpdate}
                          onConnect={onConnect}
                          onConnectStart={onConnectStart}
                          onConnectStop={onConnectEnd}
+                         onNodesDelete={deleteNode}
                          onDragOver={onDragOver}
                          onDrop={onDrop}
                          onInit={setReactFlowInstance}

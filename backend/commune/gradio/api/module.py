@@ -8,6 +8,7 @@ import socket
 from signal import SIGKILL
 from psutil import process_iter
 from commune.utils import *
+from commune import Module
 from copy import deepcopy
 # from commune.thread import PriorityThreadPoolExecutor
 import argparse
@@ -463,8 +464,10 @@ class GradioModule(commune.Module):
 
         for simple, full in modules.items():
             try:
-                dict_stdout[simple] = { 'gradio' : hasattr(self.get_object(full), 'gradio'), 'streamlit' : hasattr(self.get_object(full), 'streamlit'), 'fn' : dir(self.get_object(full)) }
+                module = self.get_object(full)
+                dict_stdout[simple] = { 'gradio' : hasattr(module, 'gradio'), 'streamlit' : hasattr(module, 'streamlit'), 'fn' :   [fn for fn in Module.functions(module)]   }
             except Exception as e:
+                print(e)
                 continue
         return dict_stdout
 
@@ -653,7 +656,7 @@ async def module_rm(module:str=None, port:str=None, name:str=None):
             if f"{module}-{port}" in link:
                 value.remove(link)
         
-    return self.rm(port=port, module=module)
+    return self.rm(port=port)
 
 @app.get("/rm_all")
 async def module_rm_all(module:str=None, ):

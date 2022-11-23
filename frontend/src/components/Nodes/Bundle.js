@@ -1,10 +1,14 @@
-import React from "react"
-import { Handle, Position} from "react-flow-renderer"
+import React, { useEffect } from "react"
+import { Handle, Position, useStoreApi} from "react-flow-renderer"
 
 import '../../css/dist/output.css'
 
 
 export default function Bundle({id, data}){
+
+    const store = useStoreApi();
+    // const {getNodes, getNode, getEdges} = useReactFlow()
+    // const { nodeInternals, onNodesChange, onEdgesChange, edges} = store.getState()
 
     return (
     <div className="w-[300px] border-2 rounded-lg shadow-lg border-black bg-white dark:bg-stone-800 dark:border-white duration-300">

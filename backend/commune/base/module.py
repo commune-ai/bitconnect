@@ -1530,7 +1530,6 @@ class Module:
 
         args = json.loads(input_args.args)
         assert isinstance(args, list)
-
         getattr(cls, input_args.function)(*args, **kwargs)
     
 

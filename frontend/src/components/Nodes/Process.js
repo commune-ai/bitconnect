@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react"
+import React, { useState, useCallback, useRef } from "react"
 import { Handle, Position, useReactFlow, useStoreApi } from "react-flow-renderer"
 
 import '../../css/dist/output.css'
@@ -12,7 +12,10 @@ export default function Process({id, data}){
     const [item, setItem] = useState(false)    
     const [open, setOpen] = useState(false)
     const [actor, setActor] = useState(false)
+    const [fn, setFunction] = useState("")
     
+    const searchRef = useRef(null);
+
     const { setNodes, getEdges, getNode } = useReactFlow();
     const store = useStoreApi();
     //module : item, fn : style.fn, kwargs : {}, args : [], actor : { cpus : 1, gpus : 0 }, colour : style.colour, emoji : style.emoji},
@@ -21,6 +24,10 @@ export default function Process({id, data}){
 
     const onChange = useCallback((key, value) => {
       const { nodeInternals } = store.getState();
+      
+      if (key==="fn")
+        setFunction(value)
+
       setNodes(
         Array.from(nodeInternals.values()).map((node) => {
           if (node.id === id) {
@@ -32,7 +39,7 @@ export default function Process({id, data}){
           return node;
         })
       );
-    }, [id, setNodes, store])
+    }, [id, setNodes, store, searchRef])
 
     
     return (
@@ -42,15 +49,43 @@ export default function Process({id, data}){
         {/* <div className=" absolute -mt-2 text-4xl opacity-60 z-10 ">{`${data.emoji}`} </div>     */}
         <h4 className={`max-w-full font-sans text-Deep-Space-Black dark:text-blue-50  leading-tight font-bold text-xl flex-1 z-20 pb-2`} style={{"textShadow" : "0px 1px 2px rgba(0, 0, 0, 0.25)"}} >{data.module}</h4>
 
-    <div className="flex px-10 rounded-lg">
-        <span className="inline-flex items-center px-3 text-sm text-gray-900 bg-gray-200 rounded-l-md border border-r-0 border-gray-300 dark:bg-stone-700 dark:text-gray-200 dark:border-gray-300">fn</span>
-        <input type="text"
+    {/* <div className="flex px-10 rounded-lg">
+        <div className="flex relative inset-y-0 left-0 items-center pl-3 pointer-events-none z-[1000]">
+            <svg aria-hidden="true" className="w-4 h-4 text-gray-500 dark:text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          </div>
+        <input 
+          type="search"
           id="text-function"
-          onChange={(e)=> onChange("fn", e.target.value)}
-          className="rounded-none rounded-r-lg bg-gray-50 border text-gray-900 focus:ring-1 focus:shadow-lg focus:ring-[#7b3fe4] focus:border-[#7b3fe4] block flex-1 min-w-0 w-full text-sm border-gray-300 p-2.5 dark:bg-stone-800 dark:border-gray-300 dark:placeholder-gray-400 dark:text-white dark:focus:ring-[#8b5bde] dark:focus:border-[#7b3fe4]"
+          ref={searchRef}
+          onChange={()=> onChange("fn", searchRef.current.value)}
+          className="rounded-lg bg-gray-50 border text-gray-900 focus:ring-1 focus:shadow-lg focus:ring-[#7b3fe4] focus:border-[#7b3fe4] block flex-1 min-w-0 w-full text-sm border-gray-300 p-2.5 dark:bg-stone-800 dark:border-gray-300 dark:placeholder-gray-400 dark:text-white dark:focus:ring-[#8b5bde] dark:focus:border-[#7b3fe4]"
           placeholder="Function"></input>
-      </div>
+
+    </div> */}
+      <form>
+        <div className="relative ml-2 px-10">
+          <div className="flex absolute inset-y-0 left-10 items-center pl-3 pointer-events-none">
+            <svg aria-hidden="true" className="w-6 h-6 text-gray-500 dark:text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          </div>
+          <input type="search"
+                 name="search"
+                 id="default-search"
+                 ref={searchRef} 
+                 onChange={() => onChange("fn", searchRef.current.value)}
+                 className="block p-2 pl-10 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-1 focus:shadow-lg focus:ring-[#7b3fe4] focus:border-[#7b3fe4] dark:bg-stone-800 dark:border-gray-600 dark:placeholder-gray-300 focus:placeholder-gray-100 dark:text-white dark:focus:ring-[#7b3fe4] dark:focus:border-[#7b3fe4]"
+                 placeholder="Search for Functions..." required/>
+        </div>
+
+      {/* <div className="items-center">
+        {data.fn.filter((f) => f.includes(fn) ).map((fn) => (
+        <div className="  w-full font-sans text-white bg-stone-700">
+          {fn}
+        </div>))}
+      </div> */}
+      </form>
+
     
+
       <div className={` ml-10 mt-5 w-14 h-7 flex items-center border-2 bg-white ${actor ? 'border-blue-400' : '' } shadow-xl rounded-full p-1 cursor-pointer float-left duration-300 `} onClick={() => {setActor((act) => {onChange("actor", !act); return !act});}}>
                         <Ray className=" absolute w-7 h-7 translate-x-5"/>
                         <div className={`border-2 h-[1.57rem] w-[1.57rem] rounded-full shadow-md transform duration-300 ease-in-out  ${actor ? ' bg-blue-400 transform -translate-x-[0.19rem]' : " bg-white transform translate-x-[1.42rem] "}`}></div>
@@ -95,11 +130,18 @@ export default function Process({id, data}){
 
 
     <ul className="rounded-lg px-5 z-20">
-    {data.args.map((value) => {
+    {/* {console.log(data.args)} */}
+    {["String", "String"].map((value) => {
         return (
         <li className={` h-10 text-md flex flex-col text-center items-center cursor-grab shadow-lg p-8 mt-3 mb-3 rounded-md  break-all -z-20 duration-300 bg-gray-200 hover:bg-gray-100 dark:bg-zinc-700 dark:hover:bg-zinc-600`}>
         <div className=" absolute -mt-2 text-4xl opacity-60"></div>    
-        <h4 className={`max-w-full font-sans dark:text-blue-50 text-black leading-tight font-bold text-xl flex-1 -mt-3`} style={{"textShadow" : "0px 1px 2px rgba(0, 0, 0, 0.25)"}} >{value.data.dtype}</h4>
+        {/* {getNode(value).data.dtype} */}
+        <h4 className={`max-w-full font-sans dark:text-blue-50 text-black leading-tight font-bold text-xl flex-1 -mt-3`} style={{"textShadow" : "0px 1px 2px rgba(0, 0, 0, 0.25)"}} >{value}</h4>
+        {/* <Handle type="source"
+                id="output"
+                className=" relative right-0"
+                style={{ "height" : "25px", "width" : "25px",  "borderRadius" : "3px", "zIndex" : "10000", "background" : "white", "boxShadow" : "3px 3px #888888", 'position' : 'absolute'}}/>
+       */}
     </li>
     )} )}
     </ul>
@@ -111,18 +153,16 @@ export default function Process({id, data}){
             </pre>
         </div>
     </div>
-
+  
     <Handle type="target"
                 id="input"
                 position={Position.Left}
                 style={{"marginLeft" : "-10px" , "marginTop" : "0px", "height" : "25px", "width" : "25px",  "borderRadius" : "3px", "zIndex" : "10000", "background" : "white", "boxShadow" : "3px 3px #888888"}}/>
-              
-
     <Handle type="source"
                 id="output"
                 position={Position.Right}
                 style={{"marginRight" : "-10px", "marginTop" : "0px" ,"height" : "25px", "width" : "25px",  "borderRadius" : "3px", "zIndex" : "10000", "background" : "white", "boxShadow" : "3px 3px #888888", 'position' : 'absolute'}}/>
-
+   
 
     </div>
     </div>)

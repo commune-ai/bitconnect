@@ -13,18 +13,25 @@ from commune.utils import SimpleNamespace
 
 class ExampleModule(Module):
     default_config_path =  'gradio.example'
-    def bro(self, input1=1, inpupt2=10, output_example={'bro': 1}):
-        pass
+    
+    def bro(self, input1 : str, inpupt2 : str) -> str:
+        return ""
+
+    def fn(self, input : str) -> str:
+        return "Hello World"
 
     @classmethod
     def gradio(cls):
-        return gr.Interface(lambda inputs : f'Hello {inputs}, welcome to the gradio example', inputs="text", outputs='text')        
+        return gr.Interface(lambda inputs : f"Hello Welcome, {inputs}. This is a Test", inputs="text", outputs='text')      
 
     @classmethod
     def streamlit(cls):
         st.write("Hello World")
-        st.write("")
+        st.write("This function is a inherited from Class Module which allows the API to check if this function is Streamlit streamable")
 
 if __name__ == "__main__":
     ExampleModule().run()
+
+
+
 
