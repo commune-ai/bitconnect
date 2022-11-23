@@ -137,7 +137,13 @@ export default class Navbar extends Component{
         </>)
     }
 
+<<<<<<< HEAD
     InputCompnents(param){
+=======
+<<<<<<< HEAD
+=======
+    inputCompnents(){
+>>>>>>> 80464945cc7e284bdc13b838cf648407f2b98c7c
         return (<>
                 <li onDragStart={(event) => param.onDragStart(event, 'customInput', {})}
                     className={`text-md flex flex-col text-center items-center cursor-grab shadow-sm hover:shadow-xl
@@ -156,6 +162,7 @@ export default class Navbar extends Component{
         </>)
     }
     
+>>>>>>> fd926ecf2fa48a23e5fec18c84fb4cf28d09417f
     render(){
         
         return (<div>
@@ -190,6 +197,7 @@ export default class Navbar extends Component{
 
                 </div>
 
+<<<<<<< HEAD
                 <div className={`flex w-full border-2 border-solid border-black rounded-lg dark:border-white  duration-300 hover:shadow-2xl ${this.state.open ? 'mb-5' : 'hidden'}`}>
                     <div className="flex w-full dark:bg-stone-900 hover:animate-pulse rounded-lg">
                         <div className=" flex m-auto p-1">
@@ -197,6 +205,12 @@ export default class Navbar extends Component{
                             {/* <h4 className={` font-sans dark:text-blue-50 text-black leading-tight font-bold text-xl z-20 mt-2   ${this.state.open ? "" : "hidden"}`} style={{"textShadow" : "0px 1px 2px rgba(0, 0, 0, 0.25)"}} >Spaces</h4> */}
                         </div>
                     </div>
+=======
+<<<<<<< HEAD
+
+=======
+>>>>>>> fd926ecf2fa48a23e5fec18c84fb4cf28d09417f
+>>>>>>> 80464945cc7e284bdc13b838cf648407f2b98c7c
                 </div>
                 <this.InputCompnents open={this.state.open} onDragStart={this.onDragStart}/>
                 <div className={` h-[80%] ${this.state.loading ? "overflow-hidden" : "overflow-auto"}`}>

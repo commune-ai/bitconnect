@@ -158,3 +158,7 @@ export default function ModuleFrame({id, data}){
         }
       </div>)
 }
+<<<<<<< HEAD:frontend/src/components/Nodes/Custom.js
+
+=======
+>>>>>>> fd926ecf2fa48a23e5fec18c84fb4cf28d09417f:frontend/src/components/Nodes/Module.js

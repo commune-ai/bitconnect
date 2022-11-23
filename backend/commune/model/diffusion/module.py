@@ -21,7 +21,6 @@ import torch
 import ray
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, LMSDiscreteScheduler
 
-
 class DiffuserModule(Module):
 
     default_mode = 'txt2img'
@@ -206,18 +205,24 @@ class DiffuserModule(Module):
 
     @classmethod
     def gradio(cls):
-        self = cls.deploy(actor={'refresh': False, 'resources': {'num_cpus': 2, 'num_gpus': 0.3}}, wrap=True)
+        cls.get_ray_context()
+        self = cls.launch(module='model.diffusion', actor={'refresh': True, 'resources': {'num_cpus': 2, 'num_gpus': 0.3}}, wrap=True)
 
         import gradio 
         functions, names = [], []
 
         fn_map = {}
 
-        img_dims = 256
-        fn_map['txt2image'] = {'fn': lambda text, steps : self.predict_txt2img(text, inf_steps=steps, height=img_dims, width=img_dims)[0], 
+        img_dims = 512
+        fn_map['txt2image'] = {'fn': lambda text, steps,img_dims  : self.predict_txt2img(text, inf_steps=steps, height=img_dims, width=img_dims), 
                         'inputs':[gradio.Textbox(label=f'Text', lines=3, placeholder=f"Elon Musk"),
-                                  gradio.Slider(label='Steps', minimum=1, maximum=1000 )],
-                        'outputs':[gradio.Pil(label='output', shape=(img_dims, img_dims))]}
+                                  gradio.Slider(label='Steps', minimum=1, maximum=50, step=5, value=20 ),
+                                  gradio.Slider(label='Dimensions', minimum=256, maximum=1024, step=128, value=512)],
+                        'outputs':[gradio.Image(label='output')]}
+
+
+
+        
 
 
         for fn_name, fn_obj in fn_map.items():
@@ -260,5 +265,6 @@ class DiffuserModule(Module):
     
 if __name__ == '__main__':
 
+    # DiffuserModule.ray_restart()
     DiffuserModule.run()
     

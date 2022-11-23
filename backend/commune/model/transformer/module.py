@@ -51,13 +51,18 @@ class TransformerModel(Module):
         
         outputs =  self.model.generate(input_ids.to(self.device))
 
+        return  outputs
         return self.tokenizer.decode(outputs[0])
 
+    @classmethod
+    def streamlit(self):
+        dataset = Module.launch('dataset.huggingface', actor=True, wrap=True)
+        # st.write(dataset.sample())
+        model = TransformerModel.deploy(actor={'refresh': False, 'resources': {'num_gpus': 0.2, 'num_cpus':2}, }, wrap=True)
+        st.write(model.tokenizer.decode(model.predict()[0]))
+        
+
 if __name__ == '__main__':
+    TransformerModel.run()
 
 
-    dataset = Module.launch('dataset.huggingface', actor=True, wrap=True)
-    # st.write(dataset.sample())
-    model = TransformerModel()
-    st.write(model.predict('HEY WHADUP'))
-    

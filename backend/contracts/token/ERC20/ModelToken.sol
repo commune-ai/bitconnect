@@ -98,19 +98,19 @@ contract ModelToken is Context, IERC20, IERC20Metadata {
         _ensure_dev(msg.sender);
     }
 
-    uint256 public  TOKENS_PER_CALL = 1
+    uint256 public  TOKENS_PER_CALL = 1;
     mapping(address=>uint256) public users2calls;
 
-    function set_tokens_per_call(uint256 ratio) returns (uint256){
+    function set_tokens_per_call(uint256 ratio) internal returns (uint256){
         
-        TOKENS_PER_CALL = ratio
-        return TOKENS_PER_CALL 
+        TOKENS_PER_CALL = ratio;
+        return TOKENS_PER_CALL;
     }
 
-    function bill_user_per_call(address user ) {
-        requre(_balances[user] > TOKENS_PER_CALL)
-        transferFrom(msg.sender, address(this), TOKENS_PER_CALL)
-        users2call_allowance[msg.sender] += num_calls
+    function bill_user_per_call(address user ) public {
+        require(_balances[user] > TOKENS_PER_CALL);
+        transferFrom(msg.sender, address(this), TOKENS_PER_CALL);
+        users2calls[msg.sender] += 1;
     }
 
     

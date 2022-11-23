@@ -854,13 +854,10 @@ video {
   height: 100vh;
 }
 
-.h-16 {
-  height: 4rem;
 }
 
 .h-7 {
   height: 1.75rem;
-}
 
 .h-\[1\.5rem\] {
   height: 1.5rem;
@@ -2243,7 +2240,16 @@ video {
   color: rgb(255 255 255 / var(--tw-text-opacity));
 }
 
+<<<<<<< HEAD
 .dark .dark\:focus\:border-\[\#7b3fe4\]:focus {
+=======
+.dark .dark\:hover\:border-purple-400:hover {
+  --tw-border-opacity: 1;
+  border-color: rgb(192 132 252 / var(--tw-border-opacity));
+}
+
+.dark .dark\:focus\:border-blue-500:focus {
+>>>>>>> 80464945cc7e284bdc13b838cf648407f2b98c7c
   --tw-border-opacity: 1;
   border-color: rgb(123 63 228 / var(--tw-border-opacity));
 }

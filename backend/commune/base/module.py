@@ -516,12 +516,9 @@ class Module:
 
     @classmethod
     def launch_module(cls, module:str, fn:str=None ,kwargs:dict={}, args=[], actor=False, wrap=True, **additional_kwargs):
-        
         try:
             module_class =  cls.import_object(cls.simple2path(module))
         except Exception as e:
-            module_class =  cls.import_object(cls.simple2path(module))
-
             module_class = cls.import_object(module)
 
 
@@ -531,6 +528,7 @@ class Module:
 
         if module_init_fn == None:
             if actor:
+
                 # ensure actor is a dictionary
                 if actor == True:
                     actor = {}
