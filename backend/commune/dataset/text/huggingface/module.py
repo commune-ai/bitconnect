@@ -21,7 +21,6 @@ from scipy.stats import kendalltau
 import torch
 from torch import nn
 from commune.ray.actor_pool import ActorPool
-Module.new_event_loop()
 import bittensor
 import datasets
 

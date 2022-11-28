@@ -83,14 +83,12 @@ class Pipeline:
         pipeline_blocks = [
         {
             'module': 'commune.dataset.text.huggingface',
-            'actor': {'cpus': 0.2, 'gpus': 0, 'refresh': True, 'wrap': True },
             'fn': 'sample',
             'kwargs': {'tokenize': False},
             'output_key_map': {'text': 'input'}
          }, 
          {
-            'module': 'commune.model.transformer',
-            'actor': {'gpus': 0.1, 'wrap': True},
+            'module': 'datasets.load_dataset',
             'fn': 'forward',
             'output_key_map': {'input': 'text'}
         }
@@ -106,7 +104,6 @@ class Pipeline:
         pipeline_blocks = [
         {
             'module': 'commune.dataset.text.huggingface',
-            'actor': {'cpus': 0.1, 'gpus': 0, 'refresh': False , 'wrap': True},
             'fn': 'sample',
             'kwargs': {'tokenize': False},
          }, 

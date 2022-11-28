@@ -1,4 +1,4 @@
 module: SubprocessModule
 
-client: {}
+client: ['local']
 

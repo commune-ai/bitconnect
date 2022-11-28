@@ -9,7 +9,7 @@ class BaseContract(Module):
         self.setup_web3_env()
 
     def setup_web3_env(self):
-        self.contract_manager = self.launch('web3.contract', kwargs=dict(network=self.config['network']))
+        self.contract_manager = self.launch('commune.web3.contract', kwargs=dict(network=self.config['network']))
         self.contract_manager.set_account(self.config['account'])
         self.contract = self.contract_manager.deploy_contract(**self.config['contract'])
         self.account = self.contract.account
@@ -164,19 +164,9 @@ class BaseContract(Module):
 
         gradio_interface = self.gradio_build_interface(fn_map=fn_map)
 
+        print(gradio_interface)
+
         return gradio_interface
-
-
-    @staticmethod
-    def gradio_build_interface( fn_map:dict):
-        for fn_name, fn_obj in fn_map.items():
-            inputs = fn_obj.get('inputs', [])
-            outputs = fn_obj.get('outputs',[])
-            fn = fn_obj['fn']
-            names.append(fn_name)
-            functions.append(gradio.Interface(fn=fn, inputs=inputs, outputs=outputs))
-        
-        return gradio.TabbedInterface(functions, names)
 
 
 

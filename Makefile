@@ -32,7 +32,7 @@ logs:
 	docker logs ${arg} --tail=100 --follow
 
 streamlit:
-	docker exec -it backend bash -c "streamlit run commune/${arg}.py "
+	docker exec -it backend bash -c "streamlit run ${arg}.py "
 enter_backend:
 	docker exec -it backend bash
 pull:

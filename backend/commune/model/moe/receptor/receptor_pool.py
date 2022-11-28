@@ -237,6 +237,7 @@ class ReceptorPool ( torch.nn.Module):
         loop = asyncio.get_event_loop()
         # Make calls.
         running_tasks = []
+        st.write(inputs[0].shape, inputs[0].dtype)
         for index, receptor in enumerate(receptors):
             task = asyncio.create_task(
                 receptor.async_forward(
@@ -263,6 +264,7 @@ class ReceptorPool ( torch.nn.Module):
             responses = await asyncio.gather(*finished_tasks)
 
             for response in responses:
+                st.write(response[1])
                 if  min_successes > 0:
                     if  response[1][0] == 1:
                         forward_outputs.append( response[0] )
@@ -276,6 +278,7 @@ class ReceptorPool ( torch.nn.Module):
                         assert len(running_tasks) == 0, f'{len(running_tasks)}'
                         break
                 else:
+                    
                     forward_outputs.append( response[0] )
                     forward_codes.append( response[1] )
                     forward_times.append( response[2] )

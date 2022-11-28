@@ -13,7 +13,6 @@ RUN cd /cubit && python3 -m pip install -r requirements.dev.txt
 RUN cd /cubit && python3 setup.py build_ext --inplace
 ENV PYTHONPATH "${PYTHONPATH}:/cubit"
 
-
 RUN python3 -m pip install -U "ray[default]"
 RUN python3 -m pip install -U streamlit
 RUN python3 -m pip install -U gradio

@@ -18,6 +18,7 @@ from commune.ray.utils import kill_actor
 from copy import deepcopy
 import argparse
 import psutil
+import gradio
 import asyncio
 from ray.experimental.state.api import list_actors, list_objects, list_tasks
 import streamlit as st
@@ -185,6 +186,7 @@ class Module:
     def path2simple(cls, path:str) -> str:
         return os.path.dirname(path)[len(cls.pwd)+1:].replace('/', '.')
 
+
     @classmethod
     def simple2import(cls, simple:str) -> str:
         config_path = cls.simple2path(simple, mode='config')
@@ -192,7 +194,6 @@ class Module:
         config = cls.config_loader.load(config_path)
         obj_name = config.get('module', config.get('name'))
         module_path = '.'.join([simple, module_basename,obj_name])
-
         return module_path
 
     @classmethod
@@ -443,11 +444,16 @@ class Module:
         try:
             key = cls.simple2import(key)
         except KeyError as e:
+            print(key, 'KEYERROR')
             pass
+  
 
         module = '.'.join(key.split('.')[:-1])
         object_name = key.split('.')[-1]
-        return getattr(import_module(module), object_name)
+        print(module, object_name,  'BROOO1',  import_module(module)) 
+        obj =  getattr(import_module(module), object_name)
+        print(obj,  'BROOO2') 
+        return obj
     get_object = import_object
     
     @property
@@ -628,7 +634,7 @@ class Module:
 
     @classmethod
     def run_gradio(cls, port=8501, host='0.0.0.0'):
-        path = cls.get_module_path(include_pwd=False)
+        path = cls.get_module_path(simple=False)
         interface = cls.gradio()
  
         interface.launch(server_port=port,
@@ -1365,6 +1371,7 @@ class Module:
 
     @staticmethod
     def gradio_build_interface( fn_map:dict) -> 'gradio.TabbedInterface':
+        names, functions = [], []
         for fn_name, fn_obj in fn_map.items():
             inputs = fn_obj.get('inputs', [])
             outputs = fn_obj.get('outputs',[])
@@ -1375,8 +1382,5 @@ class Module:
         return gradio.TabbedInterface(functions, names)
 
 
-
-
 if __name__ == '__main__':
     Module.run()
-    Module.get_module_path().replace(os.getenv('PWD')+'/', '')

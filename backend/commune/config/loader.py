@@ -60,15 +60,17 @@ class ConfigLoader:
         self = cls()
         return self.save(path=path, config=config)
         
-    def load(self, path,override={}, recursive=True, return_munch=False):
+    def load(self, path,override={}, recursive=False, return_munch=False):
         self.cfg = self.parse_config(path=path)
+        if self.cfg == None:
+            return {}
         if isinstance(override, dict) and len(override) > 0:
             self.cfg = self.override_cfg(cfg=self.cfg, override=override)
         if recursive:
             self.cfg = self.resolver_methods(cfg=self.cfg)
         if return_munch:
             return Munch(self.cfg)
-        assert isinstance(self.cfg, Munch)  if return_munch else isinstance(self.cfg, dict)
+        assert isinstance(self.cfg, Munch)  if return_munch else isinstance(self.cfg, dict), f'{self.cfg}'
         return self.cfg
 
     # def get_base_cfg(self, cfg,  key_path, local_key_path=[]):
@@ -177,9 +179,10 @@ class ConfigLoader:
                 function_name, variable_path = input.split('::')
             else:
                 variable_path = re.compile('^(local_copy)\((.+)\)').search(input)
+                if variable_path:
+                    variable_path = variable_path.group(2)
             
             if variable_path:
-                variable_path = variable_path.group(2)
 
                 # get the object
                 local_cfg_key_path = self.cache[list2str(key_path)]

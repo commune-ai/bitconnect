@@ -10,7 +10,7 @@ export COMPOSE_DOCKER_CLI_BUILD=0
 
 
 # Specify the ethereum default RPC container provider
-
+export RAY_PORT="6378"
 export NETWORK_RPC_HOST="172.15.0.3"
 export NETWORK_RPC_PORT="8545"
 export NETWORK_RPC_URL="http://"${NETWORK_RPC_HOST}:${NETWORK_RPC_PORT}
@@ -102,9 +102,13 @@ while :; do
         
         ;;
 
+        --frontend)
+        COMPOSE_FILES+=" -f frontend/frontend.yml"
+        ;;
+
         --light)
         COMPOSE_FILES=""
-        COMPOSE_FILES+=" -f frontend/frontend.yml"
+        # COMPOSE_FILES+=" -f frontend/frontend.yml"
         COMPOSE_FILES+=" -f backend/backend.yml"
         COMPOSE_FILES+=" -f ipfs/ipfs.yml"
         COMPOSE_FILES+=" -f ganache/ganache.yml"
