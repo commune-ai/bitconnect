@@ -6,8 +6,8 @@ WORKDIR /app
 
 RUN apt install -y protobuf-compiler
 
+# PYTHON LAND
 
-# Install cubit
 COPY ./cubit /cubit
 RUN cd /cubit && python3 -m pip install -r requirements.dev.txt
 RUN cd /cubit && python3 setup.py build_ext --inplace
@@ -21,26 +21,13 @@ RUN python3 -m pip install -U sentence-transformers
 RUN python3 -m pip install -U datasets
 RUN python3 -m pip install hub
 RUN python3 -m pip install -U accelerate
-
-ADD ./ocean.py /app/ocean.py
-RUN python3 -m pip install -e ./ocean.py
-
-ADD ./ipfspy /app/ipfspy
-RUN python3 -m pip install -e ./ipfspy
-
-ADD ./ipfsspec /app/ipfsspec
-RUN python3 -m pip install -e ./ipfsspec
-
-ADD ./diffusers /app/diffusers
-RUN python3 -m pip install -e ./diffusers
+RUN python3 -m pip install jupyterlab
+RUN python3 -m pip install aiofiles
 
 ADD ./bittensor /app/bittensor
 RUN python3 -m pip install -e /app/bittensor
 
-
-
-
-
+# JAVASCRIPT LAND
 
 # we add sprinkle of npm for hardhat smart contract tings
 ENV NODE_VERSION=16.17.1
@@ -55,19 +42,16 @@ RUN node --version
 RUN npm --version
 RUN npm install --save-dev hardhat
 RUN npm install --save-dev @nomicfoundation/hardhat-toolbox
-COPY hardhat.config.js .
+COPY commune/hardhat.config.js .
 RUN npx hardhat
 RUN npm install @openzeppelin/contracts
 RUN npm install @uniswap/v3-periphery
 RUN npm install @uniswap/v2-periphery
 # RUN npm install --global @ceramicnetwork/cli @glazed/cli
 
-COPY ./scripts .
-
-
-RUN pip install jupyterlab
-RUN pip install aiofiles
+# RUST LAND
 
 # lets add a sprinkle of rust
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
+

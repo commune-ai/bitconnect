@@ -1,9 +1,11 @@
 down:
-	./start.sh --down
+	./scripts/start.sh --down
 stop:
 	make down
 up:
-	./start.sh --light
+	./scripts/start.sh --light
+build:
+	./scripts/start.sh --build --${arg}
 start:
 	make up
 
