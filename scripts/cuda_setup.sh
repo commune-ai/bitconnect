@@ -3,4 +3,4 @@ distribution=$(. /etc/os-release;echo $ID$VERSION_ID)       && curl -s -L https:
 apt-get update
 apt-get install -y nvidia-docker2
 systemctl restart docker
-docker run --shm-size 2GB -it --gpus all docurdt/heal
+docker run --shm-s

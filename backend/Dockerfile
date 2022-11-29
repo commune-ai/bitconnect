@@ -23,6 +23,7 @@ RUN python3 -m pip install hub
 RUN python3 -m pip install -U accelerate
 RUN python3 -m pip install jupyterlab
 RUN python3 -m pip install aiofiles
+RUN python3 -m pip install web3
 
 ADD ./bittensor /app/bittensor
 RUN python3 -m pip install -e /app/bittensor

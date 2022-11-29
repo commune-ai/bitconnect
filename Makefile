@@ -55,4 +55,5 @@ exec:
 api:
 	docker exec -it backend bash -c "python commune/gradio/api/module.py --api"
 
-
+make build_backend:
+	./scripts/startup.sh --build --backend

@@ -3,8 +3,12 @@
 import os
 import sys
 from copy import deepcopy
-import commune
+
 import streamlit as st
+import asyncio
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+import commune
 from commune.web3.contract.pythonic_contract_wrapper import PythonicContractWrapper
 
 class ContractManagerModule(commune.module):
@@ -397,9 +401,9 @@ class ContractManagerModule(commune.module):
 
         self =  ContractManagerModule.deploy(actor=False)
         self.set_network('local.main')
-        self.set_account('alice')
+        self.set_account('e')
         
-        contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=True, args=['BRO', 'BROCOIN'])
+        contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=False, args=['BRO', 'BROCOIN'])
         st.write(contract)
 
 
