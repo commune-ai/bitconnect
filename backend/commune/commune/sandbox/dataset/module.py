@@ -10,7 +10,6 @@ import psutil
 import sys
 import random
 import argparse
-import commune
 from tqdm import tqdm
 import asyncio
 import pandas as pd
@@ -236,7 +235,7 @@ class DatasetTesting:
 
     @staticmethod
     def test_conflict_rate(n_samples=1000):
-        data = bittensor.dataset(dataset_name=['ArXiv'] , save_dataset=False, load_dataset=True,  buffer_calls_per_update=100, buffer_size=4000)
+        data = bittensor.dataset(dataset_name=['ArXiv'] , save_dataset=False, load_dataset=False,  buffer_calls_per_update=100, buffer_size=4000)
         item = next(data)
 
         st.write(len(data.sample_buffer[0]))
@@ -257,10 +256,12 @@ class DatasetTesting:
 if __name__ == '__main__':
 
     st.write('## NEW DATASET')
-    Module.new_event_loop()
     # DatasetTesting.test__data_size()
-    DatasetTesting.test_conflict_rate()
+    # DatasetTesting.test_conflict_rate()
     # DatasetTesting.test_change_data_size()
     # st.write(DatasetTesting().run_trial())
+    data = bittensor.dataset(dataset_name=['ArXiv'] , save_dataset=True, load_dataset=False,  buffer_calls_per_update=100, buffer_size=4000)
+
+    st.write(next(data))
 
 

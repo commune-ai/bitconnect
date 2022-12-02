@@ -4,20 +4,17 @@ stop:
 	make down
 up:
 	./scripts/start.sh --light
-build:
-	./scripts/start.sh --build --${arg}
 start:
 	make up
 
-start_latest:
-	make up_latest
+build:
+	./scripts/start.sh --build --${arg}
 
 bash_backend: 
 	make bash arg=backend
 
 restart:
 	make down && make up;
-
 
 prune_volumes:	
 	docker system prune --all --volumes
@@ -43,17 +40,8 @@ pull:
 kill_all:
 	docker kill $(docker ps -q) 
 
-jupyter:
-	docker exec -it backend bash -c "jupyter lab --allow-root --ip=0.0.0.0 --port=8888"
-
 python:
-	docker exec -it backend bash -c "python commune/${arg}/module.py"
+	docker exec -it backend bash -c "python ${arg}.py"
 
 exec:
 	docker exec -it backend bash -c "${arg}"
-
-api:
-	docker exec -it backend bash -c "python commune/gradio/api/module.py --api"
-
-make build_backend:
-	./scripts/startup.sh --build --backend
