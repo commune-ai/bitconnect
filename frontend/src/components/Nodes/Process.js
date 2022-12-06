@@ -18,9 +18,6 @@ export default function Process({id, data}){
 
     const { setNodes, getEdges, getNode } = useReactFlow();
     const store = useStoreApi();
-    //module : item, fn : style.fn, kwargs : {}, args : [], actor : { cpus : 1, gpus : 0 }, colour : style.colour, emoji : style.emoji},
-    console.log(data)
-
 
     const onChange = useCallback((key, value) => {
       const { nodeInternals } = store.getState();

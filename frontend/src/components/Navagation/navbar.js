@@ -40,6 +40,7 @@ export default class Navbar extends Component{
         await fetch(`http://localhost:8000/list?${new URLSearchParams({ mode : "streamable" })}`, { method: 'GET', mode : 'cors',})
             .then(response => response.json())
             .then(data => {
+                    console.log(Object.keys(data))
                     this.handelModule(this.state.menu, Object.keys(data))
                     this.setState({loading : false})
                     this.setState({menu : Object.keys(data).sort(function(x, y) {return (x === y)? 0 : x? -1 : 1;}), stream : data})

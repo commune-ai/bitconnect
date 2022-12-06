@@ -23,7 +23,7 @@ import CustomEdge from '../Edges/Custom'
 import CustomLine from "../Edges/CustomLine.js";
 
 import ModuleFrame from "../Nodes/Module.js";
-import InputCompnent from '../Nodes/Input';
+import InputComponent from '../Nodes/Input';
 import Bundle from '../Nodes/Bundle';
 import Process from '../Nodes/Process';
 
@@ -36,7 +36,7 @@ import '../../css/index.css'
 
 const NODE = {
   custom      : ModuleFrame,
-  customInput : InputCompnent,
+  customInput : InputComponent,
   bundle      : Bundle,
   process     : Process
 }
@@ -68,9 +68,10 @@ export default function Flow() {
     // =======================
     // Changes
     // =======================
+
     const onNodesChange = useCallback(
-      (changes) => setNodes((nds) => applyNodeChanges(changes, nds))
-      [setNodes, reactFlowInstance]
+      (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
+      [setNodes]
     );
   
     const onEdgesChange = useCallback(
@@ -144,14 +145,12 @@ export default function Flow() {
     // ======================= 
     const deleteEdge = useCallback(async (edge, handle) => {
       var connection = null
-      console.log(edge, handle)
       try {
          connection = reactFlowInstance.getNode(handle)
       }catch(err) {
         return 
       }
 
-      console.log("Connection",connection)
       if(connection.type === "bundle") {
         setNodes((nds) => {
           return nds.filter(node => {
@@ -205,7 +204,6 @@ export default function Flow() {
     const deleteEdges = useCallback((source) => {
       const edges =  reactFlowInstance.getEdges().filter((eds) => (eds.source === source || eds.target === source))
       edges.forEach((edge) => {
-        console.log(edge)
         deleteEdge(edge, source === edge.source ? edge.target : edge.source)
       })
     }, [reactFlowInstance])
@@ -250,14 +248,12 @@ export default function Flow() {
 
         fetch(`http://localhost:8000/ls_ports`, {method : "GET", mode: 'cors'}).then(res => res.json()).then((r) => {
           r.forEach((port) => {
-            console.log(nodes.map((node) => node))
             if (! nodes.map((node) => node.data.port).includes(port)){
               fetch(`http://localhost:8000/rm?${new URLSearchParams({port: port})}`, {method : "GET", mode: 'cors'})
               fetch(`http://localhost:8000/kill_port?${new URLSearchParams({port: +port})}`, {method : "GET", mode: 'cors'})
             }
           })
         })
-        console.log(_[0])
         setTimeout(() => {
                   if (_[0].data.port === undefined){
 
@@ -279,13 +275,14 @@ export default function Flow() {
       (params) => {
        const source = reactFlowInstance.getNode(params.source);
        const target = reactFlowInstance.getNode(params.target);
-
        if (source.type === "bundle" && target.type === "bundle") return
        if (source.type === "bundle") return
        setEdges((els) => addEdge({...params, type: "custom", animated : true, style : {strokeWidth : "6"}, markerEnd: {type: MarkerType.ArrowClosed}, data : { delete : deleteEdge}}, els))
-
+        console.log(params, nodes,'BRO', target)
         if (target.type === "bundle"){
+
           setNodes(nodes.map((nds) => {
+
             if (nds.id === params.target){
               const node = reactFlowInstance.getNode(params.source)
                 nds.data = {
@@ -293,7 +290,8 @@ export default function Flow() {
                   args: [...nds.data.args, node],
                 };
               }
-              return nds
+              
+            return nds
           }))
         } else if (target.type === "custom") {
           setNodes((nodes) => nodes.map((nds) => {
@@ -339,6 +337,7 @@ export default function Flow() {
     const onDragOver = useCallback((event) => {
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
+
     }, []);
 
     const onConnectStart = useCallback((_, { nodeId }) => {
@@ -374,6 +373,7 @@ export default function Flow() {
       }
     ,[reactFlowInstance, deleteEdge, nodes])
 
+    
     
     const onDrop = useCallback(
       (event) => {

@@ -11,12 +11,9 @@ import subprocess
 
 class SubprocessModule(Module):
     subprocess_map = {}
-    default_config_path =  'subprocess.module'
     def __init__(self, config=None, **kwargs):
         Module.__init__(self, config=config)
         self.subprocess_map_path = self.cache_path
-
-
 
     def __reduce__(self):
         deserializer = self.__class__
@@ -64,9 +61,6 @@ class SubprocessModule(Module):
             subprocess_dict = dict_override(subprocess_dict, add_info)
             self.put_cache(key, subprocess_dict)
 
-
-        # return process.__dict__
-        # return process
         return subprocess_dict
 
     submit = add = add_subprocess  

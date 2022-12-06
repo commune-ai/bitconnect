@@ -36,6 +36,9 @@ services:
       # CORTEX MOUNTS
       - ./cortex/cortex:/app/cortex
 
+      # OCEAN MOUNTS
+      - ./ocean.py/ocean_lib:/app/ocean.py/ocean_lib
+
       # OTHER MOUNTS
       - ./scripts:/app/scripts
       - /tmp:/tmp # TMP FILE SYSTEM MOUNT

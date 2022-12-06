@@ -1,5 +1,0 @@
-actor:
-  name: Module
-  refresh: false
-
-client: [local]

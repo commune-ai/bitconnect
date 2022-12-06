@@ -90,12 +90,11 @@ def get_web3_connection_provider(network_url):
     return provider
 
 from typing import Dict, Optional, Union
-from enforce_typing import enforce_types
 from web3 import WebsocketProvider
 from web3.main import Web3
 from web3.middleware import geth_poa_middleware
 
-@enforce_types
+
 def get_web3(network_url: str) -> Web3:
     """
     Return a web3 instance connected via the given network_url.
@@ -114,7 +113,6 @@ def get_web3(network_url: str) -> Web3:
         web3.middleware_onion.inject(geth_poa_middleware, layer=0)
     return web3
 
-@enforce_types
 def get_web3_connection_provider(
     network_url: str,
 ) -> Union[CustomHTTPProvider, WebsocketProvider]:

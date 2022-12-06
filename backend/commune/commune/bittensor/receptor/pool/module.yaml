@@ -1,8 +1,0 @@
-module: 'ReceptorPoolModule'
-# clients
-# client: get_config(client.manager)
-
-wallet: 
-  name: const
-  hotkey: Tiberius
-

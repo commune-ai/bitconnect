@@ -1,6 +1,19 @@
 # syntax=docker/dockerfile:1
-FROM opentensorfdn/bittensor:3.3.3-torch1.12.0-cuda11.3-pm2
-# Install cubit
+FROM pytorch/pytorch:1.12.0-cuda11.3-cudnn8-devel
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+#nvidia key migration
+RUN apt-key del 7fa2af80
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu2004/x86_64/7fa2af80.pub
+# Update the base image
+RUN apt update && apt upgrade -y
+# Install bittensor
+## Install dependencies
+RUN apt install -y curl sudo nano git htop netcat wget unzip python3-dev python3-pip tmux apt-utils cmake build-essential
+## Upgrade pip
+RUN pip3 install --upgrade pip
 
 WORKDIR /app
 
@@ -30,6 +43,9 @@ RUN python3 -m pip install -e /app/bittensor
 
 # JAVASCRIPT LAND
 
+ADD ./ocean.py /app/ocean.py
+RUN python3 -m pip install -e /app/ocean.py
+
 # we add sprinkle of npm for hardhat smart contract tings
 ENV NODE_VERSION=16.17.1
 RUN apt install -y curl
@@ -55,4 +71,3 @@ RUN npm install @uniswap/v2-periphery
 # lets add a sprinkle of rust
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
-

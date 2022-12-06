@@ -1,11 +1,12 @@
 down:
-	./start.sh --backend --ganache --ipfs --down
+	./script/start.sh --backend --ganache --ipfs --down
 stop:
 	make down
 up:
-	./start.sh --backend --ganache --ipfs
+	./script/start.sh --backend --ganache --ipfs
 start:
-	make up
+	./script/start.sh --${arg}
+
 
 start_latest:
 	make up_latest
@@ -63,5 +64,5 @@ gradio_api:
 gradio_client:
 	make app arg=gradio/client
 
-make backend:
+backend:
 	make bash arg=backend

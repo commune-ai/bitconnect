@@ -5,7 +5,7 @@ import '../../css/dist/output.css'
 
 const itemList = ["String", "Integer", "Float", "List", "JSON", "Image"];
 
-export default function InputCompnent({ id, data }) {
+export default function InputComponent({ id, data }) {
   const [open, setOpen] = useState(false)
   const [item, setItem] = useState("String")
   const [trigger, setTrigger] = useState(false)
@@ -125,9 +125,6 @@ export default function InputCompnent({ id, data }) {
         })}
       </ul>
     </div>
-
-
-
 
     {item === "String" &&
       <div className="pt-2 rounded-lg">

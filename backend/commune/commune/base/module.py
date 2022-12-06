@@ -167,15 +167,6 @@ class Module:
             self.config = config
 
 
-    @staticmethod
-    def simple2path( simple):
-        path = deepcopy(simple.replace('.', '/'))
-        if simple[:len(Module.root_dir)] != Module.root_dir:
-            path = os.path.join(Module.root, simple, 'module.yaml')
-        module_name = Module.load_config(simple).get('module')
-        full_path = '.'.join([Module.root_dir, simple,'module', module_name])
-        return full_path
-
     @classmethod
     def simple2path(cls, simple:str, mode:str='config') -> str: 
         simple2path_map = getattr(cls, f'simple2{mode}_map')()
@@ -189,7 +180,7 @@ class Module:
 
     @classmethod
     def simple2import(cls, simple:str) -> str:
-        config_path = cls.simple2path(simple, mode='config')
+        config_path = Module.simple2path(simple, mode='config')
         module_basename = os.path.basename(config_path).split('.')[0]
         config = cls.config_loader.load(config_path)
         obj_name = config.get('module', config.get('name'))

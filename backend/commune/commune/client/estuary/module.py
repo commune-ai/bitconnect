@@ -1,6 +1,5 @@
 import fsspec
 import os
-from ipfsspec.asyn import AsyncIPFSFileSystem
 from fsspec import register_implementation
 import asyncio
 import json
@@ -11,8 +10,6 @@ import os, sys
 sys.path.append(os.getenv('PWD'))
 
 import requests
-from ipfspy.utils import parse_response
-
 
 from commune.client.local import LocalModule
 from commune.client.ipfs import IPFSModule
@@ -20,6 +17,25 @@ from commune import Module
 from commune.utils import try_n_times
 
 
+# %% ../nbs/00_utils.ipynb 5
+def parse_response(
+    response, # Response object
+):
+    "Parse response object into JSON"
+    
+    if response.text.split('\n')[-1] == "":
+        try:
+            return [json.loads(each) for each in response.text.split('\n')[:-1]]
+        
+        except:
+            pass
+
+    try:
+        return response.json()
+
+    except:
+        return response.text
+    
 # register_implementation(IPFSFileSystem.protocol, IPFSFileSystem)
 # register_implementation(AsyncIPFSFileSystem.protocol, AsyncIPFSFileSystem)
 
@@ -33,7 +49,6 @@ class EstuaryModule(Module):
         self.ipfs = IPFSModule()
         self.url = self.config.get('url', 'https://shuttle-4.estuary.tech')
 
-
     def get_api_key(self, api_key=None):
         if api_key == None:
             api_key = self.config.get('api_key')
@@ -46,8 +61,6 @@ class EstuaryModule(Module):
             assert isinstance(api_key, str)
             return env_api_key
 
-
-    # %% ../nbs/02_estuaryapi.ipynb 4
 
     def est_get_viewer(
         api_key: str=None # Your Estuary API key
@@ -899,47 +912,9 @@ if __name__ == '__main__':
             raise NotImplemented
 
     def recursive_file_list(self, path):
-        # output_files = []
-        # for root, dirs, files in  self.local.walk(f'{module.local_tmp_dir}'):
-        #     for f in files:
-        #         output_files.append(os.path.join(root, f))
-        # or 
+
         output_files = [f for f in self.local.glob(path+'/**') if self.local.isfile(f)]
 
         return output_files
 
-
-
-
-
-
-
-    # kwargs = dict(path='glue', name='cola', split='train')
-    # dataset =  load_dataset(**kwargs)
-
-    # for dataset_shard in shard_dataset(dataset=dataset, shards=10):
-    #     with Timer(streamlit=True, prefix='ELAPSED_TIME: {t}') as t:
-    #         st.write(f'Splitting : {dataset_shard.num_rows} {kwargs}')
-    #         st.write(module.save_dataset(dataset=dataset_shard,  mode='🤗'))
-
-    # cid = 'bafybeigpsv3mlvxmkpsv6vj42etlk4a65ajlusrkltl3qr7p7vo4xw43jy'
-    # st.write(module.info(cid=cid))
-    # # st.write(module.view_data_cid(pin))
-
-    
-    # bro  = module.ipfs.cat('bafkreidemdtdxdsfus4zy66aiczbys5d5fcc6zutqq42akbbgel3snle2u')
-
-    # len(bro)
-
-
-
-    # bro = module.ipfs.cat('bafybeigpsv3mlvxmkpsv6vj42etlk4a65ajlusrkltl3qr7p7vo4xw43jy')
-    # st.write(len(bro))
-    # st.write(module.rm_all_pins())
-    # st.write(module.remove_pin('35921207'))
-    # st.write(module.ipfs.size('bafkreidemdtdxdsfus4zy66aiczbys5d5fcc6zutqq42akbbgel3snle2u'))
-
-    # module.create_collection('default')
-    # st.write(module.list_collections())
-
-    # st.write(module.list_content_path('/dir1').__dict__)
+        

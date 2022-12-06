@@ -1,6 +1,5 @@
 import fsspec
 import os
-from ipfsspec.asyn import AsyncIPFSFileSystem
 from fsspec import register_implementation
 import asyncio
 import json
@@ -12,7 +11,6 @@ import os, sys
 sys.path.append(os.getenv('PWD'))
 
 import requests
-from ipfspy.utils import parse_response
 
 from commune.client.local import LocalModule
 from commune import Module
@@ -27,13 +25,11 @@ import streamlit as st
 #     print(f.read())
 
 
-class PinataModule(Module,AsyncIPFSFileSystem):
-    default_config_path= 'client.pinata.module'
+class PinataModule(Module):
     url = 'https://api.pinata.cloud'
 
     def __init__(self, config=None):
         Module.__init__(self, config=config)
-        AsyncIPFSFileSystem.__init__(self)
         self.api_key = self.get_api_key(api_key = self.config.get('api_key'))
         self.url = self.config.get('url', f'{self.url}')
         self.local =  LocalModule()

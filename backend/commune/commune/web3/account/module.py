@@ -6,7 +6,6 @@ import logging
 import os
 from typing import Dict, Optional, Union
 import json
-from enforce_typing import enforce_types
 from eth_account.datastructures import SignedMessage
 from eth_account.messages import SignableMessage
 from hexbytes.main import HexBytes
@@ -14,14 +13,17 @@ from web3.main import Web3
 import streamlit as st
 from commune import Module
 from eth_account.messages import encode_defunct
-from ocean_lib.integer import Integer
-from ocean_lib.web3_internal.constants import ENV_MAX_GAS_PRICE, MIN_GAS_PRICE
-from ocean_lib.web3_internal.utils import (
-    private_key_to_address,
-    private_key_to_public_key,
-)
 
+
+from eth_keys import keys
 from copy import deepcopy
+
+def private_key_to_public_key(private_key: str) -> str:
+    private_key_bytes = decode_hex(private_key)
+    private_key_object = keys.PrivateKey(private_key_bytes)
+    return private_key_object.public_key
+
+
 
 logger = logging.getLogger(__name__)
 from eth_account.account import Account
@@ -51,7 +53,6 @@ class AccountModule(Module):
 
     _last_tx_count = dict()
     ENV_PRIVATE_KEY = 'PRIVATE_KEY'
-    @enforce_types
     def __init__(
         self,
         private_key: str= None,
@@ -67,7 +68,6 @@ class AccountModule(Module):
         self.web3 = web3
 
     @property
-    @enforce_types
     def address(self) -> str:
         return self.account.address
 
@@ -101,12 +101,10 @@ class AccountModule(Module):
         return self.web3
 
     @property
-    @enforce_types
     def key(self) -> str:
         return self.private_key
 
     @staticmethod
-    @enforce_types
     def reset_tx_count() -> None:
         AccountModule._last_tx_count = dict()
 
@@ -114,7 +112,6 @@ class AccountModule(Module):
         return self.account.address == address
 
     @staticmethod
-    @enforce_types
     def _get_nonce(web3: Web3, address: str) -> int:
         # We cannot rely on `web3.eth.get_transaction_count` because when sending multiple
         # transactions in a row without wait in between the network may not get the chance to
@@ -132,7 +129,6 @@ class AccountModule(Module):
     def address(self):
         return self.account.address
 
-    @enforce_types
     def sign_tx(
         self,
         tx: Dict[str, Union[int, str, bytes]],
@@ -141,8 +137,7 @@ class AccountModule(Module):
             nonce = AccountModule._get_nonce(self.web3, self.address)
         if tx.get('gasePrice') == None:
             gas_price = int(self.web3.eth.gas_price * 1.1)
-            gas_price = max(gas_price, MIN_GAS_PRICE)
-            max_gas_price = os.getenv(ENV_MAX_GAS_PRICE, None)
+            max_gas_price = os.getenv('ENV_MAX_GAS_PRICE', None)
             if gas_price and max_gas_price:
                 gas_price = min(gas_price, max_gas_price)
 
@@ -223,7 +218,6 @@ class AccountModule(Module):
     def public_key(self):
         return private_key_to_public_key(self.private_key)
         
-    @enforce_types
     def keys_str(self) -> str:
         s = []
         s += [f"address: {self.address}"]

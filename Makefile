@@ -5,7 +5,9 @@ stop:
 up:
 	./scripts/start.sh --light
 start:
-	make up
+	./scripts/start.sh --${arg} 
+logs:
+	./scripts/start.sh --${arg}
 
 build:
 	./scripts/start.sh --build --${arg}
@@ -24,6 +26,7 @@ bash:
 
 app:
 	make streamlit
+
 kill_all:
 	docker kill $(docker ps -q)
 
@@ -32,8 +35,10 @@ logs:
 
 streamlit:
 	docker exec -it backend bash -c "streamlit run ${arg}.py "
+	
 enter_backend:
 	docker exec -it backend bash
+
 pull:
 	git submodule update --init --recursive
 	
