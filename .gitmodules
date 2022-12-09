@@ -17,3 +17,6 @@
 [submodule "backend/ocean.py"]
 	path = backend/ocean.py
 	url = https://github.com/commune-ai/ocean.py
+[submodule "bitconnect/cortex"]
+	path = bitconnect/cortex
+	url = https://github.com/commune-ai/cortex.git
