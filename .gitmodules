@@ -12,7 +12,7 @@
 
 [submodule "backend/cortex"]
 	path = backend/cortex
-	url = https://github.com/opentensor/cortex.git
+	url = https://github.com/commune-ai/cortex.git
 	branch = dataset
 [submodule "backend/ocean.py"]
 	path = backend/ocean.py
