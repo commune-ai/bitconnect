@@ -15,4 +15,4 @@
 	url = https://github.com/commune-ai/ocean.py
 [submodule "backend/cortex"]
 	path = backend/cortex
-	url = https://github.com/opentensor/cortex.git
+	url = https://github.com/commune-ai/cortex.git
