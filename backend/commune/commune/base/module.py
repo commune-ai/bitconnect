@@ -832,6 +832,7 @@ class Module:
     def ray_start(cls):
         cls.run_command('ray start --head')
 
+
     @classmethod
     def ray_restart(cls):
         cls.ray_stop()

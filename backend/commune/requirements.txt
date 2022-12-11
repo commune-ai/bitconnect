@@ -1,0 +1,9 @@
+sentence_transformers
+bittensor
+datasets
+streamlit
+aiofiles
+aiohttp
+ray[default]
+gradio
+

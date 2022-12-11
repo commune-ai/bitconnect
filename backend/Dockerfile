@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
-FROM pytorch/pytorch:1.12.0-cuda11.3-cudnn8-devel
+FROM pytorch/pytorch:1.13.0-cuda11.6-cudnn8-devel
+
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -21,11 +22,7 @@ RUN apt install -y protobuf-compiler
 
 # PYTHON LAND
 
-COPY ./cubit /cubit
-RUN cd /cubit && python3 -m pip install -r requirements.dev.txt
-RUN cd /cubit && python3 setup.py build_ext --inplace
-ENV PYTHONPATH "${PYTHONPATH}:/cubit"
-
+# RUN python3 pip install https://github.com/opentensor/cubit/releases/download/v1.1.2/cubit-1.1.2-cp37-cp37m-linux_x86_64.whl
 RUN python3 -m pip install -U "ray[default]"
 RUN python3 -m pip install -U streamlit
 RUN python3 -m pip install -U gradio

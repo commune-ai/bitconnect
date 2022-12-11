@@ -414,9 +414,18 @@ class GradioModule(commune.Module):
 
     def add(self,module:str, port:int, mode:str):
         module = self.resolve_module_path(module)
+<<<<<<< HEAD:backend/commune/commune/gradio/api/module.py
         command_map ={
             'gradio':  f'python {module} -fn=run_gradio -args="[{port}]"',
             'streamlit': f'python {module} -fn=run_streamlit -args="[{port}]"'
+=======
+        module_filepath = self.get_object(module).get_module_filepath(include_pwd=False)
+        print(module, __file__ , 'DEBUG')
+        print(module_filepath)
+        command_map ={
+            'gradio':  f'python {module_filepath} -fn=run_gradio -args="[{port}]"',
+            'streamlit': f'python {module_filepath} -fn=run_streamlit -args="[{port}]"'
+>>>>>>> 79b2a62b7763eeb49e6f44031fdc0ce1acde275a:backend/commune/gradio/api/module.py
         }
         command  = command_map[mode]
         process = self.subprocess_manager.add(key=str(port), command=command, add_info= {'module':module })
@@ -429,21 +438,39 @@ class GradioModule(commune.Module):
     def stdout(self, module_paths : list):
         dict_stdout = {}
 
+<<<<<<< HEAD:backend/commune/commune/gradio/api/module.py
         for module_path in module_paths:
             try:
                 module = self.import_module(module_path)
                 dict_stdout[module_path] = { 'gradio' : hasattr(module, 'gradio'), 'streamlit' : hasattr(module, 'streamlit') }
             except Exception as e:
                 print(e)
+=======
+    def stdout(self, modules : list):
+        dict_stdout = {}
+
+        for simple, full in modules.items():
+            try:
+                dict_stdout[simple] = { 'gradio' : hasattr(self.get_object(full), 'gradio'), 'streamlit' : hasattr(self.get_object(full), 'streamlit') }
+            except Exception as e:
+>>>>>>> 79b2a62b7763eeb49e6f44031fdc0ce1acde275a:backend/commune/gradio/api/module.py
                 continue
         return dict_stdout
 
     def resolve_module_path(self, module):
+<<<<<<< HEAD:backend/commune/commune/gradio/api/module.py
         simple2python_map = deepcopy(self.simple2python_map())
         module_list = list(simple2python_map.values())
 
         if module in simple2python_map.keys():
             module = simple2python_map[module]
+=======
+        simple2path = deepcopy(self.simple2path)
+        module_list = list(simple2path.values())
+
+        if module in simple2path.keys():
+            module = simple2path[module]
+>>>>>>> 79b2a62b7763eeb49e6f44031fdc0ce1acde275a:backend/commune/gradio/api/module.py
     
         assert module in module_list, f'{module} not found in {module_list}'
         return module
@@ -562,18 +589,30 @@ async def test():
     module = GradioModule.get_instance()
     return module.stdout(module.module_list)
 
+@app.get("/test")
+async def test():
+    module = GradioModule.get_instance()
+    return module.stdout(module.module_list)
+
 @app.get("/list")
 async def module_list(mode='simple'):
     module = GradioModule.get_instance()
 
     # if mode == 'full':
     #     module_list = module.module_list
+<<<<<<< HEAD:backend/commune/commune/gradio/api/module.py
     module_list = list(module.list_modules()) 
     if mode == "streamable":
         module_list = module.stdout(module_list) 
         st.write('LIST', module_list)
     elif mode == 'simple':
         module_list = module_list
+=======
+    if mode == "streamable":
+        module_list = module.stdout(module.simple2path) 
+    elif mode == 'simple':
+        module_list = list(module.simple2path) 
+>>>>>>> 79b2a62b7763eeb49e6f44031fdc0ce1acde275a:backend/commune/gradio/api/module.py
     else:
         raise NotImplementedError()
     return module_list
@@ -663,6 +702,7 @@ def portopen(port : int):
     else:
         return "Port not on"
 
+<<<<<<< HEAD:backend/commune/commune/gradio/api/module.py
 @app.get('/add_chain')
 def add_chain(a : str, b : str):
     if not a in graph.keys(): 
@@ -682,8 +722,19 @@ def rm_chain(a : str, b : str):
 @app.get('/get_chain')
 def get_chain():
     return graph
+=======
+>>>>>>> 79b2a62b7763eeb49e6f44031fdc0ce1acde275a:backend/commune/gradio/api/module.py
 
 if __name__ == "__main__":
     
     if args.api:
+<<<<<<< HEAD:backend/commune/commune/gradio/api/module.py
         uvicorn.run(f"module:app", host="0.0.0.0", port=8000, reload=True, workers=2)
+=======
+        uvicorn.run(f"module:app", host="0.0.0.0", port=8000, reload=True, workers=2)
+    else:
+        module_proxy = GradioModule()
+        module_proxy.launch(module=args.module, port=args.port)
+    # module_proxy = GradioModule.deploy(actor=True, wrap=False)
+    # st.write(module_proxy.module_path)
+>>>>>>> 79b2a62b7763eeb49e6f44031fdc0ce1acde275a:backend/commune/gradio/api/module.py

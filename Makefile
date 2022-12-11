@@ -1,5 +1,6 @@
 down:
-	./scripts/start.sh --down
+	./scripts/start.sh --all --down
+
 stop:
 	make down
 up:
@@ -49,4 +50,5 @@ python:
 	docker exec -it backend bash -c "python ${arg}.py"
 
 exec:
+
 	docker exec -it backend bash -c "${arg}"

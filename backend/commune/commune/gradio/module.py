@@ -24,7 +24,7 @@ class GradioModule(Module):
 
     def __init__(host='0.0.0.0',
                  num_ports=10, 
-                 port_range=[7865, 7870])
+                 port_range=[7865, 7870]):
         
         self.host  = host
         self.num_ports = num_ports

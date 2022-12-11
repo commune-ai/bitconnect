@@ -1,0 +1,4 @@
+-e ./commune
+-e ./cortex
+-e ./ocean.py
+httpcore==0.15
