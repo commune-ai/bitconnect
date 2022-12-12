@@ -32,7 +32,7 @@ from .utils import enable_cache
 class Module:
     client = None
     pwd = os.getenv('PWD')
-    client_module_class_path = 'commune.client.manager.module.ClientModule'
+    client_module_class_path = 'commune.client.manager.ClientModule'
     root_dir = __file__[len(pwd)+1:].split('/')[0]
     root_path = os.path.join(pwd, root_dir)
     root = root_path
@@ -42,6 +42,8 @@ class Module:
         
         self.config = self.resolve_config(config=config, override=override)
         self.client = self.get_clients(client=client) 
+        
+        st.write('client')
         self.start_timestamp =self.current_timestamp
         self.get_submodules(get_submodules_bool = kwargs.get('get_submodules', True))
         self.cache = {}
@@ -148,20 +150,22 @@ class Module:
     def refresh_json(self):
         self.rm_json()
 
-    def put_config(self, path=None):
+    @staticmethod
+    def resolve_config_path(path=None):
         if path ==  None:
             path = 'config'
+        return path
+    def put_config(self, path=None):
+        path = self.resolve_config_path(path)
         return self.put_json(path, self.config)
 
     def rm_config(self, path=None):
-        if path ==  None:
-            path = 'config'
+        path = self.resolve_config_path(path)
         return self.rm_json(path)
 
     refresh_config = rm_config
     def get_config(self,  path=None, handle_error =True):
-        if path ==  None:
-            path = 'config'
+        path = self.resolve_config_path(path)
         config = self.get_json(path, handle_error=handle_error)
         if isinstance(config, dict):
             self.config = config
@@ -272,7 +276,11 @@ class Module:
 
 
     @classmethod
-    def launch(cls, module:str, fn:str=None ,kwargs:dict={}, args=[], actor=False, **additional_kwargs):
+    def launch(cls, module:str=None, fn:str=None ,kwargs:dict={}, args=[], actor=False, **additional_kwargs):
+        
+        
+        if module == None:
+            module = cls.get_module_path()
         module_class = cls.import_object(module)
 
         module_init_fn = fn

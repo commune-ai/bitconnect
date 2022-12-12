@@ -23,11 +23,7 @@ const colour_map = [
     'bg-gradient-to-bl from-[#c94b4b] to-[#4b134f]',
     'bg-gradient-to-bl from-[#000000] to-[#0f9b0f]',
     'bg-gradient-to-bl from-[#0D324D] to-[#7F5A83]',
-<<<<<<< HEAD
-    'bg-gradient-to-bl from-[#34e89e] to-[#0f3443]',
-=======
     'bg-gradient-to-bl from-[#34e89e] to-[#0f3443]',    
->>>>>>> 79b2a62b7763eeb49e6f44031fdc0ce1acde275a
 ]
 
 /**

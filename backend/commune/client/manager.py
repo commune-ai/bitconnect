@@ -47,8 +47,7 @@ class ClientModule(Module):
         else:
             raise NotImplementedError(f'{clients} is not supported')
 
-    def register_all_clients(self):
-        self.register_clients()
+
 
     def get_client_class(self, client:str):
         assert client in self.client_path_dict, f"{client} is not in {self.default_clients}"
