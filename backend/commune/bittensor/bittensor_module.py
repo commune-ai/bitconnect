@@ -734,8 +734,6 @@ class BittensorModule(Module):
 
 if __name__ == '__main__':
     st.set_page_config(layout="wide")
-    module = BittensorModule()
     # st.write(module.blocks_behind)
     st.write(module.register())
-    # menmonic = 'embark flat spirit mistake question expose friend hip fame pink afford glory'
     # st.write(module.wallet.regenerate_coldkey(menmonic))
