@@ -37,7 +37,6 @@ class Module:
     root_dir = __file__[len(pwd)+1:].split('/')[0]
     root_path = os.path.join(pwd, root_dir)
     root = root_path
-    config_loader = ConfigLoader(load_config=False)
 
     def __init__(self, config=None, override={}, client=None , **kwargs):
         
@@ -194,7 +193,7 @@ class Module:
     def simple2import(cls, simple:str) -> str:
         config_path = Module.simple2path(simple, mode='config')
         module_basename = os.path.basename(config_path).split('.')[0]
-        config = cls.config_loader.load(config_path)
+        config = Config(config_path=config_path)
         obj_name = config.get('module', config.get('name'))
         module_path = '.'.join([simple, module_basename,obj_name])
         return module_path
@@ -411,10 +410,8 @@ class Module:
         """
         if config == None:
             config = cls.get_config_path()
-        return Module.config_loader.load(path=config, 
-                                     override=override,
-                                     recursive=recursive,
-                                     return_munch=return_munch)
+        return Config(config_path=config,
+                      override=override)
 
     def save_config(self, path=None):
         """
@@ -886,7 +883,7 @@ class Module:
         elif isinstance(config, dict):
             path = kwargs.pop('path', None)
          
-        config = Config(path = config=config)
+        config = Config(config_path = path, config=config)
 
         ray_config = config.get('ray', {})
         if not cls.ray_initialized():

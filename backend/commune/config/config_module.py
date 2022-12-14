@@ -8,7 +8,7 @@ import glob
 from munch import Munch
 from copy import deepcopy
 from argparse import ArgumentParser, Namespace
-from typing import List, Optional, Union, Any
+from typing import List, Optional, Union, Any, Dict
 # sys.path.append(os.environ['PWD'])
 from functools import partial
 from commune.utils import dict_get, dict_put, list2str
@@ -25,7 +25,7 @@ class Config ( Munch ):
     MAIN_DIRECTORY = 'commune'
     root =  os.path.join(os.environ['PWD'],MAIN_DIRECTORY)
 
-    def __init__(self, config_path:Optional[str]= None, override:Optional[dict]={} *args, **kwargs,   ):
+    def __init__(self, config_path:Optional[str]= None, config:Optional[dict]=None, override:Optional[dict]={},  *args, **kwargs,   ):
         
         self._config = {}
         self.cache = {}
@@ -33,12 +33,12 @@ class Config ( Munch ):
         if config_path:
             self._config = self.load_config(path=config_path, override=override, return_munch=False)
         
-        assert isinstance(self._config, dict) f'The self._config should be a dictionary but is {type(self._config)}'
+        assert isinstance(self._config, dict) ,  f'The self._config should be a dictionary but is {type(self._config)}'
         self._config.update(kwargs)
         super().__init__(*args, **self._config)
 
 
-    def load_config(self, path:str ,override:dict[str, Any]={}, recursive=False, return_munch=False):
+    def load_config(self, path:str ,override:Dict[str, Any]={}, recursive=False, return_munch=False):
         self._config = self.parse_config(path=path)
         if self._config == None:
             return {}
@@ -53,8 +53,7 @@ class Config ( Munch ):
         return self._config
 
 
-
-    def save_config(self, path:str=None, cfg:str):
+    def save_config(self, path:str=None, cfg:str=None):
         if cfg == None:
             cfg = self._config
         assert isinstance(cfg, dict)
@@ -73,12 +72,13 @@ class Config ( Munch ):
                 - folder1.folder2
         '''
 
-        config_path, config_path_type = os.path.splitext(config_path)[-1]
+        config_path_type = os.path.splitext(config_path)[-1][1:]
+        config_path = '.'.join(os.path.splitext(config_path)[:-1])
         
         # ensure config is in the formate  of /folder1/folder2/ and not folder1.folder2
         config_path = config_path.replace(".", "/")
-        if config_path != 'yaml':
-            config_path = config_path.replace(f'.{file_type}', '')
+        if config_path_type != 'yaml':
+            config_path = config_path.replace(f'.{config_path_type}', '')
 
 
         if os.path.isdir(config_path):
@@ -95,8 +95,8 @@ class Config ( Munch ):
             raise NotImplementedError(config_path)
 
 
-        if file_type != config_path[-len(file_type):]:
-            config_path = f'{config_path}.{file_type}'
+        if config_path_type != config_path[-len(config_path_type):]:
+            config_path = f'{config_path}.{config_path_type}'
 
         return config_path
     def get_cfg(self, input, key_path, local_key_path=[]):
@@ -406,7 +406,7 @@ class Config ( Munch ):
 
 
 if __name__== "__main__":
-
+    pass
 
     # def get_base_cfg(self, cfg,  key_path, local_key_path=[]):
     #     if isinstance(cfg, str):

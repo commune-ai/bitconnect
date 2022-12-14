@@ -28,15 +28,12 @@ services:
       - ./bittensor/tests:/app/bittensor/tests
 
       # COMMUNE MOUNTS
-      - ./commune/commune:/app/commune
-      - ./commune/contracts:/app/contracts
-      - ./commune/interfaces:/app/interfaces
-      - ./commune/artifacts:/app/artifacts
-      
-      # CORTEX MOUNTS
-      - ./cortex/cortex:/app/cortex
+      - ./commune:/app/commune
+      - ./contracts:/app/contracts
+      - ./interfaces:/app/interfaces
+      - ./artifacts:/app/artifacts
 
-      # OCEAN MOUNTS
+      - ./cortex/cortex:/app/cortex
       - ./ocean.py/ocean_lib:/app/ocean.py/ocean_lib
 
       # OTHER MOUNTS
@@ -44,13 +41,13 @@ services:
       - /tmp:/tmp # TMP FILE SYSTEM MOUNT
       - /home/ubuntu/efs:/efs
 
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
 
 
     command: bash -c "cd /app; chmod +x /app/scripts/*;/app/scripts/startup.sh;"

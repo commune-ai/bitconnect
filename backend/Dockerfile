@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
-FROM pytorch/pytorch:1.13.0-cuda11.6-cudnn8-devel
+FROM pytorch/pytorch:latest
 WORKDIR /app
 
 ARG DEBIAN_FRONTEND=noninteractive
-#nvidia key migration
-RUN apt-key del 7fa2af80
-RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
-RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu2004/x86_64/7fa2af80.pub
+# #nvidia key migration
+# RUN apt-key del 7fa2af80
+# RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
+# RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu2004/x86_64/7fa2af80.pub
 # Update the base image
 RUN apt update && apt upgrade -y
 RUN apt install -y curl sudo nano git htop netcat wget unzip python3-dev python3-pip tmux apt-utils cmake build-essential
@@ -52,7 +52,7 @@ RUN node --version
 RUN npm --version
 RUN npm install --save-dev hardhat
 RUN npm install --save-dev @nomicfoundation/hardhat-toolbox
-COPY commune/hardhat.config.js .
+COPY hardhat.config.js .
 RUN npx hardhat
 RUN npm install @openzeppelin/contracts
 RUN npm install @uniswap/v3-periphery
