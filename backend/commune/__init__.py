@@ -1,7 +1,6 @@
 
 from .config.loader import ConfigLoader as config_loader
-load_config  = config_loader.load_config
-save_config  = config_loader.save_config
+from .config import Config
 
 from .base.module import Module
 from .utils import *
@@ -10,6 +9,7 @@ module = Module
 
 
 get_annotations = Module.get_annotations
+get_function_signature = get_function_signature
 launch = Module.launch
 import_module = Module.import_module
 load_module = Module.load_module

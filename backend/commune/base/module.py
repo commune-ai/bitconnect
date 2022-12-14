@@ -1,7 +1,7 @@
 from __future__ import annotations
 from commune.utils import get_object, dict_any, dict_put, dict_get, dict_has, dict_pop, deep2flat, Timer, dict_override, get_functions, get_function_schema, kill_pid
 import datetime
-from commune.config.loader import ConfigLoader
+
 import streamlit as st
 import os
 import subprocess, shlex
@@ -15,6 +15,7 @@ from munch import Munch
 import types
 import inspect
 from commune.ray.utils import kill_actor
+from commune.config import Config
 from copy import deepcopy
 import argparse
 import psutil
@@ -27,7 +28,7 @@ from typing import *
 from glob import glob
 
 from .utils import enable_cache
-
+import inspect
 
 class Module:
     client = None
@@ -40,6 +41,7 @@ class Module:
 
     def __init__(self, config=None, override={}, client=None , **kwargs):
         
+        self.config = Config()
         self.config = self.resolve_config(config=config, override=override)
         self.client = self.get_clients(client=client) 
         
@@ -58,6 +60,7 @@ class Module:
             if client_config != None:
                 return client_config
         return client_config
+
 
     def get_clients(self, client=None):
         if self.class_name == 'client.manager':
@@ -90,7 +93,12 @@ class Module:
             return client_module_class(client_config)
         else:
             raise NotImplementedError
-            
+
+    @staticmethod
+    def get_function_signature(fn) -> dict: 
+        return dict(inspect.signature(fn)._parameters)
+
+        
     @staticmethod
     def dict_override(*args, **kwargs):
         return dict_override(*args,**kwargs)
@@ -408,25 +416,20 @@ class Module:
                                      recursive=recursive,
                                      return_munch=return_munch)
 
-    @classmethod
-    def save_config(cls, path=None, config=None):
+    def save_config(self, path=None):
         """
         config: 
             Option 1: dictionary config (passes dictionary) 
             Option 2: absolute string path pointing to config
         """
-        if path == None:
-            path = cls.get_config_path()
-        return cls.config_loader.save(path=path, cfg=config)
+        return self.config.save_config(path=path)
     @classmethod
-    def default_cfg(cls, *args,**kwargs):
-        return cls.config_loader.load(path=cls.get_config_path(),*args, **kwargs)
+    def default_cfg(cls):
+        config_path = cls.get_config_path()
+        return Config(config_path=config_path)
 
-    default_config = default_cfg
-    config_template = default_cfg
-    _config = default_cfg
+    config_template = default_config = default_cfg
 
-    
     @classmethod
     def import_module(cls, import_path:str) -> 'Object':
         # imports a python module or a module
@@ -877,7 +880,13 @@ class Module:
         """
 
         config = kwargs.pop('config', None)
-        config = cls.load_config(config=config)
+
+        if isinstance(config, str):
+            path = config
+        elif isinstance(config, dict):
+            path = kwargs.pop('path', None)
+         
+        config = Config(path = config=config)
 
         ray_config = config.get('ray', {})
         if not cls.ray_initialized():

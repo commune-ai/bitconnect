@@ -67,12 +67,18 @@ class BittensorModule(Module):
     def set_wallet(self, name:str=None, hotkey:str=None,**kwargs):
 
         wallet_config = self.config.get('wallet', self.default_wallet_config)
-        wallet_config['name'] = wallet_config['name'] if name == None else name
-        wallet_config['hotkey'] = wallet_config['hotkey'] if hotkey == None else hotkey
+        wallet_config['name'] = name if name  else  wallet_config['name']
+        wallet_config['hotkey'] = hotkey if hotkey else wallet_config['hotkey']  
 
         self.wallet = bittensor.wallet(**wallet_config)
         
         self.config['wallet'] = wallet_config
+
+
+        for f in ['add_stake', 'remove_stake', 'get_balance']:
+            fn = getattr(self.wallet, f)
+            if callable(fn):
+                setattr(self, f, fn)
 
         return self.wallet
 
@@ -97,18 +103,6 @@ class BittensorModule(Module):
         else:
             selected_endpoints = endpoints[:num_endpoints]
         return selected_endpoints
-
-
-
-    def get_wallet(self, **kwargs):
-        wallet_kwargs = self.config.get('wallet', self.default_wallet_config)
-        for k in ['name', 'hotkey']:
-            kwargs[k] = kwargs.get(k,wallet_kwargs[k])
-            assert isinstance(kwargs[k], str), f'{kwargs[k]} is not a string'
-
-        self.wallet = bittensor.wallet(**kwargs)
-
-        return self.wallet
 
 
     @property
@@ -732,8 +726,17 @@ class BittensorModule(Module):
         bittensor.subtensor.add_args(parser)
         return parser
 
+    
+
+
 if __name__ == '__main__':
     st.set_page_config(layout="wide")
     # st.write(module.blocks_behind)
+    # st.write(module.register())
+    module = BittensorModule()
+
+
+    import commune
     st.write(module.register())
+    # st.write(module.wallet.get_balance())
     # st.write(module.wallet.regenerate_coldkey(menmonic))

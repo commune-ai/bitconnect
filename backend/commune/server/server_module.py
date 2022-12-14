@@ -9,7 +9,7 @@ from typing import Dict, List, Callable, Optional, Tuple, Union
 import torch
 import grpc
 from substrateinterface import Keypair
-
+from loguru import logger
 import bittensor
 
 
@@ -209,6 +209,9 @@ class Server:
 
         bittensor.wallet.add_args( parser, prefix = prefix )
 
+    @classmethod
+    def default_conifg(cls):
+        cls.add_defaults(Config())
     @classmethod   
     def add_defaults(cls, defaults):
         """ Adds parser defaults to object from enviroment variables.
