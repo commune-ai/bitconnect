@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1
-FROM pytorch/pytorch:latest
+FROM nvidia/cuda:11.3.1-base-ubuntu20.04
+
+# Remove any third-party apt sources to avoid issues with expiring keys.
+RUN rm -f /etc/apt/sources.list.d/*.list
 WORKDIR /app
 
 ARG DEBIAN_FRONTEND=noninteractive

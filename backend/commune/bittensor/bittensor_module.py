@@ -35,24 +35,30 @@ from commune.streamlit import StreamlitPlotModule, row_column_bundles
 
 
 class BittensorModule(Module):
-    sample_n = 400
-    sample_mode = 'rank'
-    sample_metric = 'ranks'
-    sample_descending = True
-    default_network = 'nakamoto'
-    default_wallet_config = {'name': 'const', 'hotkey': 'Tiberius'}
 
-    def __init__(self, config=None, load=True, **kwargs):
-        
+    default_network = 'nakamoto'
+
+    def __init__(self, 
+                config: Union[str,dict, 'commune.Config']=None, 
+                coldkey:str=None, 
+                hotkey:str=None, 
+                load:bool=True, 
+                subtensor: 'bittensor.subtensor'=None,
+                wallet: 'bittensor.wallet'=None,
+                network:str = None,
+                block:int=None,
+                **kwargs):
+
         Module.__init__(self, config=config, **kwargs) 
-        self.config = Munch(self.config)
         self.config.bittensor = self.get_bittensor_config()
-        
-        # self.sync_network(network=network, block=block)
+
+        self.network = network = network if network else self.network
+
+        self.set_wallet(wallet=wallet,hotkey=hotkey, coldkey=coldkey)  
+        self.set_network(network=network, subtensor=subtensor, block=block)
+
         self.plot = StreamlitPlotModule()
-        st.write('load')
-        if load:
-            self.load()
+
 
     @staticmethod
     def str2synapse(synapse:str, *args, **kwargs):
@@ -64,21 +70,18 @@ class BittensorModule(Module):
     def save(self, path=None ,**kwargs):
         self.put_config(path=path, **kwargs)
 
-    def set_wallet(self, name:str=None, hotkey:str=None,**kwargs):
 
-        wallet_config = self.config.get('wallet', self.default_wallet_config)
-        wallet_config['name'] = name if name  else  wallet_config['name']
-        wallet_config['hotkey'] = hotkey if hotkey else wallet_config['hotkey']  
+    def set_wallet(self, coldkey:str=None, hotkey:str=None,**kwargs):
 
-        self.wallet = bittensor.wallet(**wallet_config)
-        
-        self.config['wallet'] = wallet_config
+        coldkey = self.config.wallet.coldkey = coldkey if coldkey  else  self.config.wallet.coldkey
+        hotkey =self.config.wallet.hotkey = hotkey if hotkey else self.config.wallet.hotkey 
 
+        self.wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
 
-        for f in ['add_stake', 'remove_stake', 'get_balance']:
-            fn = getattr(self.wallet, f)
-            if callable(fn):
-                setattr(self, f, fn)
+        # for f in ['add_stake', 'remove_stake', 'get_balance']:
+        #     fn = getattr(self.wallet, f)
+        #     if callable(fn):
+        #         setattr(self, f, fn)
 
         return self.wallet
 
@@ -153,9 +156,12 @@ class BittensorModule(Module):
 
     @property
     def subtensor(self):
-        if not hasattr(self,'_subtensor') or self._subtensor == None:
-            self.get_subtensor(network=self.network)
+        if not hasattr(self,'_subtensor'):
+            self.set_subtensor(network=self.network)
         return self._subtensor
+
+
+
 
     @subtensor.setter
     def subtensor(self, subtensor):
@@ -254,6 +260,7 @@ class BittensorModule(Module):
         
         return wallet_dict
 
+
     @property
     def registered_wallets(self):
         wallet_dict ={}
@@ -316,34 +323,23 @@ class BittensorModule(Module):
 
 
 
-    def load(self, network:str=None, block:int=None, wallet={},  path:str=None,):
-        self.get_config(path=path)
-        self.network = network = network if network else self.network
-        self.block = block = block if block else self.block
-        self.get_subtensor(network=network)
-        self.get_metagraph()
-        self.set_wallet(**wallet)
-    
     @property
     def metagraph_path(self):
         return f'backend/{self.network}B{self.block}.pth'
 
 
-    def load_metagraph(self):
-        # metagraph_state_dict = self.client['minio'].load_model(path=self.metagraph_path) 
-        # self.metagraph.load_from_state_dict(metagraph_state_data)
-
-        self.metagraph.load()
-        self.block = self.metagraph.block.item()
-        if not self.sync_metagraph_bool:
-            self.set_metagraph_state()
-    
     def set_metagraph_state(self, sample_n=None, sample_mode='rank', **kwargs):
         metagraph_state = self.metagraph.state_dict()
         if sample_n != None:
             metagraph_state =  self.sample_metagraph_state(metagraph_state=metagraph_state, sample_n=sample_n, sample_mode=sample_mode, **kwargs)
-       
         self.metagraph_state = metagraph_state
+
+
+    sample_n = 400
+    sample_mode = 'rank'
+    sample_metric = 'ranks'
+    sample_descending = True
+    
     def sample_metagraph_state(self, metagraph_state , sample_n=None,  sample_mode='rank', **kwargs ):
         '''
         Args:
@@ -380,22 +376,6 @@ class BittensorModule(Module):
             
         return sampled_metagraph_state
 
-    def sync_metagraph(self,block=None, force=False):
-        sync_metagraph_bool = self.sync_metagraph_bool or force
-        if sync_metagraph_bool:
-            self.metagraph.sync(block=block)
-        return self.metagraph
-
-    def save_metagraph(self):
-        # metagraph_state_dict = self.metagraph.state_dict()
-
-        # metagraph_state_data = self.client['minio'].save_model(path=self.metagraph_path,
-        #                                                     data=metagraph_state_dict) 
-  
-        # self.metagraph.load_from_state_dict(metagraph_state_data)
-        # self.block = self.metagraph.block.item()
-        self.metagraph.save()
-        
     def argsort_uids(self, metric='rank', descending=True):
         prohibited_params = ['endpoints', 'uids', 'version']
 
@@ -421,33 +401,38 @@ class BittensorModule(Module):
         return self.blocks_behind
 
     @property
+    def block(self):
+        return self.metagraph.block.item()
+
+    @property
     def blocks_behind(self):
         return self.current_block - self.block
 
-    def get_metagraph(self):
-
-        # Fetch data from URL here, and then clean it up.
-        self.metagraph = bittensor.metagraph(network=self.network, subtensor=self.subtensor)
-        self.load_metagraph()
-        self.sync_metagraph()
-        self.save_metagraph()
 
 
-    def get_subtensor(self, network, **kwargs):
+    def set_network(self,  network:Optional[str]=None, block:Optional[int]=None, subtensor:Optional[str]=None,  **kwargs):
         '''
         The subtensor.network should likely be one of the following choices:
             -- local - (your locally running node)
             -- nobunaga - (staging)
             -- nakamoto - (main)
         '''
+        # Load the subtensor graph
+        self.subtensor = subtensor if subtensor else bittensor.subtensor(network=network, **kwargs)
         
-        self.subtensor = bittensor.subtensor(network=network, **kwargs)
+        
+        # Load the metagraph
+        self.metagraph = bittensor.metagraph(network=self.network, subtensor=self.subtensor)
+        self.metagraph.load()
+
+        sync_metagraph_bool = self.sync_metagraph_bool or force_sync
+        if sync_metagraph_bool:
+            self.metagraph.sync(block=block)
+
+        self.metagraph.save()
+        self.set_metagraph_state()
     
-    '''
-        streamlit functions
-    '''
-
-
+    
     def adjacency(mode='W', ):
         return torch.nonzero(self.metagraph.weights)
 
@@ -676,9 +661,6 @@ class BittensorModule(Module):
 
 
     @property
-    def coldkey_address(self):
-        return self.wallet.coldkeypub.ss58_address
-    @property
     def hotkey_address(self):
         return self.wallet.hotkey.ss58_address
     @property
@@ -728,15 +710,17 @@ class BittensorModule(Module):
 
     
 
-
 if __name__ == '__main__':
     st.set_page_config(layout="wide")
     # st.write(module.blocks_behind)
     # st.write(module.register())
+
+    actor = {'gpu': 0.2, 'cpu':1, 'name': 'bittensor_module-0', 'refresh': False, 'wrap': True}
+    actor = False
     module = BittensorModule()
+    st.write(module)
 
-
-    import commune
-    st.write(module.register())
+    # st.write(module.list_wallets())
+    # st.write(module.register())
     # st.write(module.wallet.get_balance())
     # st.write(module.wallet.regenerate_coldkey(menmonic))

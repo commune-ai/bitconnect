@@ -9,9 +9,8 @@ network: nakamoto
 block: null
 
 blocks_behind_sync_threshold: 100
-
-wallet: 
-  name: bit
+wallet:
+  coldkey: bit
   hotkey: connect
 
 actor:

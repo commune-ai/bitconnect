@@ -14,9 +14,6 @@ from functools import partial
 from commune.utils import dict_get, dict_put, list2str
 from commune.config.utils import  dict_fn_local_copy, dict_fn_get_config 
 
-
-
-
 class Config ( Munch ):
     """
     Implementation of the config class, which manages the config of different bittensor modules.
@@ -25,43 +22,55 @@ class Config ( Munch ):
     MAIN_DIRECTORY = 'commune'
     root =  os.path.join(os.environ['PWD'],MAIN_DIRECTORY)
 
-    def __init__(self, config_path:Optional[str]= None, config:Optional[dict]=None, override:Optional[dict]={},  *args, **kwargs,   ):
+    def __init__(self, config=None, *args, **kwargs,   ):
+
+        self.config = kwargs.pop('config', {})
+
+        if isinstance(config, str) :
+            self.config_path = config
+            self.config = self.load_config(path=self.config_path)
         
-        self._config = {}
+        assert isinstance(self.config, dict) ,  f'The self.config should be a dictionary but is {type(self.config)}'
+
+        Munch.__init__(self, self.config, *args, **kwargs)
+        self.recursive_munch(self)
+    @staticmethod
+    def recursive_munch(config):
+        if isinstance(config, dict):
+            for k,v in config.items():
+                if isinstance(v, dict):
+                    config[k] = Config.recursive_munch(v)
+
+            config = Munch(config)
+        
+        return config 
+
+
+    def load_config(self, path:str ,override:Dict[str, Any]={}):
         self.cache = {}
-
-        if config_path:
-            self._config = self.load_config(path=config_path, override=override, return_munch=False)
-        
-        assert isinstance(self._config, dict) ,  f'The self._config should be a dictionary but is {type(self._config)}'
-        self._config.update(kwargs)
-        super().__init__(*args, **self._config)
-
-
-    def load_config(self, path:str ,override:Dict[str, Any]={}, recursive=False, return_munch=False):
-        self._config = self.parse_config(path=path)
-        if self._config == None:
+        self.config = self.parse_config(path=path)
+        if self.config == None:
             return {}
 
         if isinstance(override, dict) and len(override) > 0:
-            self._config = self.override_cfg(cfg=self._config, override=override)
-        if recursive:
-            self._config = self.resolver_methods(cfg=self._config)
-        if return_munch:
-            return Munch(self._config)
-        assert isinstance(self._config, Munch)  if return_munch else isinstance(self._config, dict), f'{self._config}'
-        return self._config
+            self.config = self.override_config(config=self.config, override=override)
+        
+        self.config = self.resolver_methods(config=self.config)
+        self.config = self.recursive_munch(self.config)
+        return self.config
 
 
-    def save_config(self, path:str=None, cfg:str=None):
-        if cfg == None:
-            cfg = self._config
-        assert isinstance(cfg, dict)
+    def save_config(self, path:str=None, config:str=None):
+
+        config = config if config else self.config
+        path = path if path else self.config_path
+        
+        assert isinstance(config, dict)
 
         with open(path, 'w') as file:
-            documents = yaml.dump(cfg, file)
+            documents = yaml.dump(config, file)
         
-        return cfg
+        return config
 
     def resolve_config_path(self, config_path:str):
         # find config path
@@ -99,7 +108,7 @@ class Config ( Munch ):
             config_path = f'{config_path}.{config_path_type}'
 
         return config_path
-    def get_cfg(self, input, key_path, local_key_path=[]):
+    def get_config(self, input, key_path, local_key_path=[]):
         
         """
 
@@ -112,10 +121,10 @@ class Config ( Munch ):
                 - None (this means its not pointing to a config path)
         """
 
-        cfg=input
+        config=input
 
-        if isinstance(cfg, str):
-            config_path = re.compile('^(get_cfg)\((.+)\)').search(input)
+        if isinstance(config, str):
+            config_path = re.compile('^(get_config)\((.+)\)').search(input)
             # if there are any matches ()
             if config_path:
                 config_path = config_path.group(2)
@@ -124,14 +133,14 @@ class Config ( Munch ):
                     assert len(config_path.split(',')) == 2
                     config_path ,config_keys = config_path.split(',')
 
-                cfg = self.parse_config(config_path)
-                cfg = self.resolve_config(cfg=cfg,root_key_path=key_path, local_key_path=key_path)
+                config = self.parse_config(config_path)
+                config = self.resolve_config(config=config,root_key_path=key_path, local_key_path=key_path)
 
                 if config_keys != None:
 
-                    cfg =  dict_get(input_dict=cfg, keys=config_keys)
+                    config =  dict_get(input_dict=config, keys=config_keys)
 
-        return cfg
+        return config
 
     def set_cache(self, key, value):
         self.cache[key] = value
@@ -167,13 +176,13 @@ class Config ( Munch ):
             if variable_path:
 
                 # get the object
-                local_cfg_key_path = self.cache[list2str(key_path)]
+                local_config_key_path = self.cache[list2str(key_path)]
                 
-                if local_cfg_key_path:
-                    local_cfg = dict_get(input_dict=self._config, keys=self.cache[list2str(key_path)])
+                if local_config_key_path:
+                    local_config = dict_get(input_dict=self.config, keys=self.cache[list2str(key_path)])
                 else: 
-                    local_cfg = self._config
-                variable_object = dict_get(input_dict=local_cfg,
+                    local_config = self.config
+                variable_object = dict_get(input_dict=local_config,
                                                     keys = variable_path)
 
         return variable_object
@@ -203,7 +212,7 @@ class Config ( Munch ):
 
                 # get the object
                 try:
-                    variable_object = dict_get(input_dict=self._config,
+                    variable_object = dict_get(input_dict=self.config,
                                                         keys = variable_path)
                 except KeyError as e:
                     raise(e)
@@ -218,32 +227,32 @@ class Config ( Munch ):
         output = self.local_copy(input=input, key_path=key_path)
         return output
 
-    def resolve_variable(self, cfg, root_key_path = []):
+    def resolve_variable(self, config, root_key_path = []):
         '''
         :return:
         '''
         keys = []
-        if isinstance(cfg, dict):
-            keys = list(cfg.keys())
-        elif isinstance(cfg, list):
-            keys = list(range(len(cfg)))
+        if isinstance(config, dict):
+            keys = list(config.keys())
+        elif isinstance(config, list):
+            keys = list(range(len(config)))
         
         for k in keys:
             key_path = root_key_path +[k]
-            cfg[k] = self.get_variable(input=cfg[k], key_path=key_path )
-            if type( cfg[k]) in [list, dict]:
-                cfg[k] = self.resolve_variable(cfg=cfg[k], root_key_path= key_path)
+            config[k] = self.get_variable(input=config[k], key_path=key_path )
+            if type( config[k]) in [list, dict]:
+                config[k] = self.resolve_variable(config=config[k], root_key_path= key_path)
 
-        return cfg
+        return config
 
-    def resolve_config(self, cfg=None, root_key_path=[], local_key_path=[]):
+    def resolve_config(self, config=None, root_key_path=[], local_key_path=[]):
 
-        if isinstance(cfg, dict):
-            keys = list(cfg.keys())
-        elif isinstance(cfg, list):
-            keys = list(range(len(cfg)))
+        if isinstance(config, dict):
+            keys = list(config.keys())
+        elif isinstance(config, list):
+            keys = list(range(len(config)))
         else:
-            return cfg
+            return config
         for k in keys:
             key_path = root_key_path + [k]
 
@@ -252,32 +261,32 @@ class Config ( Munch ):
             if key_path_str not in self.cache:
                 self.cache[key_path_str] = local_key_path
 
-            cfg[k] = self.get_cfg(input=cfg[k],
+            config[k] = self.get_config(input=config[k],
                                   key_path= key_path,
                                   local_key_path=local_key_path)
 
-            if type(cfg[k]) in [list, dict]:
-                cfg[k] = self.resolve_config(cfg=cfg[k],
+            if type(config[k]) in [list, dict]:
+                config[k] = self.resolve_config(config=config[k],
                                   root_key_path= key_path,
                                   local_key_path=local_key_path)
 
-        return cfg
+        return config
 
-    def resolver_methods(self, cfg):
+    def resolver_methods(self, config):
         '''
         :param path: path to config
         :return:
             config
         '''
-        self._config = cfg
+        self.config = config
 
         # composes multiple config files
-        self._config = self.resolve_config(cfg=self._config)
+        self.config = self.resolve_config(config=self.config)
 
         # fills in variables (from ENV as well as local variables)
-        self._config = self.resolve_variable(cfg=self._config)
+        self.config = self.resolve_variable(config=self.config)
 
-        return self._config
+        return self.config
 
     def parse_config(self,
                      path=None,
@@ -338,9 +347,9 @@ class Config ( Munch ):
             return value
         loader.add_constructor(tag,constructor_env_variables)
         with open(path) as conf_data:
-            cfg =  yaml.load(conf_data, Loader=loader)
+            config =  yaml.load(conf_data, Loader=loader)
         
-        return cfg
+        return config
     def __repr__(self) -> str:
         return self.__str__()
     
@@ -393,14 +402,14 @@ class Config ( Munch ):
 
 
     @staticmethod
-    def override_cfg(cfg, override={}):
+    def override_config(config, override={}):
         """
         
         """
         for k,v in override.items():
-            dict_put(input_dict=cfg,keys=k, value=v)
+            dict_put(input_dict=config,keys=k, value=v)
 
-        return cfg
+        return config
     
 
 
@@ -408,9 +417,9 @@ class Config ( Munch ):
 if __name__== "__main__":
     pass
 
-    # def get_base_cfg(self, cfg,  key_path, local_key_path=[]):
-    #     if isinstance(cfg, str):
-    #         config_path = re.compile('^(get_base_cfg)\((.+)\)').search(input)
+    # def get_base_config(self, config,  key_path, local_key_path=[]):
+    #     if isinstance(config, str):
+    #         config_path = re.compile('^(get_base_config)\((.+)\)').search(input)
 
     #         # if there are any matches ()
     #         if config_path:

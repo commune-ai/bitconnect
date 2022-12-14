@@ -44,7 +44,6 @@ class Module:
         self.config = self.resolve_config(config=config, override=override)
         self.client = self.get_clients(client=client) 
         
-        st.write('client')
         self.start_timestamp =self.current_timestamp
         self.get_submodules(get_submodules_bool = kwargs.get('get_submodules', True))
         self.cache = {}
@@ -193,7 +192,7 @@ class Module:
     def simple2import(cls, simple:str) -> str:
         config_path = Module.simple2path(simple, mode='config')
         module_basename = os.path.basename(config_path).split('.')[0]
-        config = Config(config_path=config_path)
+        config = Config(config=config_path)
         obj_name = config.get('module', config.get('name'))
         module_path = '.'.join([simple, module_basename,obj_name])
         return module_path
@@ -283,9 +282,11 @@ class Module:
 
 
     @classmethod
-    def launch(cls, module:str=None, fn:str=None ,kwargs:dict={}, args=[], actor=False, **additional_kwargs):
+    def launch(cls, module:str=None, fn:str=None ,kwargs:dict={}, args:list=[], actor:Union[bool, dict]=False, ray_init:dict={}, **additional_kwargs):
         
-        
+
+        cls.ray_init(ray_init)
+
         if module == None:
             module = cls.get_module_path()
         module_class = cls.import_object(module)
@@ -369,23 +370,31 @@ class Module:
         assert isinstance(config, dict)
         assert 'module' in config
 
-    def resolve_config(self, config, override={}, recursive=True ,return_munch=False, **kwargs):
-    
-        if config == None:
-            config_path =  os.path.join(os.getenv('PWD'), self.get_config_path())
-            assert type(config_path) in [str, dict, Munch], f'CONFIG type {type(config)} no supported'
-            config = self.load_config(config=config_path, 
-                                override=override, 
-                                return_munch=return_munch)
+    @staticmethod
+    def get_base_config_path()-> str:
+        return Module.get_config_path()
 
-            return config
+    @staticmethod
+    def get_base_config()-> str:
+        return Config(Module.get_config_path())
+
+    @property
+    def config_path(self):
+        config_path = self.get_config_path()
+        if not os.path.exists(config_path):
+            base_config = self.get_base_config()
+            Config(base_config).save_config(path=config_path)
+        
+        assert os.path.exists(config_path)
+        
+        return config_path
+
+    def resolve_config(self, config, override={}, **kwargs):
+        config = self.load_config(config=config if config else self.config_path)
 
         if config == None:
             config = 'base'
-            config = cls.resolve_config(config=config, 
-                        override=override, 
-                        recursive=recursive,
-                        return_munch=return_munch)
+            config = cls.resolve_config(config=config)
             # assert isinstance(config, dict),  f'bruh the config should be {type(config)}'
             self.save_config(config=config)
 
@@ -402,16 +411,9 @@ class Module:
         self.dict_override(input_dict=self.config, override=override)
 
     @classmethod
-    def load_config(cls, config=None, override={}, recursive=True, return_munch=False):
-        """
-        config: 
-            Option 1: dictionary config (passes dictionary) 
-            Option 2: absolute string path pointing to config
-        """
-        if config == None:
-            config = cls.get_config_path()
-        return Config(config_path=config,
-                      override=override)
+    def load_config(cls, config_path:Optional[str]=None, config:Dict[str]=None, override={}):
+
+        return Config(config= config if config else config_path)
 
     def save_config(self, path=None):
         """
@@ -419,7 +421,7 @@ class Module:
             Option 1: dictionary config (passes dictionary) 
             Option 2: absolute string path pointing to config
         """
-        return self.config.save_config(path=path)
+        return Config.save_config(path=path)
     @classmethod
     def default_cfg(cls):
         config_path = cls.get_config_path()
@@ -701,7 +703,6 @@ class Module:
     def tmp_dir(self):
         return f'/tmp/{self.root_dir}/{self.class_name}'
 
-
     @classmethod
     def get_module_path(cls, obj=None,  simple=True):
         if obj == None:
@@ -877,7 +878,7 @@ class Module:
         """
 
         config = kwargs.pop('config', None)
-
+        path = kwargs.pop('path', None)
         if isinstance(config, str):
             path = config
         elif isinstance(config, dict):
