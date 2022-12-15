@@ -11,7 +11,6 @@ import grpc
 from substrateinterface import Keypair
 
 import bittensor
-from . import axon_impl
 
 
 

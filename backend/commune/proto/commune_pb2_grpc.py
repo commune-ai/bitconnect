@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from commune._proto import commune_pb2 as commune_pb2
+from commune.proto import commune_pb2 as commune_pb2
 
 
 class BittensorStub(object):
@@ -35,7 +35,7 @@ class CommuneServicer(object):
         raise NotImplementedError('Method not implemented!')
 
 
-def add_CommuneServicer_to_server(servicer, server):
+def add_servicer_to_server(servicer, server):
     rpc_method_handlers = {
             'Forward': grpc.unary_unary_rpc_method_handler(
                     servicer.Forward,

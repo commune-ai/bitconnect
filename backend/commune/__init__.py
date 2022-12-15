@@ -1,7 +1,6 @@
 
 from .config.loader import ConfigLoader as config_loader
 from .config import Config
-
 from .base.module import Module
 from .utils import *
 
@@ -34,6 +33,7 @@ run_command = Module.run_command
 
 from .pipeline import Pipeline 
 from .process.aggregator import BaseAggregator as Aggregator
+# import .proto as proto
 
 
 # import commune.sandbox as sandbox

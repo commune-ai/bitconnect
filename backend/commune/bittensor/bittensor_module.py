@@ -339,7 +339,7 @@ class BittensorModule(Module):
     sample_mode = 'rank'
     sample_metric = 'ranks'
     sample_descending = True
-    
+
     def sample_metagraph_state(self, metagraph_state , sample_n=None,  sample_mode='rank', **kwargs ):
         '''
         Args:
@@ -717,8 +717,11 @@ if __name__ == '__main__':
 
     actor = {'gpu': 0.2, 'cpu':1, 'name': 'bittensor_module-0', 'refresh': False, 'wrap': True}
     actor = False
-    module = BittensorModule()
+    module = BittensorModule.launch(actor=actor)
     st.write(module)
+
+
+    
 
     # st.write(module.list_wallets())
     # st.write(module.register())

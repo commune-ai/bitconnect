@@ -162,7 +162,6 @@ if __name__ == '__main__':
     st.write(server.put_batch('bro', ['bro']*10, sync=True))
 
 
-    st.write(server.size_map())
     st.write(server.get_batch('key', batch_size=10, sync=True))
     # st.write(server.get('key', sync=True))
 

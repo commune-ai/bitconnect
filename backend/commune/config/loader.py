@@ -73,14 +73,6 @@ class ConfigLoader:
         assert isinstance(self._config, Munch)  if return_munch else isinstance(self._config, dict), f'{self._config}'
         return self._config
 
-    # def get_base_cfg(self, cfg,  key_path, local_key_path=[]):
-    #     if isinstance(cfg, str):
-    #         config_path = re.compile('^(get_base_cfg)\((.+)\)').search(input)
-
-    #         # if there are any matches ()
-    #         if config_path:
-    #             config_path = config_path.group(2)
-
     supported_filetypes = ['yaml', 'json', 'yml']
     
     def resolve_config_path(self, config_path):
@@ -374,3 +366,12 @@ class ConfigLoader:
 
 if __name__== "__main__":
     print(ConfigLoader(path=path).cfg) 
+
+
+    # def get_base_cfg(self, cfg,  key_path, local_key_path=[]):
+    #     if isinstance(cfg, str):
+    #         config_path = re.compile('^(get_base_cfg)\((.+)\)').search(input)
+
+    #         # if there are any matches ()
+    #         if config_path:
+    #             config_path = config_path.group(2)
