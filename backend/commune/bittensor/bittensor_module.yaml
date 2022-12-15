@@ -3,7 +3,7 @@
 module: 'BittensorModule'
 # clients
 # client: get_config(client.manager)
-client: ['local']
+# client: ['local']
 
 network: nakamoto
 block: null

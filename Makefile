@@ -52,3 +52,6 @@ python:
 exec:
 
 	docker exec -it backend bash -c "${arg}"
+
+register:
+	cd backend ; source env/bin/activate ; python commune/bittensor/bittensor_module.py --index=${arg}

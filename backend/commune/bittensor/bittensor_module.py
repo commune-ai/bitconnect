@@ -710,15 +710,22 @@ class BittensorModule(Module):
 
     
 
+
 if __name__ == '__main__':
     st.set_page_config(layout="wide")
     # st.write(module.blocks_behind)
     # st.write(module.register())
 
+    parser = argparse.ArgumentParser()
+    # ML model arguements
+    parser.add_argument('--index', type=int, help='device i', default=0)
+    args = parser.parse_args()
+
     actor = {'gpu': 0.2, 'cpu':1, 'name': 'bittensor_module-0', 'refresh': False, 'wrap': True}
     actor = False
-    module = BittensorModule.launch(actor=actor)
-    st.write(module)
+    module = BittensorModule(hotkey=f'hotkey-{args.index}')
+    module.wallet.create_new_hotkey(use_password=False, overwrite=False)
+    st.write(module.register(dev_id=list(range(8))))
 
 
     

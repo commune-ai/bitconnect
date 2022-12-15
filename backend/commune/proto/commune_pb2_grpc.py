@@ -2,10 +2,10 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from commune.proto import commune_pb2 as commune_pb2
+from . import commune_pb2 as commune__pb2
 
 
-class BittensorStub(object):
+class CommuneStub(object):
     """Service definition for tensor processing servers.
     """
 
@@ -16,11 +16,10 @@ class BittensorStub(object):
             channel: A grpc.Channel.
         """
         self.Forward = channel.unary_unary(
-                '/Bittensor/Forward',
-                request_serializer=commune_pb2.TensorMessage.SerializeToString,
-                response_deserializer=commune_pb2.TensorMessage.FromString,
+                '/Commune/Forward',
+                request_serializer=commune__pb2.DataBlock.SerializeToString,
+                response_deserializer=commune__pb2.DataBlock.FromString,
                 )
-
 
 
 class CommuneServicer(object):
@@ -35,15 +34,16 @@ class CommuneServicer(object):
         raise NotImplementedError('Method not implemented!')
 
 
-def add_servicer_to_server(servicer, server):
+def add_CommuneServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'Forward': grpc.unary_unary_rpc_method_handler(
                     servicer.Forward,
-                    request_deserializer=commune_pb2.DataBlock.FromString,
-                    response_serializer=commune_pb2.DataBlock.SerializeToString,
+                    request_deserializer=commune__pb2.DataBlock.FromString,
+                    response_serializer=commune__pb2.DataBlock.SerializeToString,
             ),
     }
-    generic_handler = grpc.method_handlers_generic_handler('Commune', rpc_method_handlers)
+    generic_handler = grpc.method_handlers_generic_handler(
+            'Commune', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
 
 
@@ -64,8 +64,7 @@ class Commune(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/Commune/Forward',
-            commune_pb2.DataBlock.SerializeToString,
-            commune_pb2.DataBlock.FromString,
+            commune__pb2.DataBlock.SerializeToString,
+            commune__pb2.DataBlock.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
-

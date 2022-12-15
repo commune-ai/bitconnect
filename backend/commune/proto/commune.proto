@@ -9,15 +9,9 @@ service Commune {
 	
 }
 
-message SignatureBlock {
-	string publickey = 1; //public key
-	bytes signature = 2; //signature
-	string type = 3; // type of the signature
-
-}
 
 message DataBlock {
-	SignatureBlock signature = 1; 
-	bytes data = 2;
-	bytes metadata = 3;
+	bytes data = 1;
+	bytes metadata = 2;
+	repeated DataBlock blocks = 3;
 }
