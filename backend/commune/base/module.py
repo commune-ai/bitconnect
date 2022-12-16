@@ -287,9 +287,19 @@ class Module:
 
         cls.ray_init(ray_init)
 
+
         if module == None:
             module = cls.get_module_path()
-        module_class = cls.import_object(module)
+
+        if cls.is_class(module):
+            module_class = module
+        elif isinstance(module, str):
+            module_class = cls.import_object(module)
+        else:
+            raise NotImplementedError(f'Type ({type(module)}) for module is not implemented')
+
+
+ 
 
         module_init_fn = fn
         module_kwargs = {**kwargs}
@@ -507,6 +517,14 @@ class Module:
 
     def dict_keys(self):
         return self.__dict__.keys()
+
+    @staticmethod
+    def is_class(cls):
+        '''
+        is the object a class
+        '''
+        return type(cls).__name__ == 'type'
+
 
     @staticmethod
     def is_hidden_function(fn):
