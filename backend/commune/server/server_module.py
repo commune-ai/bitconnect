@@ -261,21 +261,17 @@ class ServerModule(CommuneServicer, SerializerModule):
 
         return self
 
-    
-
 class DemoModule:
     def __call__(self, data:dict, metadata:dict) -> dict:
-        
-        
         return {'data': data, 'metadata': {}}
-
 
 
 if __name__ == '__main__':
     module = ServerModule(module=DemoModule())
     module.start()
     st.write(module)
-    
+
+
     # request = module.serialize(data=torch.ones(10,10))
     # response = module.Forward(request=request, context=None)
     # st.write(response)

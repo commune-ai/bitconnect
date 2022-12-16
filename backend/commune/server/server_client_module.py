@@ -102,29 +102,28 @@ class ServerClientModule(nn.Module, SerializerModule):
 
         grpc_request = self.serialize(data=data, metadata=metadata)
 
-        st.write('GRPC',grpc_request)
         try:
             asyncio_future = self.stub.Forward(request = grpc_request, timeout = timeout)
+            response = await asyncio_future
+            response = self.deserialize(response)
             # asyncio_future.cancel()
         except grpc.RpcError as rpc_error_call:
 
-            metadata['error'] = str(rpc_error_call)
+            response = str(rpc_error_call)
 
         # =======================
         # ==== Timeout Error ====
         # =======================
         except asyncio.TimeoutError:
-            metadata['error'] = str(rpc_error_call)
+            response = str(rpc_error_call)
         # ====================================
         # ==== Handle GRPC Unknown Errors ====
         # ====================================
         except Exception as e:
-            metadata['error'] = str(e)
+            response = str(e)
 
-        st.write(metadata)
-        st.write(await asyncio_future)
 
-        return  asyncio_future
+        return  response
 
     @classmethod
     def sync_the_async(self):
@@ -154,11 +153,9 @@ if __name__ == "__main__":
 
 
     data = {
-        'bro': torch.ones(10,10)
+        'bro': torch.ones(10,10),
+        'fam': torch.zeros(10,10)
     }
 
-
-
-    st.write(DataBlock(data=b'a', blocks=[DataBlock(data=b'a')]))
     st.write(module.forward(data=data))
     # st.write(module)
