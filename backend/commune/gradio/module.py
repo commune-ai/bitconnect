@@ -22,7 +22,7 @@ import uvicorn
 class GradioModule(Module):
 
 
-    def __init__(host='0.0.0.0',
+    def __init__(self,host='0.0.0.0',
                  num_ports=10, 
                  port_range=[7865, 7870]):
         
@@ -30,19 +30,7 @@ class GradioModule(Module):
         self.num_ports = num_ports
         self.port_range =  port_range
         
-    def find_registered_functions(self, module:str):
-        '''
-        find the registered functions
-        '''
-        fn_keys = []
-        self.get_module
-        for fn_key in self.get_functions(module):
-            try:
-                if getattr(getattr(getattr(self,fn_key), '__decorator__', None), '__name__', None) == GradioModule.register.__name__:
-                    fn_keys.append(fn_key)
-            except:
-                continue
-        return fn_keys
+
 
     @staticmethod
     def has_registered_functions(self):

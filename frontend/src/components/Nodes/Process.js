@@ -3,6 +3,8 @@ import { Handle, Position, useReactFlow, useStoreApi } from "react-flow-renderer
 
 import '../../css/dist/output.css'
 import {ReactComponent as Ray} from '../../images/ray_svg_logo.svg'
+// import { v4 as uuidv4 } from 'uuid';
+
 
 
 export default function Process({id, data}){
@@ -13,13 +15,12 @@ export default function Process({id, data}){
     const [open, setOpen] = useState(false)
     const [actor, setActor] = useState(false)
     const [fn, setFunction] = useState("")
-    
+    console.debug(fn)
     const searchRef = useRef(null);
 
-    const { setNodes, getEdges, getNode } = useReactFlow();
+    const { setNodes } = useReactFlow();
     const store = useStoreApi();
     //module : item, fn : style.fn, kwargs : {}, args : [], actor : { cpus : 1, gpus : 0 }, colour : style.colour, emoji : style.emoji},
-    console.log(data)
 
 
     const onChange = useCallback((key, value) => {
@@ -39,7 +40,7 @@ export default function Process({id, data}){
           return node;
         })
       );
-    }, [id, setNodes, store, searchRef])
+    }, [id, setNodes, store])
 
     
     return (
@@ -131,17 +132,18 @@ export default function Process({id, data}){
 
     <ul className="rounded-lg px-5 z-20">
     {/* {console.log(data.args)} */}
-    {["String", "String"].map((value) => {
+    {["String", "String"].map((value, index) => {
+        
         return (
         <li className={` h-10 text-md flex flex-col text-center items-center cursor-grab shadow-lg p-8 mt-3 mb-3 rounded-md  break-all -z-20 duration-300 bg-gray-200 hover:bg-gray-100 dark:bg-zinc-700 dark:hover:bg-zinc-600`}>
         <div className=" absolute -mt-2 text-4xl opacity-60"></div>    
         {/* {getNode(value).data.dtype} */}
         <h4 className={`max-w-full font-sans dark:text-blue-50 text-black leading-tight font-bold text-xl flex-1 -mt-3`} style={{"textShadow" : "0px 1px 2px rgba(0, 0, 0, 0.25)"}} >{value}</h4>
-        {/* <Handle type="source"
-                id="output"
-                className=" relative right-0"
-                style={{ "height" : "25px", "width" : "25px",  "borderRadius" : "3px", "zIndex" : "10000", "background" : "white", "boxShadow" : "3px 3px #888888", 'position' : 'absolute'}}/>
-       */}
+        <Handle type="target"
+                id={`input_${index}`}
+                position={Position.Left}
+                className={`rotate-180`}
+                style={{"height" : "25px", "width" : "25px",  "borderRadius" : "3px", "zIndex" : "10000", "background" : "white", "boxShadow" : "3px 3px #888888"}}/>
     </li>
     )} )}
     </ul>
@@ -154,7 +156,7 @@ export default function Process({id, data}){
         </div>
     </div>
   
-    <Handle type="target"
+    {/* <Handle type="target"
                 id="input"
                 position={Position.Left}
                 style={{"marginLeft" : "-10px" , "marginTop" : "0px", "height" : "25px", "width" : "25px",  "borderRadius" : "3px", "zIndex" : "10000", "background" : "white", "boxShadow" : "3px 3px #888888"}}/>
@@ -162,7 +164,7 @@ export default function Process({id, data}){
                 id="output"
                 position={Position.Right}
                 style={{"marginRight" : "-10px", "marginTop" : "0px" ,"height" : "25px", "width" : "25px",  "borderRadius" : "3px", "zIndex" : "10000", "background" : "white", "boxShadow" : "3px 3px #888888", 'position' : 'absolute'}}/>
-   
+    */}
 
     </div>
     </div>)

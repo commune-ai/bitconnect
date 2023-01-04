@@ -3,7 +3,7 @@ import { Handle, Position, useReactFlow, useStoreApi, getOutgoers } from "react-
 import { BsPause, BsPlay } from "react-icons/bs";
 import '../../css/dist/output.css'
 
-const itemList = ["String", "Integer", "Float", "List", "JSON", "Image"];
+const itemList = ["String", "Integer", "Float", "Array", "JSON", "Image"];
 
 export default function InputCompnent({ id, data }) {
   const [open, setOpen] = useState(false)
@@ -59,36 +59,37 @@ export default function InputCompnent({ id, data }) {
     
     // Have all the nodes needed to process now we process them and cache them
     modules.forEach(async (mod) => {
-      console.log(mod)
       // Get the args then
       // check if mod is custom or process
       var output;
       if (mod.type === "custom"){
       //    fetch using host and concat  `${data.host}/run/predict` (1st Iteration)
-        output = await fetch(`${mod.data.host}/run/predict`, 
+        
+      
+      output = await fetch(`${mod.data.host}/run/predict`, 
         { method: 'POST',
           mode : 'cors',
           headers: {'Content-Type': 'application/json' },
           body : JSON.stringify({ data : [...mod.data.args.map(id => getNode(id).data.value)]}) })
-          .then((response) => response.json())
-          .then((res) => {setNodes((nds) => nds.map((node) => {
-            if (node.id === mod.id){
-              node.data = {
-                ...node.data,
-                output : res.data
-              }
-            } 
-            return node
-          }))})
-      //    ...fetch tablular function   `${data.host}/run/predict_n`(2nd Iteration)
-      } else{
 
+      const res = await output.json()
+
+      setNodes((nds) => nds.map((node) => {
+        if (node.id === mod.id){
+          node.data = {
+            ...node.data,
+            previousOutput : node.data.output,
+            output : res.data
+          }
+        } 
+          return node
+      }))
       }
       
       //    use FastAPI to the connect commune to frontend
     })
     
-  }, [])
+  }, [id, setNodes, getEdges, getNode, getNodes])
 
   
 

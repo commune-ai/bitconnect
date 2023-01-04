@@ -39,7 +39,7 @@ export default function CustomEdge({
       <path
         id={id}
         style={style}
-        className="react-flow__edge-path dark:stroke-white stroke-Deep-Space-Black bg-white"
+        className="react-flow__edge-path dark:stroke-white stroke-Deep-Space-Black bg-white z-[10000]"
         d={edgePath}
       />
       <foreignObject

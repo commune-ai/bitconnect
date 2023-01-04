@@ -1,35 +1,39 @@
-import React, { useCallback, useEffect, useRef, useState } from "react"
-import { Handle, Position, getOutgoers, useReactFlow, useStoreApi } from "react-flow-renderer"
+import React, { useCallback, useEffect, useRef, useState, memo } from "react"
+import { Handle, Position, getOutgoers, useReactFlow } from "react-flow-renderer"
 import {TbResize} from 'react-icons/tb'
 import {BiCube, BiRefresh} from 'react-icons/bi'
 import {BsTrash} from 'react-icons/bs'
 import {CgLayoutGridSmall} from 'react-icons/cg'
+import {ImInfo} from 'react-icons/im'
 import {useDrag} from '@use-gesture/react'
 import { useSpring, animated } from 'react-spring'
 
+import { NodeResizer } from '@reactflow/node-resizer';
+import '@reactflow/node-resizer/dist/style.css';
+import Info from "./info/info"
 import '../../css/counter.css'
+import '../../css/dist/output.css'
 
 const MINIMUM_HEIGHT = 600;
 const MINIMUM_WIDTH = 540; 
 
 
-export default function ModuleFrame({id, data}){
+const ModuleFrame = ({id, data, selected}) => {
     const [collapsed, setCollapsible] = useState(true)
     const [sizeAdjuster, setSizeAdjuster] = useState(true)
     const [reachable ,setReachable] = useState(false)
+    const [displayInfo, setDisplayInfo] = useState(false);
     const [{width, height}, api] = useSpring(() => ({width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT }))
     const dragElement = useRef()
-
-    const store = useStoreApi()
+    const hosting = data?.host
     const { setNodes, getNode , getEdges, getNodes} = useReactFlow();
 
-    // console.log(data)
     const bind = useDrag((state) => {
       const isResizing = (state?.event.target === dragElement.current);
       if (isResizing) {
         api.set({
-          width: state.offset[0],
-          height: state.offset[1],
+          width: state.offset[0] + 5,
+          height: state.offset[1] + 5,
 
         });
       } 
@@ -44,7 +48,7 @@ export default function ModuleFrame({id, data}){
 
     useEffect(() => {
       if (data.output === []) return
-      console.log("DATA CHANGE HERE", data.output)
+      console.log("here")
       const node = getNode(id);
       var modules = [];
 
@@ -53,29 +57,32 @@ export default function ModuleFrame({id, data}){
             modules.push(nde)
           }   
       })
+      // console.log( JSON.stringify({ data : [...data.output]}))
       modules.forEach(async (mod) => {
+        console.log(mod)
         var output;
         if (mod.type === "custom"){
-        //    fetch using host and concat  `${data.host}/run/predict` (1st Iteration)
           output = await fetch(`${mod.data.host}/run/predict`, 
           { method: 'POST',
             mode : 'cors',
             headers: {'Content-Type': 'application/json' },
             body : JSON.stringify({ data : [...data.output]}) })
-            .then((response) => response.json())
-            .then((res) => {setNodes((nds) => nds.map((node) => {
+          
+          const res = await output.json();
+          
+          setNodes((nds) => nds.map((node) => {
               if (node.id === mod.id){
                 node.data = {
                   ...node.data,
+                  previousOutput : node.data.output,
                   output : res.data
                 }
               } 
               return node
-            }))})
-        //    ...fetch tablular function   `${data.host}/run/predict_n`(2nd Iteration)
+            }))
         }
       })
-    },[data.output])
+    },[data, id, getEdges, getNode, getNodes, setNodes])
 
     const isFetchable = useCallback(async (host) => {
       if (host === '') return false
@@ -84,7 +91,7 @@ export default function ModuleFrame({id, data}){
       }).catch((err)=>{
         return false
       })
-    },[data])
+    },[])
 
     const handelServerRender = useCallback(async () => {
       
@@ -97,40 +104,46 @@ export default function ModuleFrame({id, data}){
     }, [isFetchable, setCollapsible, collapsed, data] )
 
     useEffect(() => {
+      if (hosting === "") return
       var trials = 0;
           const fetched = setInterval(
           async () => {
-            const fetch = await isFetchable(data.host)
+            const fetch = await isFetchable(hosting)
                 if (fetch || trials > 10){
                   fetch && setReachable(true)
                       clearInterval(fetched)} 
                     trials++},1000) 
               
-    },[getNode(id).data.host])
+    },[hosting, isFetchable])
 
+    console.log(data)
 
     return (
+      <>
+    {/* <NodeResizer color="#ff0071" isVisible={true} minWidth={100} minHeight={30}/> */}
     <div className="w-auto h-auto">
-      
+      {console.log(width, height)}
       <div id={'draggable'}className=" flex w-full h-10 top-0 cursor-pointer">
-      <div id={'draggable'} title={collapsed ? "Expand Node" : "Collaspse Node"} className=" flex-none duration-300 cursor-pointer shadow-xl border-2 border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Blue rounded-xl" onClick={ async () => { await handelServerRender()}}><CgLayoutGridSmall className="h-full w-full text-white p-1"/></div>
+      <div id={'draggable'} title={collapsed ? "Expand Node" : "Collaspse Node"} className=" flex-none duration-300 cursor-pointer shadow-sm hover:shadow-2xl border-2 border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Blue rounded-xl" onClick={ async () => { await handelServerRender()}}><CgLayoutGridSmall className="h-full w-full text-white p-1"/></div>
 
       <div className={` flex ${!collapsed ? '' : 'w-0 hidden'}`}>
-                      <div title="Adjust Node Size" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Violet rounded-xl" onClick={() => {setSizeAdjuster((size) => !size)}}><TbResize className="h-full w-full text-white p-1"/></div>
-                      <a href={data.host} target="_blank" rel="noopener noreferrer"><div title="Gradio Host Site" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Pink rounded-xl"><BiCube className="h-full w-full text-white p-1"/></div></a>
-                      <div title="Delete Node" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Red rounded-xl" onClick={async () => data.delete([getNode(id)])}><BsTrash className="h-full w-full text-white p-1"/></div>
-                      <div title="Refresh Node" className="duration-300 cursor-pointer shadow-xl border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Orange rounded-xl"><BiRefresh className="h-full w-full text-white p-1"/></div>
+                      <div title="Adjust Node Size" className="duration-300 cursor-pointer border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Violet rounded-xl shadow-sm hover:shadow-2xl " onClick={() => {setSizeAdjuster((size) => !size)}}><TbResize className="h-full w-full text-white p-1"/></div>
+                      <a href={data.host} target="_blank" rel="noopener noreferrer"><div title="Gradio Host Site" className="duration-300 cursor-pointer shadow-sm hover:shadow-2xl border-2 dark:border-white border-white h-10 w-auto mr-2 -mt-3 bg-Warm-Pink rounded-xl"><BiCube className="h-full w-10 text-white p-1"/></div></a>
+                      <div title="Delete Node" className="duration-300 cursor-pointer shadow-sm hover:shadow-2xl  border-2 dark:border-white border-white h-10 w-auto mr-2 -mt-3 bg-Warm-Red rounded-xl" onClick={async () => data.delete([getNode(id)])}><BsTrash className="h-full w-10 text-white p-1"/></div>
+                      <div title="Refresh Node" className="duration-300 cursor-pointer shadow-sm hover:shadow-2xl  border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-Warm-Orange rounded-xl"><BiRefresh className="h-full w-full text-white p-1"/></div>
+                      <div title="Info" className="duration-300 cursor-pointer shadow-sm hover:shadow-2xl  border-2 dark:border-white border-white h-10 w-10 mr-2 -mt-3 bg-[#8bbd78] rounded-xl" onClick={() => setDisplayInfo((display) => !display)}><ImInfo className="h-full w-full text-white p-1"/></div>
         </div>
       </div>
 
       { !collapsed && reachable && <>
-          <animated.div className={`border-dashed  ${sizeAdjuster ? 'border-4 dark:border-white border-black' : ''} relative top-0 left-0 z-[1000] touch-none shadow-lg rounded-xl`} style={{width, height }} {...bind()}>
-            <div className={`absolute h-full w-full ${data.colour} shadow-2xl rounded-xl -z-20`}></div>
+          <animated.div className={`border-dashed  ${sizeAdjuster ? 'border-4 dark:border-white border-black' : ''} relative top-0 left-0 z-[1000] touch-none shadow-lg rounded-xl  `} style={{width, height }} {...bind()}>
+            <div id="draggable" className={`absolute h-full w-full ${data.colour} shadow-2xl rounded-xl -z-20`}></div>
+            <Info display={displayInfo} data={data}></Info>
             <iframe id="iframe" 
                         src={data.host} 
                         title={data.label}
                         frameBorder="0"
-                        className=" p-[0.6rem] -z-10 h-full w-full ml-auto mr-auto overflow-y-scroll"/>
+                        className={`p-[0.6rem] -z-10 h-full w-full ml-auto mr-auto overflow-y-scroll  `}/>
               <div className={` ${sizeAdjuster ? '' : 'hidden'} rounded-full border-2 absolute -bottom-4 -right-4 w-7 h-7 bg-Blue-Royal cursor-nwse-resize touch-none shadow-lg`} ref={dragElement}>
             </div>  
             </animated.div>
@@ -156,5 +169,8 @@ export default function ModuleFrame({id, data}){
                   <h2 className={`max-w-full font-sans text-blue-50 leading-tight font-bold text-3xl flex-1 z-20 pt-10`} style={{"textShadow" : "0px 1px 2px rgba(0, 0, 0, 0.25)"}} >{data.label}</h2>
               </div > 
         }
-      </div>)
+      </div>
+      </>)
 }
+
+export default memo(ModuleFrame);
